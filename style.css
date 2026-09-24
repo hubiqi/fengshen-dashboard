@@ -1,3 +1,6 @@
+/* ★ hidden 属性必须真正隐藏 —— 否则会被下面的 display:flex 覆盖 */
+[hidden]{display:none !important}
+
 :root{
   --bg:#f5f6f8; --card:#fff; --line:#e8eaef; --fg:#1c1f24; --sub:#6b7280;
   --blue:#1f6feb; --green:#12855a; --red:#c9362b; --amber:#b7791f;
