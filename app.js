@@ -370,19 +370,7 @@ function loadAll() {
   loadRt();
 }
 
-function loadScore() {
-  var r = computeRange();
-  var key = (S.level === 'agency') ? '' : S.key;
-  var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
-  $('dailyTbl').innerHTML = '<tr><td class="loading">加载中…</td></tr>';
-  api('/api/score?' + aq + 'level=' + S.level + '&key=' + q(key) + '&from=' + r[0] + '&to=' + r[1])
-    .then(function (j) {
-      renderScore(j);
-      $('scorePanel').querySelector('h2').innerHTML = '考核得分 <span class="hint">' +
-        (key ? (esc(S.keyName) + ' · ') : '') + '9月原UB商圈片口径</span>';
-    })
-    .catch(function (e) { $('dailyTbl').innerHTML = '<tr><td class="empty">' + esc(e.message) + '</td></tr>'; });
-}
+/* 旧版 loadScore 已移除（会覆盖新版并因 dailyTbl 不存在而抛错） */
 
 function loadRt() {
   var aq = ACCT ? '?acct=' + q(ACCT) : '';
