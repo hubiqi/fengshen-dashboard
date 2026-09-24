@@ -76,9 +76,11 @@ td.sc{font-size:11px;color:var(--sub)}
 .item .nm .sub{font-size:11px;color:var(--sub);margin-top:2px}
 .item .sc{font-size:19px;font-weight:700;color:var(--blue)}
 
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;
-  justify-content:center;padding:20px;z-index:99}
-.modal-card{background:#fff;border-radius:14px;padding:18px;width:100%;max-width:360px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:flex-start;
+  justify-content:center;padding:16px;z-index:99;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.modal-card{background:#fff;border-radius:14px;padding:18px;width:100%;max-width:380px;
+  margin:auto;max-height:calc(100vh - 32px);overflow-y:auto;-webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain}
 .modal-card label{display:block;font-size:12px;color:var(--sub);margin-bottom:10px}
 .modal-card input{width:100%;margin-top:4px;padding:9px;border:1px solid var(--line);
   border-radius:8px;font-size:13px}
@@ -140,3 +142,22 @@ td.sc{font-size:11px;color:var(--sub)}
 .login-foot{display:flex;justify-content:space-between;align-items:center;margin-top:14px;
   font-size:11px;color:var(--sub)}
 .linkbtn{background:none;border:0;color:var(--blue);font-size:11px;padding:0}
+
+.card-head{display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:-18px;background:#fff;padding:4px 0 10px;margin:-4px 0 0;z-index:2}
+.card-head h3{margin:0}
+
+/* ── 得分板 ─────────────────────────────────────────── */
+.sb-summary{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;margin-bottom:10px}
+.sb-card{flex:0 0 auto;min-width:150px;background:#f7f9fc;border-radius:11px;padding:10px 12px;border:1px solid #eaeef5}
+.sb-card.on{background:#e8f1ff;border-color:#c3dbff}
+.sb-card .nm{font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+.sb-card .big{font-size:24px;font-weight:700;color:var(--blue);line-height:1.15}
+.sb-card .sub2{font-size:11px;color:var(--sub);margin-top:3px}
+.sb-card .sub2 b{color:var(--fg)}
+.chart-title{font-size:12px;color:var(--sub);margin:14px 0 6px}
+.chart-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--sub);margin-top:6px}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:4px;vertical-align:middle}
+.chk{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--sub);margin-left:6px}
+.chk input{width:auto;margin:0}

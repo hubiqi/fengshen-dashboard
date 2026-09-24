@@ -72,9 +72,12 @@
   <section class="cards" id="cards"></section>
 
   <section class="panel" id="scorePanel">
-    <h2>考核得分 <span class="hint" id="scoreHint"></span></h2>
-    <div class="period" id="period"></div>
-    <div class="daily-wrap"><table id="dailyTbl"></table></div>
+    <h2>考核得分 · 按商圈片 <span class="hint" id="scoreHint"></span></h2>
+    <div id="sbSummary" class="sb-summary"></div>
+    <div class="daily-wrap"><table id="sbTbl"></table></div>
+    <div class="chart-title">全月每日得分走势 <span class="hint">（实线=大网质量得分，虚线=妥投/准时/不满意）</span></div>
+    <div class="chart-wrap"><div id="sbChart"></div></div>
+    <div class="legend" id="sbLegend"></div>
   </section>
 
   <section class="panel" id="listPanel">
@@ -92,7 +95,8 @@
 <!-- 设置 -->
 <div class="modal" id="cfgModal" hidden>
   <div class="modal-card">
-    <h3>账号与设置</h3>
+    <div class="card-head"><h3>账号与设置</h3>
+      <button id="btnClose" class="mini">关闭 ✕</button></div>
 
     <div class="sec-title">① 风神数据账号</div>
     <div id="acctList" class="acct-list"></div>
@@ -109,7 +113,10 @@
       <input type="date" id="pFrom"><span class="to">→</span><input type="date" id="pTo">
     </div>
     <span class="sub">只拉本地没有的日期；今天永远重拉。</span>
-    <div class="row"><button id="btnPull2" class="primary">开始拉取</button></div>
+    <div class="row"><button id="btnPull2" class="primary">开始拉取</button>
+      <label class="chk"><input type="checkbox" id="forcePull"> 覆盖已有数据</label>
+    </div>
+    <span class="sub">默认<b>不覆盖</b>：已完整拉取的日期直接跳过，连请求都不发。今天永远重拉。</span>
     <div class="hint" id="progText"></div>
 
     <details class="adv">
@@ -122,7 +129,6 @@
       <div class="row"><button id="cfgSave" class="ghost">保存接口地址</button></div>
     </details>
 
-    <div class="row"><button id="btnClose" class="ghost">关闭</button></div>
     <div class="hint" id="cfgStatus"></div>
   </div>
 </div>

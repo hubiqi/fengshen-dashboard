@@ -129,36 +129,111 @@ function renderCards(t) {
   $('cards').innerHTML = c.join('');
 }
 
-/* ── 得分 ─────────────────────────────────────────────────────────── */
-function fmt(v) { return v == null ? '—' : Number(v).toFixed(1); }
-function renderScore(res) {
-  var p = res.period || {};
-  var ph = '<div class="pchip big"><div class="k">周期大网质量得分</div><div class="v">' +
-    (p.bigNet == null ? '—' : p.bigNet.toFixed(2)) + '</div></div>';
-  [['likt', '妥投率得分'], ['ontime', '准时率得分'], ['dissat', '不满意率得分']].forEach(function (x) {
-    ph += '<div class="pchip"><div class="k">' + x[1] + '</div><div class="v">' +
-      (p[x[0]] == null ? '—' : p[x[0]].toFixed(2)) + '</div></div>';
-  });
-  $('period').innerHTML = ph;
+/* ── 得分（按商圈片）──────────────────────────────────────────────── */
+var SB = { districts: [], sel: null };
+function fmt1(v) { return v == null ? '—' : Number(v).toFixed(1); }
 
-  var rows = res.daily || [];
-  if (!rows.length) { $('dailyTbl').innerHTML = '<tr><td class="empty">该区间暂无数据</td></tr>'; return; }
-  var h = '<thead><tr><th>日期</th><th>场景</th><th>完单</th><th>妥投率</th><th>妥投得分</th>' +
-    '<th>准时率</th><th>准时得分</th><th>不满意率</th><th>不满意得分</th><th>日小计</th></tr></thead><tbody>';
-  rows.forEach(function (r) {
-    var sub = 0, n = 0;
-    ['likt', 'ontime', 'dissat'].forEach(function (m) {
-      if (r[m + '_score'] != null) { sub += r[m + '_score'] * ({ likt: .2, ontime: .3, dissat: .2 })[m]; n += ({ likt: .2, ontime: .3, dissat: .2 })[m]; }
-    });
-    h += '<tr><td>' + r.date.slice(5) + '</td><td class="sc">' + (r.scene || '') + '</td>' +
-      '<td>' + num(r.orders) + '</td>' +
-      '<td>' + pct(r.likt) + '</td><td class="' + scoreCls(r.likt_score) + '"><b>' + fmt(r.likt_score) + '</b></td>' +
-      '<td>' + pct(r.ontime) + '</td><td class="' + scoreCls(r.ontime_score) + '"><b>' + fmt(r.ontime_score) + '</b></td>' +
-      '<td>' + pct(r.dissat, 3) + '</td><td class="' + scoreCls(r.dissat_score) + '"><b>' + fmt(r.dissat_score) + '</b></td>' +
-      '<td><b>' + (n > 0 ? (sub / n).toFixed(2) : '—') + '</b></td></tr>';
+function renderScoreBoard(j) {
+  SB.districts = j.districts || [];
+  if (!SB.districts.length) {
+    $('sbSummary').innerHTML = '<div class="empty">该月暂无数据（先去 ⚙ 拉取）</div>';
+    $('sbTbl').innerHTML = '';
+    $('sbChart').innerHTML = '';
+    $('sbLegend').innerHTML = '';
+    return;
+  }
+  if (!SB.sel || !SB.districts.some(function (d) { return d.id === SB.sel; })) SB.sel = SB.districts[0].id;
+
+  $('sbSummary').innerHTML = SB.districts.map(function (d) {
+    var m = d.month || {}, t = d.today || {};
+    return '<div class="sb-card' + (d.id === SB.sel ? ' on' : '') + '" data-id="' + esc(d.id) + '">' +
+      '<div class="nm">' + esc(d.name) + '</div>' +
+      '<div class="big">' + fmt1(m.bigNet) + '</div>' +
+      '<div class="sub2">全月 · ' + d.days + '天</div>' +
+      '<div class="sub2">今日 <b>' + (t.dayNet == null ? '—' : fmt1(t.dayNet)) + '</b>' +
+      ' · 完单 ' + num(d.todayOrders) + ' · 出勤 ' + num(d.todayAttend) + '</div>' +
+      '</div>';
+  }).join('');
+  Array.prototype.forEach.call($('sbSummary').querySelectorAll('.sb-card'), function (el) {
+    el.onclick = function () { SB.sel = el.getAttribute('data-id'); renderScoreBoard(j); };
   });
-  $('dailyTbl').innerHTML = h + '</tbody>';
-  $('scoreHint').textContent = '（日小计 = 妥投20%+准时30%+不满意20% 归一化，不含复合时长与服务过程项）';
+
+  // 明细表：每个商圈片一行 —— 全月得分 + 今日得分 + 今日指标
+  var h = '<thead><tr><th>商圈片</th><th>全月得分</th><th>全月妥投</th><th>全月准时</th>' +
+    '<th>全月不满意</th><th>今日得分</th><th>今日完单</th><th>今日出勤</th>' +
+    '<th>今日妥投率</th><th>今日准时率</th><th>今日不满意率</th><th>今日人效</th></tr></thead><tbody>';
+  SB.districts.forEach(function (d) {
+    var m = d.month || {}, t = d.today || {};
+    h += '<tr><td>' + esc(d.name) + '</td>' +
+      '<td class="' + scoreCls(m.bigNet) + '"><b>' + fmt1(m.bigNet) + '</b></td>' +
+      '<td>' + fmt1(m.likt) + '</td><td>' + fmt1(m.ontime) + '</td><td>' + fmt1(m.dissat) + '</td>' +
+      '<td class="' + scoreCls(t.dayNet) + '"><b>' + fmt1(t.dayNet) + '</b></td>' +
+      '<td>' + num(d.todayOrders) + '</td><td>' + num(d.todayAttend) + '</td>' +
+      '<td>' + pct(t.likt) + '</td><td>' + pct(t.ontime) + '</td><td>' + pct(t.dissat, 3) + '</td>' +
+      '<td>' + (t.efficiency == null ? '—' : t.efficiency) + '</td></tr>';
+  });
+  $('sbTbl').innerHTML = h + '</tbody>';
+  $('scoreHint').textContent = '（今日数据来自运单明细实时聚合；考核明细 T+1 才更新，两者可交叉验证）';
+  drawChart();
+}
+
+function drawChart() {
+  var d = SB.districts.filter(function (x) { return x.id === SB.sel; })[0];
+  if (!d || !d.series || !d.series.length) { $('sbChart').innerHTML = ''; $('sbLegend').innerHTML = ''; return; }
+  var rows = d.series;
+  var W = Math.max(320, rows.length * 42 + 90), H = 190;
+  var pad = { l: 34, r: 10, t: 10, b: 24 };
+  var iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+  var SER = [
+    { k: 'dayNet', c: '#1f6feb', w: 2.4, dash: '', name: '大网质量得分' },
+    { k: 'likt_score', c: '#12855a', w: 1.4, dash: '5 3', name: '妥投得分' },
+    { k: 'ontime_score', c: '#b7791f', w: 1.4, dash: '5 3', name: '准时得分' },
+    { k: 'dissat_score', c: '#c9362b', w: 1.4, dash: '5 3', name: '不满意得分' },
+  ];
+  var X = function (i) { return pad.l + (rows.length === 1 ? iw / 2 : iw * i / (rows.length - 1)); };
+  var Y = function (v) { return pad.t + ih * (1 - Math.max(0, Math.min(100, v)) / 100); };
+  var out = ['<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">'];
+  [0, 20, 40, 60, 80, 100].forEach(function (g) {
+    out.push('<line x1="' + pad.l + '" y1="' + Y(g) + '" x2="' + (W - pad.r) + '" y2="' + Y(g) +
+      '" stroke="#eef1f6" stroke-width="1"/>');
+    out.push('<text x="' + (pad.l - 4) + '" y="' + (Y(g) + 3) + '" font-size="9" fill="#9aa3af" text-anchor="end">' + g + '</text>');
+  });
+  rows.forEach(function (r, i) {
+    out.push('<text x="' + X(i) + '" y="' + (H - 7) + '" font-size="9" fill="#9aa3af" text-anchor="middle">' +
+      r.date.slice(5) + '</text>');
+  });
+  SER.forEach(function (sr) {
+    var pts = [];
+    rows.forEach(function (r, i) { if (r[sr.k] != null) pts.push(X(i) + ',' + Y(r[sr.k])); });
+    if (pts.length > 1) {
+      out.push('<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + sr.c +
+        '" stroke-width="' + sr.w + '"' + (sr.dash ? ' stroke-dasharray="' + sr.dash + '"' : '') + '/>');
+    }
+    rows.forEach(function (r, i) {
+      if (r[sr.k] == null) return;
+      out.push('<circle cx="' + X(i) + '" cy="' + Y(r[sr.k]) + '" r="' + (sr.dash ? 1.8 : 2.6) +
+        '" fill="' + sr.c + '"><title>' + r.date + ' ' + sr.name + ' ' + fmt1(r[sr.k]) + '</title></circle>');
+    });
+  });
+  out.push('</svg>');
+  $('sbChart').innerHTML = out.join('');
+  $('sbLegend').innerHTML = SER.map(function (sr) {
+    return '<span><i style="background:' + sr.c + '"></i>' + sr.name + '</span>';
+  }).join('');
+}
+
+function loadScore() {
+  var r = computeRange();
+  var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
+  var day = r[0] || today();
+  var month = day.slice(0, 7);
+  $('sbSummary').innerHTML = '<div class="loading">加载中…</div>';
+  api('/api/scoreboard?' + aq + 'month=' + month + '&day=' + day)
+    .then(renderScoreBoard)
+    .catch(function (e) {
+      $('sbSummary').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+      $('sbTbl').innerHTML = ''; $('sbChart').innerHTML = '';
+    });
 }
 
 /* ── 对象列表 ─────────────────────────────────────────────────────── */
@@ -352,9 +427,10 @@ function pollProgress() {
 }
 
 function startPull(f, t) {
-  $('progText').textContent = '已提交拉取任务 ' + f + ' ~ ' + t + ' …';
+  var fc = !!($('forcePull') && $('forcePull').checked);
+  $('progText').textContent = '已提交拉取任务 ' + f + ' ~ ' + t + (fc ? '（覆盖模式）' : '（跳过已完整拉取的日期）') + ' …';
   api('/api/pull', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: f, to: t, acct: ACCT }) })
+    body: JSON.stringify({ from: f, to: t, acct: ACCT, force: !!($('forcePull') && $('forcePull').checked) }) })
     .then(function (j) {
       if (!j.ok && j.error) { $('progText').textContent = '✗ ' + j.error; return; }
       pollProgress();
