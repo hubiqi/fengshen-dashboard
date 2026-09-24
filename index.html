@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f6feb">
+<title>风神考核看板</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ═══ 登录 / 首次设置 ═══ -->
+<div id="loginView" class="login-view">
+  <div class="login-card">
+    <h1>风神考核看板</h1>
+    <div id="setupTip" class="login-tip" hidden>首次访问，请设置管理账号与密码</div>
+
+    <label>账号<input id="lgUser" autocomplete="username" placeholder="用户名"></label>
+    <label>密码<input id="lgPwd" type="password" autocomplete="current-password" placeholder="至少 8 位"></label>
+    <label id="lgPwd2Wrap" hidden>确认密码<input id="lgPwd2" type="password" autocomplete="new-password"></label>
+
+    <button id="lgBtn" class="primary block">登录</button>
+    <div id="lgMsg" class="login-msg"></div>
+    <div class="login-foot">
+      <span id="apiHint"></span>
+      <button id="lgCfg" class="linkbtn">接口地址</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 看板 ═══ -->
+<div id="appView" hidden>
+<header class="hero">
+  <div class="hero-top">
+    <h1>风神考核看板</h1>
+    <div class="hero-btns">
+      <button id="btnPull" class="ghost" title="拉取缺失数据">↻</button>
+      <button id="btnCfg" class="ghost" title="账号与设置">⚙</button>
+    </div>
+  </div>
+  <div class="acctbar">
+    <select id="acctSel"></select>
+    <span id="acctState" class="acct-state"></span>
+  </div>
+  <div id="heroSub" class="hero-sub">加载中…</div>
+  <div id="heroState" class="hero-state"></div>
+</header>
+
+<nav class="tabs" id="lvlTabs">
+  <button data-lvl="agency" class="on">整商</button>
+  <button data-lvl="district">商圈片</button>
+  <button data-lvl="site">站点</button>
+  <button data-lvl="rider">骑手</button>
+</nav>
+
+<section class="rangebar">
+  <div class="quick" id="quick">
+    <button data-q="today" class="on">今天</button>
+    <button data-q="yesterday">昨天</button>
+    <button data-q="before">前天</button>
+    <button data-q="custom">选日期</button>
+    <button data-q="range">区间</button>
+  </div>
+  <div class="dates" id="dates" hidden>
+    <input type="date" id="d1"><span class="to">→</span><input type="date" id="d2">
+    <button id="btnApply" class="primary">应用</button>
+  </div>
+  <div class="rangetext" id="rangeText"></div>
+</section>
+
+<main>
+  <section class="cards" id="cards"></section>
+
+  <section class="panel" id="scorePanel">
+    <h2>考核得分 <span class="hint" id="scoreHint"></span></h2>
+    <div class="period" id="period"></div>
+    <div class="daily-wrap"><table id="dailyTbl"></table></div>
+  </section>
+
+  <section class="panel" id="listPanel">
+    <h2 id="listTitle">明细</h2>
+    <div class="list" id="list"></div>
+  </section>
+
+  <section class="panel" id="rtPanel" hidden>
+    <h2>今日实时（风神实时运营罗盘）</h2>
+    <div class="list" id="rt"></div>
+  </section>
+</main>
+</div>
+
+<!-- 设置 -->
+<div class="modal" id="cfgModal" hidden>
+  <div class="modal-card">
+    <h3>账号与设置</h3>
+
+    <div class="sec-title">① 风神数据账号</div>
+    <div id="acctList" class="acct-list"></div>
+
+    <div class="sec-title">② 新增风神账号（后端自动登录）</div>
+    <label>风神登录手机号<input id="newAcc" inputmode="numeric" placeholder="18698338856"></label>
+    <label>密码<input id="newPwd" type="password" placeholder="登录密码"></label>
+    <div class="row">
+      <button id="btnAdd" class="primary">添加并登录</button>
+    </div>
+
+    <div class="sec-title">③ 拉取数据</div>
+    <div class="dates">
+      <input type="date" id="pFrom"><span class="to">→</span><input type="date" id="pTo">
+    </div>
+    <span class="sub">只拉本地没有的日期；今天永远重拉。</span>
+    <div class="row"><button id="btnPull2" class="primary">开始拉取</button></div>
+    <div class="hint" id="progText"></div>
+
+    <details class="adv">
+      <summary>高级</summary>
+      <label>修改看板密码
+        <input id="pwNew" type="password" placeholder="新密码（至少 8 位）"></label>
+      <div class="row"><button id="btnPw" class="ghost">改密</button>
+        <button id="btnLogout" class="ghost">退出登录</button></div>
+      <label>接口地址<input id="cfgApi" placeholder="留空 = 同源"></label>
+      <div class="row"><button id="cfgSave" class="ghost">保存接口地址</button></div>
+    </details>
+
+    <div class="row"><button id="btnClose" class="ghost">关闭</button></div>
+    <div class="hint" id="cfgStatus"></div>
+  </div>
+</div>
+
+<!-- 验证码 -->
+<div class="modal" id="capModal" hidden>
+  <div class="modal-card">
+    <h3>请输入图形验证码</h3>
+    <div class="cap-wrap"><img id="capImg" alt="验证码"></div>
+    <label>验证码<input id="capCode" autocomplete="off" placeholder="图中字符"></label>
+    <div class="row">
+      <button id="capOk" class="primary">提交</button>
+      <button id="capCancel" class="ghost">取消</button>
+    </div>
+    <div class="hint" id="capMsg"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

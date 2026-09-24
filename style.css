@@ -1,0 +1,139 @@
+:root{
+  --bg:#f5f6f8; --card:#fff; --line:#e8eaef; --fg:#1c1f24; --sub:#6b7280;
+  --blue:#1f6feb; --green:#12855a; --red:#c9362b; --amber:#b7791f;
+  --w0:96px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:14px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+h1{font-size:17px;margin:0;font-weight:600}
+h2{font-size:15px;margin:0 0 10px;font-weight:600}
+h3{font-size:15px;margin:0 0 12px}
+
+.hero{background:linear-gradient(135deg,#1f6feb,#2b8cf0);color:#fff;padding:14px 16px 16px;
+  border-radius:0 0 16px 16px}
+.hero-top{display:flex;align-items:center;justify-content:space-between}
+.hero-sub{font-size:12px;opacity:.9;margin-top:6px;line-height:1.4}
+.ghost{background:rgba(255,255,255,.18);color:#fff;border:0;border-radius:8px;
+  padding:5px 10px;font-size:13px}
+.modal .ghost{background:#eef0f4;color:#333}
+
+.tabs{display:flex;gap:6px;padding:12px 16px 0}
+.tabs button{flex:1;padding:9px 0;border:0;border-radius:10px;background:#fff;color:var(--sub);
+  font-size:14px;font-weight:500;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.tabs button.on{background:var(--blue);color:#fff}
+
+.rangebar{padding:10px 16px 0}
+.quick{display:flex;gap:6px;flex-wrap:wrap}
+.quick button{padding:7px 12px;border:1px solid var(--line);background:#fff;border-radius:999px;
+  font-size:13px;color:var(--sub)}
+.quick button.on{background:#e8f1ff;border-color:#bcd8ff;color:var(--blue);font-weight:600}
+.dates{display:flex;align-items:center;gap:8px;margin-top:8px}
+.dates input{flex:1;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:13px;
+  background:#fff;min-width:0}
+.to{color:var(--sub)}
+.primary{background:var(--blue);color:#fff;border:0;border-radius:8px;padding:8px 14px;font-size:13px}
+.rangetext{font-size:12px;color:var(--sub);margin-top:8px}
+
+main{padding:12px 16px 40px}
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.card{background:var(--card);border-radius:12px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.card .k{font-size:12px;color:var(--sub)}
+.card .v{font-size:22px;font-weight:650;margin-top:4px;letter-spacing:-.3px}
+.card .u{font-size:12px;font-weight:400;color:var(--sub);margin-left:2px}
+.card .d{font-size:11px;color:var(--sub);margin-top:3px}
+.card.wide{grid-column:span 2}
+.g{color:var(--green)}.r{color:var(--red)}.a{color:var(--amber)}
+
+.panel{background:var(--card);border-radius:12px;padding:14px;margin-top:12px;
+  box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.hint{font-size:11px;color:var(--sub);font-weight:400}
+
+.period{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.pchip{background:#f2f5fa;border-radius:10px;padding:8px 10px;min-width:74px}
+.pchip .k{font-size:11px;color:var(--sub)}
+.pchip .v{font-size:18px;font-weight:650}
+.pchip.big{background:#e8f1ff}
+.pchip.big .v{color:var(--blue)}
+
+.daily-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{border-collapse:separate;border-spacing:0;font-size:12px;min-width:100%}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:#fff;z-index:1;
+  min-width:var(--w0)}
+thead th{color:var(--sub);font-weight:500;background:#fafbfc;position:sticky;top:0}
+thead th:first-child{background:#fafbfc;z-index:2}
+td.sc{font-size:11px;color:var(--sub)}
+.badge{display:inline-block;padding:1px 5px;border-radius:4px;font-size:10px;background:#eef1f6;color:#555}
+
+.list{display:flex;flex-direction:column;gap:8px}
+.item{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;background:#fafbfc}
+.item .nm{flex:1;min-width:0;font-size:13px}
+.item .nm b{font-weight:600}
+.item .nm .sub{font-size:11px;color:var(--sub);margin-top:2px}
+.item .sc{font-size:19px;font-weight:700;color:var(--blue)}
+
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;
+  justify-content:center;padding:20px;z-index:99}
+.modal-card{background:#fff;border-radius:14px;padding:18px;width:100%;max-width:360px}
+.modal-card label{display:block;font-size:12px;color:var(--sub);margin-bottom:10px}
+.modal-card input{width:100%;margin-top:4px;padding:9px;border:1px solid var(--line);
+  border-radius:8px;font-size:13px}
+.modal-card .row{display:flex;gap:8px;margin-top:6px}
+.empty{color:var(--sub);font-size:13px;padding:14px 0;text-align:center}
+.loading{color:var(--sub);font-size:13px;padding:14px 0;text-align:center}
+
+.notice{background:#fff8e6;border:1px solid #ffe2a8;color:#7a5b12;border-radius:10px;
+  padding:10px 12px;font-size:13px;margin-bottom:12px;display:flex;align-items:center;
+  gap:8px;flex-wrap:wrap}
+.notice .primary{padding:5px 10px;font-size:12px}
+
+/* ── 账号条 ─────────────────────────────────────────── */
+.acctbar{display:flex;align-items:center;gap:8px;margin-top:10px}
+.acctbar select{flex:1;min-width:0;background:rgba(255,255,255,.16);color:#fff;border:0;
+  border-radius:9px;padding:7px 10px;font-size:13px;appearance:none}
+.acctbar select option{color:#222}
+.acct-state{font-size:12px;opacity:.92;white-space:nowrap}
+.hero-state{font-size:11px;opacity:.8;margin-top:5px}
+
+/* ── 设置里的账号列表 ───────────────────────────────── */
+.sec-title{font-size:12px;font-weight:600;color:#333;margin:16px 0 8px;
+  padding-top:12px;border-top:1px solid var(--line)}
+.sec-title:first-of-type{margin-top:8px;padding-top:0;border-top:0}
+.acct-list{display:flex;flex-direction:column;gap:7px}
+.acct-row{display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:9px;background:#f7f8fa}
+.acct-row.on{background:#e8f1ff}
+.acct-row .nm{flex:1;min-width:0;font-size:12.5px}
+.acct-row .nm b{font-size:13px}
+.acct-row .nm .sub{font-size:11px;color:var(--sub);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mini{padding:4px 8px;font-size:11px;border:1px solid var(--line);background:#fff;
+  border-radius:7px;color:#444;white-space:nowrap}
+.mini.danger{color:var(--red);border-color:#f3c9c5}
+.modal-card label .sub,.modal-card .sub{display:block;font-size:11px;color:var(--sub);
+  margin-top:3px;line-height:1.4}
+.modal-card textarea{width:100%;margin-top:4px;padding:8px;border:1px solid var(--line);
+  border-radius:8px;font-size:12px;font-family:inherit;resize:vertical}
+.cap-wrap{text-align:center;margin:6px 0 12px}
+.cap-wrap img{max-width:100%;border-radius:8px;border:1px solid var(--line);background:#fff}
+.adv{margin-top:14px}
+.adv summary{font-size:12px;color:var(--sub);cursor:pointer;padding:6px 0}
+.adv label{margin-top:8px}
+.empty{padding:10px 0}
+
+/* ── 登录页 ─────────────────────────────────────────── */
+.login-view{min-height:100vh;display:flex;align-items:center;justify-content:center;
+  padding:24px;background:linear-gradient(160deg,#1f6feb,#0d47a1)}
+.login-card{width:100%;max-width:360px;background:#fff;border-radius:16px;padding:24px 22px;
+  box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.login-card h1{font-size:19px;margin:0 0 4px;text-align:center}
+.login-tip{font-size:12.5px;color:#b7791f;background:#fff8e6;border:1px solid #ffe2a8;
+  border-radius:9px;padding:8px 10px;margin:10px 0 4px;text-align:center}
+.login-card label{display:block;font-size:12px;color:var(--sub);margin:12px 0 0}
+.login-card input{width:100%;margin-top:5px;padding:11px;border:1px solid var(--line);
+  border-radius:10px;font-size:15px}
+.primary.block{width:100%;margin-top:18px;padding:12px;font-size:15px;border-radius:10px}
+.login-msg{font-size:12.5px;color:var(--red);margin-top:10px;min-height:16px;text-align:center}
+.login-foot{display:flex;justify-content:space-between;align-items:center;margin-top:14px;
+  font-size:11px;color:var(--sub)}
+.linkbtn{background:none;border:0;color:var(--blue);font-size:11px;padding:0}
