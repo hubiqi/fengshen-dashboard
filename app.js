@@ -250,15 +250,21 @@ function renderAcctList() {
 }
 
 function doLogin(account, password) {
+  if (!TOKEN || $('appView').hidden) { showLogin(false); return; }
   $('cfgStatus').textContent = '正在启动无头浏览器登录 ' + account + ' …（约 20-40 秒）';
   api('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ account: account, password: password }) })
     .then(function (j) {
       if (j.status === 'captcha') {
+        // ★ 验证码只可能在「已登录看板 + 添加风神账号」时出现
+        if (!TOKEN || document.getElementById('appView').hidden) {
+          $('cfgStatus').textContent = '✗ 需要先登录看板';
+          return;
+        }
         LOGIN.sid = j.sid; LOGIN.account = account;
+        // 只用内嵌 base64（图片 URL 需要额外放行，不安全）
         var mime = j.captchaMime || 'image/png';
-        var u = j.captchaUrl ? ((API || '').replace(/\/$/, '') + j.captchaUrl) : null;
-        $('capImg').src = u || ('data:' + mime + ';base64,' + j.captcha);
+        $('capImg').src = 'data:' + mime + ';base64,' + j.captcha;
         $('capMsg').textContent = j.tip || '';
         $('capModal').hidden = false;
         $('cfgStatus').textContent = '需要图形验证码';
@@ -439,10 +445,7 @@ $('capOk').onclick = function () {
         return loadAccounts().then(function () { loadAll(); });
       }
       if (j.status === 'captcha') {
-        var mime2 = j.captchaMime || 'image/png';
-        $('capImg').src = j.captchaUrl
-          ? ((API || '').replace(/\/$/, '') + j.captchaUrl + '?t=' + Date.now())
-          : ('data:' + mime2 + ';base64,' + j.captcha);
+        $('capImg').src = 'data:' + (j.captchaMime || 'image/png') + ';base64,' + j.captcha;
         $('capMsg').textContent = '验证码不对，换一个再试';
         return;
       }
