@@ -148,13 +148,26 @@ td.sc{font-size:11px;color:var(--sub)}
 .card-head h3{margin:0}
 
 /* ── 得分板 ─────────────────────────────────────────── */
-.sb-summary{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;margin-bottom:10px}
-.sb-card{flex:0 0 auto;min-width:150px;background:#f7f9fc;border-radius:11px;padding:10px 12px;border:1px solid #eaeef5}
-.sb-card.on{background:#e8f1ff;border-color:#c3dbff}
-.sb-card .nm{font-size:12px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
-.sb-card .big{font-size:24px;font-weight:700;color:var(--blue);line-height:1.15}
-.sb-card .sub2{font-size:11px;color:var(--sub);margin-top:3px}
-.sb-card .sub2 b{color:var(--fg)}
+.sb-list{display:flex;flex-direction:column;gap:12px}
+.sb-card{background:#f7f9fc;border-radius:12px;padding:12px 14px;border:1px solid #eaeef5}
+.sb-card.on{border-color:#c3dbff;background:#f2f7ff}
+.sb-name{font-size:14px;font-weight:650;margin-bottom:8px}
+.sb-name .badge{font-size:10px;font-weight:400;background:#eef1f6;color:#666;
+  border-radius:4px;padding:1px 5px;margin-left:4px;vertical-align:middle}
+.sb-head{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.sb-h{background:#fff;border-radius:10px;padding:9px 11px;border:1px solid #eef1f6}
+.sb-h .k{font-size:11px;color:var(--sub)}
+.sb-h .v{font-size:26px;font-weight:700;color:var(--blue);line-height:1.15}
+.sb-h .k2{font-size:10.5px;color:var(--sub);margin-top:2px}
+.sb-sec{font-size:11px;color:var(--sub);margin:8px 0 5px;padding-top:6px;border-top:1px dashed #e3e8f0}
+.sb-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.sb-cell{background:#fff;border:1px solid #eef1f6;border-radius:9px;padding:7px 9px}
+.sb-cell .k{font-size:11px;color:var(--sub)}
+.sb-cell .row2{display:flex;align-items:baseline;justify-content:space-between;margin-top:2px}
+.sb-cell .val{font-size:13.5px;font-weight:600}
+.sb-cell .sc{font-size:15px;font-weight:700;color:var(--blue)}
+.sb-cell .sc.g{color:var(--green)} .sb-cell .sc.r{color:var(--red)}
+.sb-none{font-size:12px;color:var(--sub);padding:4px 0}
 .chart-title{font-size:12px;color:var(--sub);margin:14px 0 6px}
 .chart-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--sub);margin-top:6px}

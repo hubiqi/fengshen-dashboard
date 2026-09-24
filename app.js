@@ -137,43 +137,51 @@ function renderScoreBoard(j) {
   SB.districts = j.districts || [];
   if (!SB.districts.length) {
     $('sbSummary').innerHTML = '<div class="empty">该月暂无数据（先去 ⚙ 拉取）</div>';
-    $('sbTbl').innerHTML = '';
-    $('sbChart').innerHTML = '';
-    $('sbLegend').innerHTML = '';
+    $('sbChart').innerHTML = ''; $('sbLegend').innerHTML = '';
+    $('scoreHint').textContent = '';
     return;
   }
   if (!SB.sel || !SB.districts.some(function (d) { return d.id === SB.sel; })) SB.sel = SB.districts[0].id;
 
+  var M4 = ['likt', 'ontime', 'dissat', 'dur'];
+  function pctOrNum(k, v) {
+    if (v == null) return '—';
+    return (k === 'dur') ? (Number(v).toFixed(2)) : (v * 100).toFixed(k === 'dissat' ? 3 : 2) + '%';
+  }
+  function block(title, obj) {
+    if (!obj) return '<div class="sb-sec">' + title + '</div><div class="sb-none">暂无数据</div>';
+    var h = '<div class="sb-sec">' + title + '</div><div class="sb-grid">';
+    M4.forEach(function (k) {
+      var m = (obj.metrics || {})[k] || {};
+      h += '<div class="sb-cell"><div class="k">' + esc(m.label || k) + '</div>' +
+        '<div class="row2"><span class="val">' + pctOrNum(k, m.value) + '</span>' +
+        '<span class="sc ' + scoreCls(m.score) + '">' + (m.score == null ? '—' : Number(m.score).toFixed(1)) + '</span></div></div>';
+    });
+    return h + '</div>';
+  }
+
   $('sbSummary').innerHTML = SB.districts.map(function (d) {
-    var m = d.month || {}, t = d.today || {};
+    var m = d.month || {}, t = d.today;
     return '<div class="sb-card' + (d.id === SB.sel ? ' on' : '') + '" data-id="' + esc(d.id) + '">' +
-      '<div class="nm">' + esc(d.name) + '</div>' +
-      '<div class="big">' + fmt1(m.bigNet) + '</div>' +
-      '<div class="sub2">全月 · ' + d.days + '天</div>' +
-      '<div class="sub2">今日 <b>' + (t.dayNet == null ? '—' : fmt1(t.dayNet)) + '</b>' +
-      ' · 完单 ' + num(d.todayOrders) + ' · 出勤 ' + num(d.todayAttend) + '</div>' +
+      '<div class="sb-name">' + esc(d.name) + ' <span class="badge">' + d.days + '天</span></div>' +
+      '<div class="sb-head">' +
+        '<div class="sb-h"><div class="k">今日得分</div><div class="v ' + scoreCls(t && t.dayNet) + '">' +
+          ((t && t.dayNet != null) ? Number(t.dayNet).toFixed(1) : '—') + '</div>' +
+          '<div class="k2">' + (t ? ('完单 ' + num(t.orders) + ' · 出勤 ' + num(t.attend) +
+            ' · 人效 ' + (t.efficiency == null ? '—' : t.efficiency)) : '当日无数据') + '</div></div>' +
+        '<div class="sb-h"><div class="k">全月得分</div><div class="v ' + scoreCls(m.bigNet) + '">' +
+          (m.bigNet != null ? Number(m.bigNet).toFixed(1) : '—') + '</div>' +
+          '<div class="k2">' + (j.from + ' ~ ' + j.to) + '</div></div>' +
+      '</div>' +
+      block('今日（' + (t ? t.date.slice(5) : '—') + '）', t) +
+      block('全月', m) +
       '</div>';
   }).join('');
   Array.prototype.forEach.call($('sbSummary').querySelectorAll('.sb-card'), function (el) {
     el.onclick = function () { SB.sel = el.getAttribute('data-id'); renderScoreBoard(j); };
   });
 
-  // 明细表：每个商圈片一行 —— 全月得分 + 今日得分 + 今日指标
-  var h = '<thead><tr><th>商圈片</th><th>全月得分</th><th>全月妥投</th><th>全月准时</th>' +
-    '<th>全月不满意</th><th>今日得分</th><th>今日完单</th><th>今日出勤</th>' +
-    '<th>今日妥投率</th><th>今日准时率</th><th>今日不满意率</th><th>今日人效</th></tr></thead><tbody>';
-  SB.districts.forEach(function (d) {
-    var m = d.month || {}, t = d.today || {};
-    h += '<tr><td>' + esc(d.name) + '</td>' +
-      '<td class="' + scoreCls(m.bigNet) + '"><b>' + fmt1(m.bigNet) + '</b></td>' +
-      '<td>' + fmt1(m.likt) + '</td><td>' + fmt1(m.ontime) + '</td><td>' + fmt1(m.dissat) + '</td>' +
-      '<td class="' + scoreCls(t.dayNet) + '"><b>' + fmt1(t.dayNet) + '</b></td>' +
-      '<td>' + num(d.todayOrders) + '</td><td>' + num(d.todayAttend) + '</td>' +
-      '<td>' + pct(t.likt) + '</td><td>' + pct(t.ontime) + '</td><td>' + pct(t.dissat, 3) + '</td>' +
-      '<td>' + (t.efficiency == null ? '—' : t.efficiency) + '</td></tr>';
-  });
-  $('sbTbl').innerHTML = h + '</tbody>';
-  $('scoreHint').textContent = '（今日数据来自运单明细实时聚合；考核明细 T+1 才更新，两者可交叉验证）';
+  $('scoreHint').textContent = '（本表恒为整月，不受顶部日期区间影响；今日数据来自运单分页，全月来自 T-1 考核明细）';
   drawChart();
 }
 
@@ -232,7 +240,7 @@ function loadScore() {
     .then(renderScoreBoard)
     .catch(function (e) {
       $('sbSummary').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
-      $('sbTbl').innerHTML = ''; $('sbChart').innerHTML = '';
+      $('sbChart').innerHTML = '';
     });
 }
 
