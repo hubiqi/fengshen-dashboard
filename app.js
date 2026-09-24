@@ -256,7 +256,9 @@ function doLogin(account, password) {
     .then(function (j) {
       if (j.status === 'captcha') {
         LOGIN.sid = j.sid; LOGIN.account = account;
-        $('capImg').src = 'data:image/png;base64,' + j.captcha;
+        var mime = j.captchaMime || 'image/png';
+        var u = j.captchaUrl ? ((API || '').replace(/\/$/, '') + j.captchaUrl) : null;
+        $('capImg').src = u || ('data:' + mime + ';base64,' + j.captcha);
         $('capMsg').textContent = j.tip || '';
         $('capModal').hidden = false;
         $('cfgStatus').textContent = '需要图形验证码';
@@ -436,7 +438,14 @@ $('capOk').onclick = function () {
         $('cfgStatus').textContent = '✓ 登录成功 · ' + (j.agencyName || '');
         return loadAccounts().then(function () { loadAll(); });
       }
-      if (j.status === 'captcha') { $('capImg').src = 'data:image/png;base64,' + j.captcha; $('capMsg').textContent = '验证码不对，换一个再试'; return; }
+      if (j.status === 'captcha') {
+        var mime2 = j.captchaMime || 'image/png';
+        $('capImg').src = j.captchaUrl
+          ? ((API || '').replace(/\/$/, '') + j.captchaUrl + '?t=' + Date.now())
+          : ('data:' + mime2 + ';base64,' + j.captcha);
+        $('capMsg').textContent = '验证码不对，换一个再试';
+        return;
+      }
       $('capMsg').textContent = '✗ ' + (j.error || '失败');
     })
     .catch(function (e) { $('capMsg').textContent = '✗ ' + e.message; });
