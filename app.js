@@ -69,7 +69,7 @@ function enterApp() {
   $('appView').hidden = false;
   $('d1').value = today(); $('d2').value = today();
   $('pFrom').value = today(); $('pTo').value = today();
-  loadAccounts().then(function () { loadState(); loadAll(); pollProgress(); })
+  loadAccounts().then(function () { loadState(); loadAll(); requestRefresh(); })
     .catch(function (e) { $('heroState').textContent = '后端不可用：' + e.message; });
 }
 
@@ -420,25 +420,87 @@ function loadState() {
   }).catch(function (e) { $('heroState').textContent = '后端不可用：' + e.message; });
 }
 
-function pollProgress() {
+/* ── 今日数据同步：进度条 + 明细 + 百分比 ──────────────────────────── */
+var _syncPoll = null, _wasRunning = false;
+
+function fmtDur(s) {
+  s = Math.max(0, Math.round(s || 0));
+  if (s < 60) return s + ' 秒';
+  var m = Math.floor(s / 60);
+  return m + ' 分 ' + (s % 60) + ' 秒';
+}
+
+function renderSync(p) {
+  var bar = $('syncBar'); if (!bar) return;
+  p = p || {};
+  var running = !!p.running;
+  if (!running && !p.finished && !p.error) { bar.hidden = true; return; }
+  bar.hidden = false;
+  bar.classList.toggle('on', running);
+  bar.classList.toggle('done', !running && !p.error && (p.percent >= 100 || p.finished));
+  bar.classList.toggle('err', !running && !!p.error);
+
+  var pct = Number(p.percent || 0);
+  if (!running && !p.error) pct = 100;
+  $('sbPct').textContent = (p.error && !running ? '失败' : Math.max(0, Math.min(100, pct)).toFixed(0) + '%');
+  $('sbFill').style.width = Math.max(0, Math.min(100, pct)) + '%';
+
+  var stage = p.stage || (running ? '同步中…' : (p.error ? '同步失败' : '已完成'));
+  if (!running && !p.error && p.finished) {
+    stage = '已是最新 · ' + new Date(p.finished * 1000).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+  }
+  $('sbStage').textContent = stage;
+
+  var b = [];
+  if (p.date) b.push(p.date);
+  if (p.watermark) b.push('水位 ' + p.watermark);
+  if (p.pages) b.push('页 ' + (p.page || 0) + '/' + p.pages);
+  if (p.total) b.push('接口 ' + p.total + ' 单');
+  if (p.scanned) b.push('已扫 ' + p.scanned);
+  if (p.newRows !== null && p.newRows !== undefined) b.push('入库 ' + p.newRows);
+  if (p.elapsed) b.push('用时 ' + fmtDur(p.elapsed));
+  if (running && p.eta) b.push('约剩 ' + fmtDur(p.eta));
+  if (p.error) b.push('⚠ ' + p.error);
+  $('sbMeta').textContent = b.join(' · ');
+}
+
+function syncTick() {
+  if (_syncPoll) { clearTimeout(_syncPoll); _syncPoll = null; }
   api('/api/progress').then(function (j) {
-    var p = j.progress || {};
+    var p = (j && j.progress) || {};
+    renderSync(p);
     if (p.running) {
-      $('progText').textContent = '拉取中：' + (p.current || '') + ' ' +
-        (p.currentRows || 0) + '/' + (p.currentTotal || '?') + ' 条';
-      $('btnPull2').disabled = true;
+      _wasRunning = true;
+      _syncPoll = setTimeout(syncTick, 1200);
     } else {
-      $('btnPull2').disabled = false;
-      if (p.result) {
-        var r = p.result;
-        $('progText').textContent = '上次拉取：新 ' + ((r.pulled || []).length) + ' 天 / 跳过 ' +
-          ((r.skipped || []).length) + ' 天' + ((r.errors || []).length ? ' / 有错误' : '');
-        loadState(); loadAll();
-        p.result = null;
-      }
+      if (_wasRunning) { _wasRunning = false; loadAll(); loadState(); }
+      _syncPoll = setTimeout(syncTick, 20000);
     }
-    if ((j.pulling || []).length) setTimeout(pollProgress, 5000);
-  }).catch(function () {});
+  }).catch(function () {
+    _syncPoll = setTimeout(syncTick, 15000);
+  });
+}
+
+/* 保留旧名字，拉取页面的按钮还在用 */
+function pollProgress() { syncTick(); }
+
+function requestRefresh(force) {
+  api('/api/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ acct: ACCT, force: !!force, minGap: 40 }) })
+    .then(function (j) {
+      if (j && j.progress) renderSync(j.progress);
+      syncTick();
+    })
+    .catch(function () { syncTick(); });
+}
+
+if ($('sbNow')) {
+  $('sbNow').onclick = function () {
+    this.disabled = true;
+    var self = this;
+    requestRefresh(true);
+    setTimeout(function () { self.disabled = false; }, 3000);
+  };
 }
 
 function startPull(f, t) {

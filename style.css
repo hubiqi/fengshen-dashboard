@@ -177,3 +177,27 @@ td.sc{font-size:11px;color:var(--sub)}
 
 .wtag{font-size:9.5px;font-weight:400;background:#fff4e5;color:#b7791f;
   border:1px solid #ffe0b2;border-radius:4px;padding:0 4px;margin-left:3px;vertical-align:middle}
+
+/* ═══ 今日数据同步进度条 ═══ */
+.syncbar{margin:10px 12px 0;padding:10px 12px;background:var(--card);border:1px solid var(--line);
+  border-radius:12px;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+.syncbar.on{border-color:#bcd7ff;background:linear-gradient(180deg,#f7fbff,#fff)}
+.sb-top{display:flex;align-items:center;gap:7px}
+.sb-dot{width:7px;height:7px;border-radius:50%;background:var(--sub);flex:none}
+.syncbar.on .sb-dot{background:var(--blue);animation:sbpulse 1.1s ease-in-out infinite}
+@keyframes sbpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
+.sb-stage{font-size:12.5px;font-weight:600;flex:1;min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.sb-pct{font-size:12.5px;font-weight:700;color:var(--blue);font-variant-numeric:tabular-nums}
+.sb-track{height:5px;background:#eef1f6;border-radius:3px;margin:7px 0 6px;overflow:hidden}
+.sb-fill{height:100%;width:0;background:linear-gradient(90deg,#2b8cf0,#1f6feb);
+  border-radius:3px;transition:width .35s ease}
+.syncbar.done .sb-fill{background:linear-gradient(90deg,#16a34a,#12855a)}
+.sb-foot{display:flex;align-items:center;gap:8px}
+.sb-meta{font-size:10.5px;color:var(--sub);line-height:1.5;flex:1;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sb-btn{flex:none;font-size:10.5px;padding:2px 8px;border-radius:6px;border:1px solid var(--line);
+  background:#fff;color:var(--sub);cursor:pointer}
+.sb-btn:active{background:#f2f4f8}
+.syncbar.err{border-color:#f5c6c0;background:#fff8f7}
+.syncbar.err .sb-pct{color:var(--red)}

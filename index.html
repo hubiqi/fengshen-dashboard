@@ -46,6 +46,20 @@
   <div id="heroState" class="hero-state"></div>
 </header>
 
+<!-- ═══ 今日数据同步（拉取任务明细 + 百分比）═══ -->
+<div id="syncBar" class="syncbar" hidden>
+  <div class="sb-top">
+    <span class="sb-dot" id="sbDot"></span>
+    <span class="sb-stage" id="sbStage">准备中…</span>
+    <span class="sb-pct" id="sbPct">0%</span>
+  </div>
+  <div class="sb-track"><div class="sb-fill" id="sbFill"></div></div>
+  <div class="sb-foot">
+    <span class="sb-meta" id="sbMeta"></span>
+    <button id="sbNow" class="sb-btn" title="立即增量刷新">立即刷新</button>
+  </div>
+</div>
+
 <nav class="tabs" id="lvlTabs">
   <button data-lvl="agency" class="on">整商</button>
   <button data-lvl="district">商圈片</button>
