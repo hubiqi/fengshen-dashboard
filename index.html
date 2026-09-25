@@ -79,6 +79,13 @@
     <div class="legend" id="sbLegend"></div>
   </section>
 
+  <section class="panel" id="cmpBox" hidden>
+    <h2>运单口径 ↔ 考核口径 逐单比对 <span class="hint" id="cmpMeta"></span></h2>
+    <div class="daily-wrap"><table id="cmpTbl"></table></div>
+    <div class="hint">用同一天的运单数据与 T+1 考核明细逐单对比，验证字段映射是否准确。
+      一致率 &lt;100% 的字段说明运单侧口径与考核侧仍有差异（判责/剔除/申诉导致）。</div>
+  </section>
+
   <section class="panel" id="listPanel">
     <h2 id="listTitle">明细</h2>
     <div class="list" id="list"></div>

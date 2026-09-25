@@ -165,7 +165,8 @@ function renderScoreBoard(j) {
     return '<div class="sb-card' + (d.id === SB.sel ? ' on' : '') + '" data-id="' + esc(d.id) + '">' +
       '<div class="sb-name">' + esc(d.name) + ' <span class="badge">' + d.days + '天</span></div>' +
       '<div class="sb-head">' +
-        '<div class="sb-h"><div class="k">今日得分</div><div class="v ' + scoreCls(t && t.dayNet) + '">' +
+        '<div class="sb-h"><div class="k">今日得分 <span class="wtag">未判责·仅供参考</span></div>' +
+        '<div class="v ' + scoreCls(t && t.dayNet) + '">' +
           ((t && t.dayNet != null) ? Number(t.dayNet).toFixed(1) : '—') + '</div>' +
           '<div class="k2">' + (t ? ('完单 ' + num(t.orders) + ' · 出勤 ' + num(t.attend) +
             ' · 人效 ' + (t.efficiency == null ? '—' : t.efficiency)) : '当日无数据') + '</div></div>' +
@@ -183,6 +184,23 @@ function renderScoreBoard(j) {
 
   $('scoreHint').textContent = '（本表恒为整月，不受顶部日期区间影响；今日数据来自运单分页，全月来自 T-1 考核明细）';
   drawChart();
+}
+
+function loadCompare() {
+  api('/api/compare' + (ACCT ? ('?acct=' + q(ACCT)) : '')).then(function (j) {
+    var c = j.compare;
+    if (!c) { $('cmpBox').hidden = true; return; }
+    var rows = Object.keys(c).map(function (k) {
+      var n = c[k][0], same = c[k][1], diff = c[k][2];
+      var rate = n ? (100 * same / n) : 0;
+      return '<tr><td>' + esc((j.labels || {})[k] || k) + '</td><td>' + num(n) + '</td>' +
+        '<td class="' + (rate >= 99 ? 'g' : rate >= 90 ? '' : 'r') + '"><b>' + rate.toFixed(1) + '%</b></td>' +
+        '<td>' + num(diff) + '</td></tr>';
+    }).join('');
+    $('cmpBox').hidden = false;
+    $('cmpMeta').textContent = j.from + ' ~ ' + j.to + ' · 比对于 ' + (j.at || '').replace('T', ' ');
+    $('cmpTbl').innerHTML = '<thead><tr><th>字段</th><th>可比对</th><th>一致率</th><th>不一致</th></tr></thead><tbody>' + rows + '</tbody>';
+  }).catch(function () { $('cmpBox').hidden = true; });
 }
 
 function drawChart() {
@@ -238,6 +256,7 @@ function loadScore() {
   $('sbSummary').innerHTML = '<div class="loading">加载中…</div>';
   api('/api/scoreboard?' + aq + 'month=' + month + '&day=' + day)
     .then(renderScoreBoard)
+    .then(loadCompare)
     .catch(function (e) {
       $('sbSummary').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
       $('sbChart').innerHTML = '';
