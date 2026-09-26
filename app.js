@@ -115,6 +115,15 @@ function card(k, v, u, d) {
     (u ? '<span class="u">' + u + '</span>' : '') + '</div>' + (d ? '<div class="d">' + d + '</div>' : '') + '</div>';
 }
 function renderCards(t) {
+  var mi = t.mealImpact || {};
+  var t8d = '考核口径', dud = '复合超时时长 ÷ 有效完单';
+  if (mi.orders) {
+    var sh = (mi.share == null ? '—' : mi.share + '%');
+    t8d += ' · 卡餐 ' + num(mi.delivered) + '单(' + sh + ')';
+    if (mi.t8_delta_pct) t8d += '，若剔除 ' + (mi.t8_delta_pct > 0 ? '+' : '') + mi.t8_delta_pct + '%';
+    dud += ' · 卡餐 ' + num(mi.delivered) + '单(' + sh + ')';
+    if (mi.duration_delta_pct) dud += '，若剔除 ' + (mi.duration_delta_pct > 0 ? '+' : '') + mi.duration_delta_pct + '%';
+  }
   var c = [card('完单量', num(t.orders), '单', '运单总数 ' + num(t.ordersTotal))];
   if (S.level !== 'rider') {
     c.push(card('出勤骑手数', num(t.attendRiders), '人', '有完单的骑手'));
@@ -123,8 +132,8 @@ function renderCards(t) {
     c.push(card('完单占比', pct(t.ordersTotal ? t.orders / t.ordersTotal : null), '', '该骑手 / 全部'));
   }
   c.push(card('完全妥投率', pct(t.likt), '', '考核口径'));
-  c.push(card('预测T8准时率', pct(t.t8), '', '考核口径'));
-  c.push(card('单均复合时长', t.duration == null ? '—' : t.duration, '秒', '复合超时时长 ÷ 有效完单'));
+  c.push(card('预测T8准时率', pct(t.t8), '', t8d));
+  c.push(card('单均复合时长', t.duration == null ? '—' : t.duration, '秒', dud));
   c.push(card('非时效不满意率', pct(t.dissat, 3), '', '（投诉×5+差评×5+索赔+虚假报备）/接单数'));
   $('cards').innerHTML = c.join('');
 }
