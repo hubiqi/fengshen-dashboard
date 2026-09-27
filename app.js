@@ -300,6 +300,14 @@ function objScoreHtml(d, j) {
     return (k === 'dur') ? Number(v).toFixed(2) : (v * 100).toFixed(k === 'dissat' ? 3 : 2) + '%';
   }
   var m = d.month || {}, t = d.today;
+  // ★ 分层可信度提示：T0 平台还没出日考核（天气层按 normal 保守兜底），
+  //   T-1 及更早若查不到则说明该日数据没拉全。两种都要标出来。
+  var est = (j.estimated || []), unl = (j.unlabeled || []);
+  var warn = '';
+  if (est.length) warn += '<div class="os-warn">⚠ ' + est.map(function(x){return x.slice(5);}).join('、') +
+    ' 为当天，平台尚未出场景分层，天气按正常天保守估算</div>';
+  if (unl.length) warn += '<div class="os-warn err">⚠ ' + unl.map(function(x){return x.slice(5);}).join('、') +
+    ' 缺场景分层（该日数据可能没拉全）</div>';
   function block(title, obj, sub) {
     if (!obj) return '<div class="os-sec">' + title + '</div><div class="os-none">暂无数据</div>';
     var h = '<div class="os-sec">' + title +
@@ -319,7 +327,7 @@ function objScoreHtml(d, j) {
         (m.bigNet != null ? Number(m.bigNet).toFixed(2) : '—') + '</b></div>' +
     '</div>' +
     block('全月（' + (j.from || '') + ' ~ ' + (j.to || '') + '）', m) +
-    block('今日（' + (t ? String(t.date).slice(5) : '—') + '）', t, '未判责·仅供参考');
+    block('今日（' + (t ? String(t.date).slice(5) : '—') + '）', t, '未判责·仅供参考') + warn;
 }
 /* ── 异常单明细（点标签弹窗看具体运单）── */
 var ABN = { counts: null, scope: null };
