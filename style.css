@@ -40,6 +40,10 @@ h3{font-size:15px;margin:0 0 12px}
 
 main{padding:12px 16px 40px}
 .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+/* 当前对象提示条：占满整行，不跟卡片抢格子 */
+.cardScope{grid-column:1/-1;font-size:12px;color:var(--sub);
+  background:var(--card);border-radius:10px;padding:8px 12px}
+.cardScope b{color:var(--fg);font-weight:650}
 .card{background:var(--card);border-radius:12px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
 .card .k{font-size:12px;color:var(--sub)}
 .card .v{font-size:22px;font-weight:650;margin-top:4px;letter-spacing:-.3px}
