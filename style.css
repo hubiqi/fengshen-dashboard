@@ -73,12 +73,60 @@ thead th:first-child{background:#fafbfc;z-index:2}
 td.sc{font-size:11px;color:var(--sub)}
 .badge{display:inline-block;padding:1px 5px;border-radius:4px;font-size:10px;background:#eef1f6;color:#555}
 
-.list{display:flex;flex-direction:column;gap:8px}
-.item{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;background:#fafbfc}
-.item .nm{flex:1;min-width:0;font-size:13px}
-.item .nm b{font-weight:600}
-.item .nm .sub{font-size:11px;color:var(--sub);margin-top:2px}
-.item .sc{font-size:19px;font-weight:700;color:var(--blue)}
+.list{display:flex;flex-direction:column;gap:6px}
+
+/* ★ 紧凑行 + 展开详情（master-detail）
+   原来每行铺开 4 个指标 + 19px 大字号单量，4 个站点就占满一屏。
+   现在默认两行（名称+单量 / 关键率），点开才显示完整分子分母网格。
+   高度实测：收起 ~58px，展开 ~250px，4 个站点一屏能看到 6~7 个。 */
+.item{padding:7px 9px;border-radius:9px;background:#fafbfc;cursor:pointer;
+  border:1px solid transparent;transition:background .12s,border-color .12s}
+.item .row1{display:flex;align-items:baseline;gap:8px}
+.item .row1 .nm{flex:1;min-width:0;font-size:12.5px;display:flex;align-items:baseline;gap:6px}
+/* 名称过长时截断（完整名在 title 里） */
+.item .row1 .nm b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.item .row1 .tag{font-size:10.5px;color:var(--sub);white-space:nowrap}
+.item .row1 .sc{font-size:15px;font-weight:700;color:var(--blue);white-space:nowrap}
+
+/* 第二行：4 个关键率。
+   ★ 极窄屏（320px，容器仅 300px）放不下 4 项共 281px + 间隙 → 用横向滚动
+     而不是换行：换行会让每行从 57px 涨到 89px，4 个站点就滚半天。
+     flex-wrap 保持 nowrap，靠 overflow-x:auto 处理溢出。 */
+.item .row2{display:flex;flex-wrap:nowrap;gap:8px;margin-top:2px;
+  font-size:10.5px;color:var(--sub);justify-content:space-between;
+  overflow-x:auto;-webkit-overflow-scrolling:touch;
+  scrollbar-width:none}
+.item .row2::-webkit-scrollbar{display:none}
+.item .row2 span{white-space:nowrap;flex:0 0 auto}
+.item .row2 b{color:var(--fg);font-weight:600;font-size:11.5px}
+
+/* 展开区：默认收起 */
+.item .row3{display:none;margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
+.item .more{display:none}
+.item.open{background:#fff;border-color:var(--blue);box-shadow:0 1px 4px rgba(31,111,235,.12)}
+.item.open .row3{display:block}
+/* 核心指标：两列 */
+.item.open .row3 .deep{display:block}
+.item.open .row3 .kv{display:flex;justify-content:space-between;gap:6px;
+  font-size:10.5px;color:var(--sub);padding:1.5px 0}
+/* 12 个核心字段排成 2 列 */
+.item.open .row3 .deep{column-count:2;column-gap:10px}
+.item.open .row3 .deep .kv{break-inside:avoid}
+.item.open .row3 .deep summary{column-span:all;display:block;cursor:pointer;
+  font-size:10.5px;color:var(--blue);margin-bottom:4px;list-style:none}
+.item.open .row3 .deep summary::-webkit-details-marker{display:none}
+.item.open .row3 .deepGrid{display:grid;grid-template-columns:repeat(2,1fr);
+  gap:0 10px;margin-top:4px;padding-top:4px;border-top:1px dashed var(--line)}
+.item.open .row3 .kv b{color:var(--fg);font-weight:600;white-space:nowrap}
+/* 极窄屏下核心指标退回单列，避免 key/value 被挤断 */
+@media (max-width:340px){ .item.open .row3 .deep{column-count:1} }
+/* 宽屏列表很宽（实测 1440 下 1380px），2 列会把右侧留出大片空白。
+   按容器宽度自适应列数，省得在小屏挤、大屏空。 */
+@media (min-width:760px){ .item.open .row3 .deep{column-count:3} }
+@media (min-width:1100px){ .item.open .row3 .deep{column-count:4} }
+
+/* 旧选中态（点击高亮）保留 */
+.item.on{background:#fff}
 
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:flex-start;
   justify-content:center;padding:16px;z-index:99;overflow-y:auto;-webkit-overflow-scrolling:touch}
