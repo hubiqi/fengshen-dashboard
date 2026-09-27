@@ -69,7 +69,7 @@ function enterApp() {
   $('appView').hidden = false;
   $('d1').value = today(); $('d2').value = today();
   $('pFrom').value = today(); $('pTo').value = today();
-  loadAccounts().then(function () { loadState(); loadAll(); requestRefresh(); })
+  loadAccounts().then(function () { loadState(); loadAll(); requestRefresh(); loadTodo(); })
     .catch(function (e) { $('heroState').textContent = '后端不可用：' + e.message; });
 }
 
@@ -134,7 +134,7 @@ function renderCards(t) {
   c.push(card('完全妥投率', pct(t.likt), '', '考核口径'));
   c.push(card('预测T8准时率', pct(t.t8), '', t8d));
   c.push(card('单均复合时长', t.duration == null ? '—' : t.duration, '秒', dud));
-  c.push(card('非时效不满意率', pct(t.dissat, 3), '', '（投诉×5+差评×5+索赔+虚假报备）/接单数'));
+  c.push(card('非时效不满意率', pct(t.dissat, 3), '', '（差评×5+投诉×5+索赔×1）/接单量'));
   $('cards').innerHTML = c.join('');
 }
 
@@ -188,7 +188,7 @@ function renderScoreBoard(j) {
       '</div>';
   }).join('');
   Array.prototype.forEach.call($('sbSummary').querySelectorAll('.sb-card'), function (el) {
-    el.onclick = function () { SB.sel = el.getAttribute('data-id'); renderScoreBoard(j); };
+    el.onclick = function () { SB.sel = el.getAttribute('data-id'); renderScoreBoard(j); loadAbn(); };
   });
 
   $('scoreHint').textContent = '（本表恒为整月，不受顶部日期区间影响；今日数据来自运单分页，全月来自 T-1 考核明细）';
@@ -257,19 +257,106 @@ function drawChart() {
   }).join('');
 }
 
+var LVL_NAME = { agency: '整商', district: '商圈片（UB考核单位）', site: '站点', rider: '骑手' };
+
 function loadScore() {
   var r = computeRange();
   var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
   var day = r[0] || today();
   var month = day.slice(0, 7);
+  var lvl = S.level;
+  var ttl = (lvl === 'site' || lvl === 'rider') ? (LVL_NAME[lvl]) : '商圈片';
+  $('scoreTitle').innerHTML = '考核得分 · 按' + ttl +
+    ' <span class="hint" id="scoreHint"></span>';
+  // ★ 站点/骑手对象太多，必须先点选一个再看得分
+  if ((lvl === 'site' || lvl === 'rider') && !S.key) {
+    $('sbSummary').innerHTML = '<div class="empty">在上面「' + LVL_NAME[lvl] +
+      '明细」里点一行，即可看它按商圈片同一套算法的考核得分</div>';
+    $('sbChart').innerHTML = ''; $('sbLegend').innerHTML = '';
+    $('abnWrap').hidden = true;
+    return;
+  }
   $('sbSummary').innerHTML = '<div class="loading">加载中…</div>';
-  api('/api/scoreboard?' + aq + 'month=' + month + '&day=' + day)
-    .then(renderScoreBoard)
+  api('/api/scoreboard?' + aq + 'month=' + month + '&day=' + day + '&level=' + q(lvl) +
+      ((lvl === 'site' || lvl === 'rider') ? ('&key=' + q(S.key)) : ''))
+    .then(function (j) { renderScoreBoard(j); loadAbn(); })
     .then(loadCompare)
     .catch(function (e) {
       $('sbSummary').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
       $('sbChart').innerHTML = '';
+      $('abnWrap').hidden = true;
     });
+}
+
+/* ── 异常单明细（点标签弹窗看具体运单）── */
+var ABN = { counts: null, scope: null };
+var ABN_LABEL = {
+  undelivered: '未妥投', logi_cancel: '物流责取消', late: '非准时（超时）',
+  highpay_miss: '高笔单非准时', bad: '差评', complaint: '投诉', claim: '索赔',
+  early: '提前点送达', meal: '卡餐/出餐慢', timeout: '复合超时'
+};
+
+function abnScope() {
+  if (S.level === 'site' || S.level === 'rider') return { level: S.level, key: S.key };
+  if (S.level === 'district') return { level: 'district', key: SB.sel };
+  return { level: 'agency', key: '' };
+}
+
+function loadAbn() {
+  var sc = abnScope();
+  var r = computeRange();
+  var d1 = r[0] || today(), d2 = r[1] || d1;
+  ABN.scope = { level: sc.level, key: sc.key, from: d1, to: d2 };
+  var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
+  $('abnWrap').hidden = false;
+  $('abnBar').innerHTML = '<span class="hint">加载中…</span>';
+  api('/api/orders?' + aq + 'level=' + q(sc.level) + '&key=' + q(sc.key || '') +
+      '&from=' + d1 + '&to=' + d2)
+    .then(function (j) { ABN.counts = j.counts || {}; renderAbn(); })
+    .catch(function () { $('abnWrap').hidden = true; });
+}
+
+function renderAbn() {
+  var c = ABN.counts || {};
+  $('abnBar').innerHTML = Object.keys(ABN_LABEL).map(function (k) {
+    var n = c[k] || 0;
+    return '<button class="abnchip' + (n ? '' : ' zero') + '" data-f="' + k + '"' +
+      (n ? '' : ' disabled') + '>' + ABN_LABEL[k] + ' <b>' + num(n) + '</b></button>';
+  }).join('');
+  Array.prototype.forEach.call($('abnBar').querySelectorAll('.abnchip'), function (b) {
+    b.onclick = function () { openAbn(b.getAttribute('data-f')); };
+  });
+}
+
+function openAbn(flag) {
+  var s = ABN.scope; if (!s) return;
+  var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
+  $('abnTitle').textContent = (ABN_LABEL[flag] || flag) + ' · 明细';
+  $('abnMeta').textContent = '加载中…';
+  $('abnTbl').innerHTML = ''; $('abnMore').textContent = '';
+  $('abnModal').hidden = false;
+  api('/api/orders?' + aq + 'level=' + q(s.level) + '&key=' + q(s.key || '') +
+      '&from=' + s.from + '&to=' + s.to + '&flag=' + q(flag) + '&limit=500')
+    .then(function (j) {
+      var rows = j.rows || [], tot = (j.counts || {})[flag] || 0;
+      $('abnMeta').textContent = j.from + ' ~ ' + j.to + ' · 命中 ' + num(tot) + ' 单';
+      if (!rows.length) { $('abnTbl').innerHTML = '<tbody><tr><td>无数据</td></tr></tbody>'; return; }
+      var th = '<thead><tr><th>日期</th><th>运单ID</th><th>站点</th><th>骑手</th>' +
+        '<th>超时类型</th><th>超时秒</th><th>复合秒</th><th>状态</th></tr></thead>';
+      var tb = rows.map(function (r) {
+        return '<tr><td>' + esc(String(r.date).slice(5)) + '</td>' +
+          '<td class="mono">' + esc(String(r.waybill_id || '')) + '</td>' +
+          '<td>' + esc(r.site_name || '') + '</td>' +
+          '<td>' + esc(r.rider_name || '') + '</td>' +
+          '<td>' + esc(r.overtime_type || '—') + '</td>' +
+          '<td>' + (r.overtime_sec == null ? '—' : Number(r.overtime_sec).toFixed(0)) + '</td>' +
+          '<td>' + (r.composite_sec == null ? '—' : Number(r.composite_sec).toFixed(0)) + '</td>' +
+          '<td>' + (r.is_delivered ? '已妥投' : '未妥投') + '</td></tr>';
+      }).join('');
+      $('abnTbl').innerHTML = th + '<tbody>' + tb + '</tbody>';
+      if (rows.length < tot) $('abnMore').textContent = '共 ' + num(tot) + ' 单，只展示前 ' + rows.length + ' 单';
+    })
+    .catch(function (e) { $('abnMeta').textContent = '加载失败：' + e.message; });
 }
 
 /* ── 对象列表 ─────────────────────────────────────────────────────── */
@@ -285,9 +372,31 @@ function renderList(rows) {
       ' · 妥投 ' + pct(r.likt) + ' · 准时 ' + pct(r.t8) + '</div></div>' +
       '<div class="sc">' + num(r.orders) + '</div></div>';
   }).join('');
-  Array.prototype.forEach.call($('list').querySelectorAll('.item'), function (el) {
-    el.onclick = function () { S.key = el.getAttribute('data-id'); S.keyName = el.getAttribute('data-nm'); loadScore(); };
+  var items = $('list').querySelectorAll('.item');
+  function mark(el) {
+    Array.prototype.forEach.call(items, function (x) { x.classList.remove('on'); });
+    if (el) el.classList.add('on');
+  }
+  Array.prototype.forEach.call(items, function (el) {
+    if (el.getAttribute('data-id') === S.key) el.classList.add('on');
+    el.onclick = function () {
+      S.key = el.getAttribute('data-id'); S.keyName = el.getAttribute('data-nm');
+      mark(el); loadScore();
+    };
   });
+  // ★ 站点/骑手：列表渲染完自动选中第一行。
+  //   列表是异步渲染的，而 loadAll 里 loadScore() 是同步先跑的 ——
+  //   不自动选中的话「点站点/骑手维度」只会看到一句提示语，永远出不来分。
+  if ((S.level === 'site' || S.level === 'rider') && items.length &&
+      !Array.prototype.some.call(items, function (x) {
+        return x.getAttribute('data-id') === S.key;
+      })) {
+    var first = items[0];
+    S.key = first.getAttribute('data-id');
+    S.keyName = first.getAttribute('data-nm');
+    mark(first);
+    loadScore();
+  }
 }
 
 /* ── 实时 ─────────────────────────────────────────────────────────── */
@@ -490,8 +599,163 @@ function syncTick() {
   });
 }
 
+/* ══ 待办任务 · 甘特图 ═══════════════════════════════════════════════
+   时间轴设计要点（★ 这决定了图怎么画）：
+   · 离职审批：有 initiatingAt（发起）和 发起+72h（自动通过）两个端点 → 天然的甘特条
+   · 商站任务：平台【只给到期时间 taskExpireTime，没有开始时间】
+     → 画成「一段虚线（已开启，来历不明）+ 到期日之前的实心条」
+     虚线只是示意，右端实心条才是真的（有终点的量）。
+*/
+var TODO = { items: [], errors: {}, summary: {}, fetchedAt: 0, loaded: false };
+
+function dstr2(ms) {
+  var d = new Date(ms);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+         String(d.getDate()).padStart(2, '0');
+}
+function mdd(ms) { var d = new Date(ms); return (d.getMonth() + 1) + '/' + d.getDate(); }
+function hm(ms) { var d = new Date(ms); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+
+function durText(h) {
+  if (h == null) return '';
+  var a = Math.abs(h);
+  var s = a >= 48 ? (a / 24).toFixed(0) + ' 天'
+        : a >= 1  ? a.toFixed(0) + ' 小时'
+        : a * 60 >= 1 ? (a * 60).toFixed(0) + ' 分钟' : '<1 小时';
+  return (h < 0 ? '已逾期 ' + s : '剩 ' + s);
+}
+
+/* 统一算出每条的 start / end（start 可能为 null = 平台未提供） */
+function todoNorm(it) {
+  var now = Date.now();
+  var end = it.end || null;
+  var start = it.start || null;
+  var openLeft = false;      // 没有起点 → 画虚线示意段
+  if (!start) { start = now; openLeft = true; }   // 虚线段：今天 → 起点未知
+  return {
+    it: it, start: start, end: end, openLeft: openLeft,
+    over: !!(end && end < now),
+    left: end == null ? null : (end - now) / 3600000
+  };
+}
+
+function renderTodo() {
+  var box = $('todoChart');
+  var items = (TODO.items || []).map(todoNorm);
+  var s = TODO.summary || {};
+  var errs = Object.keys(TODO.errors || {});
+
+  $('todoStat').innerHTML = ['商站任务', '离职审批', '发薪任务'].map(function (g) {
+    var n = s[g] || 0;
+    return '<span class="tchip' + (n ? ' on' : ' off') + '">' + g + ' <b>' + n + '</b></span>';
+  }).join('') + (errs.length ? '<span class="tchip err" title="' + esc(TODO.errors[errs[0]]) + '">⚠ ' + errs.length + '源失败</span>' : '');
+
+  if (!items.length) {
+    box.innerHTML = '<div class="empty">' +
+      (errs.length ? ('待办拉取失败：' + esc(Object.values(TODO.errors)[0]))
+                   : '暂无待办（任务已全部完成 / 离职已审完）') + '</div>';
+    $('todoTip').textContent = '';
+    return;
+  }
+
+  /* ── 时间轴范围：以【今天】为中心，向左留出足够的已过去时长，向右留足到期 ── */
+  var now = Date.now();
+  var DAY = 86400000;
+  var starts = items.map(function (r) { return r.start; });
+  var ends = items.filter(function (r) { return r.end; }).map(function (r) { return r.end; });
+  var lo = Math.min.apply(null, starts.concat([now]));
+  var hi = Math.max.apply(null, ends.concat([now]));
+  // 左右各留 1 天，并向上取整到「天」
+  var d0 = new Date(lo); d0.setHours(0, 0, 0, 0); d0 = d0.getTime() - DAY;
+  var d1 = new Date(hi); d1.setHours(0, 0, 0, 0); d1 = d1.getTime() + 2 * DAY;
+  var total = d1 - d0;
+  var X = function (ms) { return ((ms - d0) / total) * 100; };   // 百分比定位
+
+  /* 按天画刻度；★ 跨度大时只标「每周一」，否则 50 个日标签会糊成一片 */
+  var ticks = [];
+  var t = new Date(d0); t.setHours(0, 0, 0, 0);
+  while (t.getTime() <= d1) { ticks.push(t.getTime()); t = new Date(t.getTime() + DAY); }
+  var labelEvery = ticks.length > 34 ? Math.ceil(ticks.length / 12 / 7) * 7 : 1;
+
+  var h = ['<div class="gantt-wrap">'];
+  h.push('<div class="gantt-axis"><div class="g-lab"></div><div class="g-track">' +
+    ticks.map(function (ms, i) {
+      var isToday = dstr2(ms) === today();
+      var show = (i % labelEvery) === 0;
+      return '<div class="g-tick' + (isToday ? ' now' : '') + '" style="left:' + X(ms) + '%">' +
+        (show ? '<span>' + mdd(ms) + '</span>' : '') + '</div>';
+    }).join('') + '<div class="g-nowline" style="left:' + X(now) + '%"></div></div></div>');
+
+  /* 按 group 分行，行内按结束时间排序（快到期的在前） */
+  var groups = ['离职审批', '发薪任务', '商站任务'];
+  groups.forEach(function (g) {
+    var rows = items.filter(function (r) { return r.it.group === g; });
+    if (!rows.length) return;
+    rows.sort(function (a, b) { return (a.end || 0) - (b.end || 0); });
+    h.push('<div class="g-group"><div class="g-groupname">' + esc(g) + ' <b>' + rows.length + '</b></div>');
+    rows.forEach(function (r) {
+      var it = r.it;
+      var a = X(r.start), b = r.end == null ? a : X(r.end);
+      if (b < a) b = a;
+      var wid = Math.max(0.6, b - a);
+      var cls = r.over ? 'over' : (r.left != null && r.left <= 12 ? 'soon' : 'ok');
+      if (r.openLeft) cls += ' open';
+      var meta = [];
+      if (r.end) meta.push('到期 ' + mdd(r.end) + ' ' + hm(r.end));
+      else meta.push('无期限');
+      if (r.left != null) meta.push(durText(r.left));
+      h.push('<div class="g-row ' + cls + '" data-url="' + esc(it.url || '') + '"' +
+        (it.url ? ' role="link"' : '') + '>' +
+        '<div class="g-lab"><div class="g-title" title="' + esc(it.title) + '">' + esc(it.title) + '</div>' +
+          '<div class="g-sub">' + esc(it.site || '') + (it.owner ? ' · ' + esc(it.owner) : '') + '</div></div>' +
+        '<div class="g-track"><div class="g-bar" style="left:' + a + '%;width:' + wid + '%" ' +
+          'title="' + esc(it.title + ' · ' + meta.join(' · ')) + '">' +
+          (it.priority ? '<span class="g-pri">' + esc(it.priority) + '</span>' : '') + '</div>' +
+        (it.tip ? '<div class="g-tip">' + esc(it.tip) + '</div>' : '') + '</div>' +
+        '<div class="g-right">' + (r.left != null
+          ? '<b class="' + (r.over ? 'over' : (r.left <= 12 ? 'soon' : '')) + '">' + durText(r.left) + '</b>'
+          : '<span class="dim">' + esc(it.status || '') + '</span>') + '</div></div>');
+    });
+    h.push('</div>');
+  });
+  h.push('</div>');
+
+  var overN = items.filter(function (r) { return r.over; }).length;
+  $('todoTip').innerHTML = '数据 ' + (TODO.fetchedAt ? new Date(TODO.fetchedAt).toLocaleString('zh-CN') : '—') +
+    ' · 虚线段表示平台未提供开始时间（实心段才是有明确终点的部分）' +
+    ' · 离职只列【待审核】状态（已通过/已撤回/已离职不算待办）' +
+    (overN ? ' · <b class="over">' + overN + ' 条已逾期</b>' : '');
+
+  box.innerHTML = h.join('');
+  Array.prototype.forEach.call(box.querySelectorAll('.g-row[data-url]'), function (el) {
+    el.onclick = function () { var u = el.getAttribute('data-url'); if (u) window.open(u, '_blank', 'noopener'); };
+  });
+}
+
+function loadTodo(force) {
+  var aq = ACCT ? '?acct=' + q(ACCT) + (force ? '&force=1' : '') : (force ? '?force=1' : '');
+  $('todoStat').textContent = '加载中…';
+  api('/api/todo' + aq).then(function (j) {
+    TODO.items = j.items || []; TODO.errors = j.errors || {};
+    TODO.summary = j.summary || {}; TODO.fetchedAt = j.fetchedAt || 0; TODO.loaded = true;
+    renderTodo();
+  }).catch(function (e) {
+    TODO.items = []; TODO.errors = { '接口': e.message }; TODO.loaded = true;
+    renderTodo();
+  });
+}
+
+$('todoRefresh').onclick = function () { this.textContent = '…'; loadTodo(true); setTimeout(todoRefreshIdle, 1200); };
+function todoRefreshIdle() { $('todoRefresh').textContent = '↻'; }
+$('todoFold').onclick = function () {
+  var b = $('todoBody'), f = b.hidden;
+  b.hidden = !f; this.textContent = f ? '▾' : '▴';
+};
+
 /* 保留旧名字，拉取页面的按钮还在用 */
 function pollProgress() { syncTick(); }
+
+
 
 function requestRefresh(force) {
   api('/api/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -554,7 +818,7 @@ $('acctSel').onchange = function () {
   ACCT = this.value;
   localStorage.setItem(LS_ACCT, ACCT);
   api('/api/accounts/active', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: ACCT }) })
-    .then(function () { S.key = ''; loadState(); loadAll(); loadAccounts(); });
+    .then(function () { S.key = ''; loadState(); loadAll(); loadAccounts(); loadTodo(true); });
 };
 $('btnCfg').onclick = function () {
   $('cfgApi').value = API;
@@ -562,6 +826,8 @@ $('btnCfg').onclick = function () {
   loadAccounts(); loadState();
 };
 $('btnClose').onclick = function () { $('cfgModal').hidden = true; };
+$('abnClose').onclick = function () { $('abnModal').hidden = true; };
+$('abnModal').onclick = function (e) { if (e.target === this) this.hidden = true; };
 $('btnAdd').onclick = function () {
   var a = $('newAcc').value.trim(), p = $('newPwd').value;
   if (!a || !p) { $('cfgStatus').textContent = '请填手机号和密码'; return; }
