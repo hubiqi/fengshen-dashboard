@@ -102,8 +102,17 @@
 <main>
   <section class="cards" id="cards"></section>
 
-  <section class="panel" id="scorePanel">
-    <h2 id="scoreTitle">考核得分 · 按商圈片 <span class="hint" id="scoreHint"></span></h2>
+  <!-- ★ 明细 + 考核得分 合并成一个模块：
+       默认显示列表（紧凑行），点开某一行才在下方显示该对象的考核得分。
+       原来「考核得分」在上、「明细」在下各占一屏，站点一多就得滚很久。 -->
+  <section class="panel" id="listPanel">
+    <h2 id="listTitle">明细 <span class="hint" id="listHint">点一行看它的考核得分</span></h2>
+    <div class="list" id="list"></div>
+    <div id="objScore" class="objscore" hidden></div>
+  </section>
+
+  <section class="panel" id="scorePanel" hidden>
+    <h2 id="scoreTitle">考核得分 <span class="hint" id="scoreHint"></span></h2>
     <div id="sbSummary" class="sb-list"></div>
     <div id="abnWrap" class="abn-wrap">
       <div class="abn-title">异常明细 <span class="hint">点标签看具体运单</span></div>
@@ -119,11 +128,6 @@
     <div class="daily-wrap"><table id="cmpTbl"></table></div>
     <div class="hint">用同一天的运单数据与 T+1 考核明细逐单对比，验证字段映射是否准确。
       一致率 &lt;100% 的字段说明运单侧口径与考核侧仍有差异（判责/剔除/申诉导致）。</div>
-  </section>
-
-  <section class="panel" id="listPanel">
-    <h2 id="listTitle">明细</h2>
-    <div class="list" id="list"></div>
   </section>
 
   <section class="panel" id="rtPanel" hidden>
