@@ -364,25 +364,67 @@ function openAbn(flag) {
 }
 
 /* ── 对象列表 ─────────────────────────────────────────────────────── */
+/* 展开后的详情：核心指标 + 可展开的「考核口径明细」。
+   分子/分母这类对账信息单独折一层 —— 常看的是「准时率多少、完单多少」，
+   分子分母只在需要核数时才翻出来。全铺开会让展开行高到 300px。 */
+function detailGrid(r) {
+  var p = r.parts || {}, mi = r.mealImpact || {};
+  function kv(k, v) { return '<div class="kv"><span>' + k + '</span><b>' + v + '</b></div>'; }
+  function sgn(v) { return v == null ? '—' : (v > 0 ? '+' : '') + v + '%'; }
+  var core = [
+    kv('完单量', num(r.orders)), kv('接单量', num(r.ordersTotal)),
+    kv('出勤骑手', num(r.attendRiders)), kv('人效', r.efficiency == null ? '—' : r.efficiency),
+    kv('物流妥投', pct(r.likt)), kv('考核准时', pct(r.t8)),
+    kv('不满意率', pct(r.dissat, 3)),
+    kv('单均复合', r.duration == null ? '—' : r.duration + ' 秒'),
+    kv('电联率', pct(r.callRate)), kv('IM及时率', pct(r.imRate)),
+    kv('卡餐单量', num(mi.orders)),
+    kv('卡餐影响·准时', sgn(mi.t8_delta_pct))
+  ];
+  var deep = [
+    kv('妥投 分子/分母', num(p.likt_n) + ' / ' + num(p.likt_d)),
+    kv('准时 分子/分母', num(p.ont_n) + ' / ' + num(p.ont_d)),
+    kv('不满意 分子/分母', num(p.dis_n) + ' / ' + num(p.dis_d)),
+    kv('复合 合计/完单', num(p.dur_n) + ' / ' + num(p.dur_d)),
+    kv('卡餐影响·复合', sgn(mi.duration_delta_pct))
+  ];
+  return '<details class="deep"><summary>考核口径明细 ▾</summary>' +
+    core.join('') + '<div class="deepGrid">' + deep.join('') + '</div></details>';
+}
+
 function renderList(rows) {
   if (S.level === 'agency') { $('listPanel').hidden = true; return; }
   $('listPanel').hidden = false;
   $('listTitle').textContent = ({ district: '商圈片明细', site: '站点明细', rider: '骑手明细' })[S.level] || '明细';
   if (!rows.length) { $('list').innerHTML = '<div class="empty">该区间暂无数据</div>'; return; }
   $('list').innerHTML = rows.slice(0, 200).map(function (r) {
+    // ★ 紧凑行：默认只一行摘要；点开的那个才展开完整指标（master-detail）。
+    //   原来每行都铺开 4 个指标 + 大字号单量，4 个站点就占满一屏。
     return '<div class="item" data-id="' + esc(r.id) + '" data-nm="' + esc(r.name || '') + '">' +
-      '<div class="nm"><b>' + esc(r.name || r.id) + '</b><div class="sub">' +
-      '完单 ' + num(r.orders) + ' · 人效 ' + (r.efficiency == null ? '—' : r.efficiency) +
-      ' · 妥投 ' + pct(r.likt) + ' · 准时 ' + pct(r.t8) + '</div></div>' +
-      '<div class="sc">' + num(r.orders) + '</div></div>';
+      '<div class="row1">' +
+        '<div class="nm"><b>' + esc(r.name || r.id) + '</b></div>' +
+        '<div class="sc">' + num(r.orders) + '</div>' +
+      '</div>' +
+      '<div class="row2">' +
+        '<span>人效 <b>' + (r.efficiency == null ? '—' : r.efficiency) + '</b></span>' +
+        '<span>妥投 <b>' + pct(r.likt) + '</b></span>' +
+        '<span>准时 <b>' + pct(r.t8) + '</b></span>' +
+        '<span>不满意 <b>' + pct(r.dissat, 3) + '</b></span>' +
+      '</div>' +
+      '<div class="row3">' + detailGrid(r) + '</div>' +
+    '</div>';
   }).join('');
   var items = $('list').querySelectorAll('.item');
+  // 手风琴：只展开当前选中的那一个，其他全部收起
   function mark(el) {
-    Array.prototype.forEach.call(items, function (x) { x.classList.remove('on'); });
-    if (el) el.classList.add('on');
+    Array.prototype.forEach.call(items, function (x) {
+      x.classList.remove('on');
+      x.classList.remove('open');
+    });
+    if (el) { el.classList.add('on'); el.classList.add('open'); }
   }
   Array.prototype.forEach.call(items, function (el) {
-    if (el.getAttribute('data-id') === S.key) el.classList.add('on');
+    if (el.getAttribute('data-id') === S.key) { el.classList.add('on'); el.classList.add('open'); }
     el.onclick = function () {
       S.key = el.getAttribute('data-id'); S.keyName = el.getAttribute('data-nm');
       mark(el);
@@ -391,6 +433,10 @@ function renderList(rows) {
       //   不能用 loadAll() —— 本函数就是在它的 then() 里跑的，会递归。
       loadCards(); loadScore();
     };
+  });
+  // 「考核口径明细」的展开/收起不应触发整行选中（否则每点一下就重新拉数据）
+  Array.prototype.forEach.call($('list').querySelectorAll('.deep summary'), function (s) {
+    s.addEventListener('click', function (e) { e.stopPropagation(); });
   });
   // ★ 站点/骑手：列表渲染完自动选中第一行。
   //   列表是异步渲染的，而 loadAll 里 loadScore() 是同步先跑的 ——
@@ -403,7 +449,8 @@ function renderList(rows) {
     S.key = first.getAttribute('data-id');
     S.keyName = first.getAttribute('data-nm');
     mark(first);
-    loadScore();
+    // 首行也要展开 + 刷新卡片，否则自动选中后卡片还是整段总量
+    loadCards(); loadScore();
   }
 }
 
