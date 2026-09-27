@@ -263,35 +263,64 @@ function drawChart() {
 
 var LVL_NAME = { agency: '整商', district: '商圈片（UB考核单位）', site: '站点', rider: '骑手' };
 
+/* 考核得分现在挂在列表下方（旧的全月得分板已隐藏）。
+   保留这个函数名给 loadAll 调用，内部转给 loadObjScore。 */
 function loadScore() {
-  var r = computeRange();
-  var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
-  var day = r[0] || today();
-  var month = day.slice(0, 7);
-  var lvl = S.level;
-  var ttl = (lvl === 'site' || lvl === 'rider') ? (LVL_NAME[lvl]) : '商圈片';
-  $('scoreTitle').innerHTML = '考核得分 · 按' + ttl +
-    ' <span class="hint" id="scoreHint"></span>';
-  // ★ 站点/骑手对象太多，必须先点选一个再看得分
-  if ((lvl === 'site' || lvl === 'rider') && !S.key) {
-    $('sbSummary').innerHTML = '<div class="empty">在上面「' + LVL_NAME[lvl] +
-      '明细」里点一行，即可看它按商圈片同一套算法的考核得分</div>';
-    $('sbChart').innerHTML = ''; $('sbLegend').innerHTML = '';
-    $('abnWrap').hidden = true;
-    return;
-  }
-  $('sbSummary').innerHTML = '<div class="loading">加载中…</div>';
-  api('/api/scoreboard?' + aq + 'month=' + month + '&day=' + day + '&level=' + q(lvl) +
-      ((lvl === 'site' || lvl === 'rider') ? ('&key=' + q(S.key)) : ''))
-    .then(function (j) { renderScoreBoard(j); loadAbn(); })
-    .then(loadCompare)
-    .catch(function (e) {
-      $('sbSummary').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
-      $('sbChart').innerHTML = '';
-      $('abnWrap').hidden = true;
-    });
+  $('scorePanel').hidden = true;
+  loadObjScore();
 }
 
+/* ── 点开某一行：在列表下方显示该对象的考核得分 ─────────────────────
+   ★ 明细与考核得分合成一个模块：列表在上，得分在下。
+     得分直接复用 /api/scoreboard（level/key 与当前一致）。 */
+function loadObjScore() {
+  var box = $('objScore');
+  if (!S.key) { box.hidden = true; return; }
+  var r = computeRange();
+  var day = r[0] || today();
+  var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
+  box.hidden = false;
+  box.innerHTML = '<div class="loading">正在加载 ' + esc(S.keyName || S.key) + ' 的考核得分…</div>';
+  api('/api/scoreboard?' + aq + 'month=' + q(day.slice(0, 7)) + '&day=' + q(day) +
+      '&level=' + q(S.level === 'agency' ? 'district' : S.level) + '&key=' + q(S.key))
+    .then(function (j) {
+      var d = (j.districts || [])[0];
+      if (!d) { box.innerHTML = '<div class="empty">该对象本月暂无考核数据</div>'; return; }
+      box.innerHTML = objScoreHtml(d, j);
+    })
+    .catch(function (e) { box.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
+}
+
+var SB_W = { likt: 0.2, ontime: 0.3, dissat: 0.2, dur: 0.15 };
+
+function objScoreHtml(d, j) {
+  var M4 = ['likt', 'ontime', 'dissat', 'dur'];
+  function fmt(k, v) {
+    if (v == null) return '—';
+    return (k === 'dur') ? Number(v).toFixed(2) : (v * 100).toFixed(k === 'dissat' ? 3 : 2) + '%';
+  }
+  var m = d.month || {}, t = d.today;
+  function block(title, obj, sub) {
+    if (!obj) return '<div class="os-sec">' + title + '</div><div class="os-none">暂无数据</div>';
+    var h = '<div class="os-sec">' + title +
+      (sub ? ' <span class="hint">' + sub + '</span>' : '') + '</div><div class="os-grid">';
+    M4.forEach(function (k) {
+      var mm = (obj.metrics || {})[k] || {};
+      h += '<div class="os-cell"><div class="k">' + esc(mm.label || k) + '</div>' +
+        '<div class="r2"><span class="val">' + fmt(k, mm.value) + '</span>' +
+        '<span class="sc ' + scoreCls(mm.score) + '">' +
+        (mm.score == null ? '—' : Number(mm.score).toFixed(1)) + '</span></div></div>';
+    });
+    return h + '</div>';
+  }
+  return '<div class="os-head">' +
+      '<div class="os-nm">' + esc(d.name) + ' <span class="badge">' + d.days + '天</span></div>' +
+      '<div class="os-tot"><span class="k">全月大网质量得分</span><b class="' + scoreCls(m.bigNet) + '">' +
+        (m.bigNet != null ? Number(m.bigNet).toFixed(2) : '—') + '</b></div>' +
+    '</div>' +
+    block('全月（' + (j.from || '') + ' ~ ' + (j.to || '') + '）', m) +
+    block('今日（' + (t ? String(t.date).slice(5) : '—') + '）', t, '未判责·仅供参考');
+}
 /* ── 异常单明细（点标签弹窗看具体运单）── */
 var ABN = { counts: null, scope: null };
 var ABN_LABEL = {
@@ -393,9 +422,14 @@ function detailGrid(r) {
 }
 
 function renderList(rows) {
-  if (S.level === 'agency') { $('listPanel').hidden = true; return; }
+  // ★ 整商/商圈片/站点/骑手四个颗粒度都要有列表可点。
+  //   原来只有商圈片/站点/骑手有列表，整商直接隐藏面板 → 看不到任何东西。
+  // ★ level=agency 时 /api/metrics 按 agency_id 分组 → 整个代理商只有 1 行（公司名），
+  //   而 /api/scoreboard 在 agency 层级列出的却是商圈片，两边对不上。
+  //   考核本来就是按商圈片结算的，所以整商维度直接复用商圈片口径。
+  var mlv = S.level === 'agency' ? 'district' : S.level;
   $('listPanel').hidden = false;
-  $('listTitle').textContent = ({ district: '商圈片明细', site: '站点明细', rider: '骑手明细' })[S.level] || '明细';
+  $('listTitle').firstChild.nodeValue = ({ agency: '整商 · 商圈片明细', district: '商圈片明细', site: '站点明细', rider: '骑手明细' })[S.level] || '明细';
   if (!rows.length) { $('list').innerHTML = '<div class="empty">该区间暂无数据</div>'; return; }
   $('list').innerHTML = rows.slice(0, 200).map(function (r) {
     // ★ 紧凑行：默认只一行摘要；点开的那个才展开完整指标（master-detail）。
@@ -431,7 +465,9 @@ function renderList(rows) {
       // ★ 卡片也要跟着切到该站点：只调 loadScore() 的话，
       //   上面那排数据卡片始终是整段日期的总量，看着像"点了没反应"。
       //   不能用 loadAll() —— 本函数就是在它的 then() 里跑的，会递归。
-      loadCards(); loadScore();
+      loadCards();
+      // ★ 点开某一行 → 在列表下方渲染【该对象】的考核得分
+      loadObjScore();
     };
   });
   // 「考核口径明细」的展开/收起不应触发整行选中（否则每点一下就重新拉数据）
@@ -440,8 +476,9 @@ function renderList(rows) {
   });
   // ★ 站点/骑手：列表渲染完自动选中第一行。
   //   列表是异步渲染的，而 loadAll 里 loadScore() 是同步先跑的 ——
+  // ★ 四个颗粒度统一：列表渲完自动选中第一行，并直接带上它的考核得分。
   //   不自动选中的话「点站点/骑手维度」只会看到一句提示语，永远出不来分。
-  if ((S.level === 'site' || S.level === 'rider') && items.length &&
+  if (items.length &&
       !Array.prototype.some.call(items, function (x) {
         return x.getAttribute('data-id') === S.key;
       })) {
@@ -450,7 +487,7 @@ function renderList(rows) {
     S.keyName = first.getAttribute('data-nm');
     mark(first);
     // 首行也要展开 + 刷新卡片，否则自动选中后卡片还是整段总量
-    loadCards(); loadScore();
+    loadCards(); loadObjScore();
   }
 }
 
@@ -578,7 +615,10 @@ function loadCards(dfrom, dto, withList) {
   // ★ 选中站点/骑手后要带上 key，否则卡片永远是整段日期的总量
   //   （之前请求里只有 level，从没传过 key —— 点了站点卡片数字不动）
   var keyq = S.key ? '&key=' + q(S.key) : '';
-  return api('/api/metrics?' + aq + 'level=' + S.level + '&from=' + dfrom + '&to=' + dto + keyq)
+  // ★ 整商维度列表按商圈片出（见 renderList 注释），取数也要用同一口径，
+  //   否则点「整商」时列表是商圈片、卡片却是整段总量，两边对不上。
+  var mlv = S.level === 'agency' ? 'district' : S.level;
+  return api('/api/metrics?' + aq + 'level=' + mlv + '&from=' + dfrom + '&to=' + dto + keyq)
     .then(function (j) {
       renderCards(j.total);
       if (withList) renderList(j.rows || []);
