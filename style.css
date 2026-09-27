@@ -138,6 +138,10 @@ td.sc{font-size:11px;color:var(--sub)}
 .os-tot .k{font-size:11px;color:var(--sub)}
 .os-tot b{font-size:22px;font-weight:700}
 .os-sec{font-size:11px;color:var(--sub);margin:10px 0 5px;font-weight:600}
+/* 分层可信度提示：T0 估算 / 缺分层 */
+.os-warn{font-size:10.5px;color:#8a6d1f;background:#fff8e6;border:1px solid #f3e2b0;
+  border-radius:7px;padding:5px 8px;margin:0 0 8px;line-height:1.45}
+.os-warn.err{color:#9c2a20;background:#fdf0ee;border-color:#f3ccc6}
 .os-none{font-size:11px;color:var(--sub);padding:4px 0}
 .os-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
 .os-cell{background:#fafbfc;border-radius:8px;padding:7px 9px}
