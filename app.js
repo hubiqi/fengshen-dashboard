@@ -648,7 +648,11 @@ function renderTodo() {
   $('todoStat').innerHTML = ['商站任务', '离职审批', '发薪任务'].map(function (g) {
     var n = s[g] || 0;
     return '<span class="tchip' + (n ? ' on' : ' off') + '">' + g + ' <b>' + n + '</b></span>';
-  }).join('') + (errs.length ? '<span class="tchip err" title="' + esc(TODO.errors[errs[0]]) + '">⚠ ' + errs.length + '源失败</span>' : '');
+  }).join('') + (errs.length ? '<span class="tchip err" title="' + esc(TODO.errors[errs[0]]) + '">⚠ ' + errs.length + '源失败</span>' : '')
+    // ★ 数据是缓存、正在后台刷新时，给个不抢眼的提示（数据本身照常显示）
+    + (TODO.stale ? '<span class="tchip stale" title="显示的是缓存数据，后台正在刷新">'
+        + '⟳ ' + (TODO.ageSec >= 60 ? Math.floor(TODO.ageSec / 60) + '分钟前' : TODO.ageSec + '秒前')
+        + '</span>' : '');
 
   if (!items.length) {
     box.innerHTML = '<div class="empty">' +
@@ -671,11 +675,17 @@ function renderTodo() {
   var total = d1 - d0;
   var X = function (ms) { return ((ms - d0) / total) * 100; };   // 百分比定位
 
-  /* 按天画刻度；★ 跨度大时只标「每周一」，否则 50 个日标签会糊成一片 */
+  /* 按天画竖线；★ 标签密度要跟【可见轨道宽度】走，不能只看天数。
+     原来条件是 ticks.length > 34，34 天刚好不触发 → 34 个标签全画出来挤成一团。
+     每个标签 "9/26" 约 30px 宽，留 24px 间隙 → 按每 110px 一个标签估算，
+     再夹到 1~10 个，宁可少标也不要糊成一片。 */
   var ticks = [];
   var t = new Date(d0); t.setHours(0, 0, 0, 0);
   while (t.getTime() <= d1) { ticks.push(t.getTime()); t = new Date(t.getTime() + DAY); }
-  var labelEvery = ticks.length > 34 ? Math.ceil(ticks.length / 12 / 7) * 7 : 1;
+  var boxEl = $('todoChart');
+  var trackPx = Math.max(200, (boxEl ? boxEl.clientWidth : 900) - 300);
+  var maxLabels = Math.max(1, Math.min(10, Math.floor(trackPx / 110)));
+  var labelEvery = Math.max(1, Math.ceil(ticks.length / maxLabels));
 
   var h = ['<div class="gantt-wrap">'];
   h.push('<div class="gantt-axis"><div class="g-lab"></div><div class="g-track">' +
@@ -698,6 +708,12 @@ function renderTodo() {
       var a = X(r.start), b = r.end == null ? a : X(r.end);
       if (b < a) b = a;
       var wid = Math.max(0.6, b - a);
+      /* ★ 夹到 [0,100]：平台偶尔返回轴范围之外的时间（open 任务 end=null、
+         或极端时间戳），不夹的话条子会溢出轨道 —— 手机版上直接横飞出去。 */
+      var ax = Math.max(0, Math.min(100, a));
+      var bx = Math.max(0, Math.min(100, b));
+      if (bx < ax) bx = ax;
+      a = ax; b = bx; wid = Math.max(0.6, b - a);
       var cls = r.over ? 'over' : (r.left != null && r.left <= 12 ? 'soon' : 'ok');
       if (r.openLeft) cls += ' open';
       var meta = [];
@@ -734,13 +750,22 @@ function renderTodo() {
 
 function loadTodo(force) {
   var aq = ACCT ? '?acct=' + q(ACCT) + (force ? '&force=1' : '') : (force ? '?force=1' : '');
-  $('todoStat').textContent = '加载中…';
+  // ★ 先把上次的结果画出来，别让用户盯着「加载中…」
+  //   后端已改成 stale-while-revalidate：命中过期缓存会【立即返回旧的】+ 后台刷，
+  //   所以这里正常情况下是毫秒级返回，不会再有 10 秒空窗。
+  if (TODO.loaded && TODO.items.length) { TODO.loading = false; renderTodo(); }
+  else $('todoStat').textContent = '加载中…';
   api('/api/todo' + aq).then(function (j) {
     TODO.items = j.items || []; TODO.errors = j.errors || {};
     TODO.summary = j.summary || {}; TODO.fetchedAt = j.fetchedAt || 0; TODO.loaded = true;
+    TODO.stale = !!j.stale; TODO.ageSec = j.ageSec || 0; TODO.loading = false;
     renderTodo();
   }).catch(function (e) {
-    TODO.items = []; TODO.errors = { '接口': e.message }; TODO.loaded = true;
+    // ★ 已有旧数据时不要清空 —— 后端抖动不该让看板变空
+    if (!TODO.items.length) {
+      TODO.items = []; TODO.errors = { '接口': e.message };
+    }
+    TODO.loaded = true; TODO.loading = false;
     renderTodo();
   });
 }
