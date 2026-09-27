@@ -135,10 +135,11 @@ function renderCards(t) {
   c.push(card('预测T8准时率', pct(t.t8), '', t8d));
   c.push(card('单均复合时长', t.duration == null ? '—' : t.duration, '秒', dud));
   c.push(card('非时效不满意率', pct(t.dissat, 3), '', '（差评×5+投诉×5+索赔×1）/接单量'));
-  // ★ 标明这排数字是"谁"的 —— 否则点了站点，卡片数字变了却看不出在讲哪个站点
-  var scope = S.key
-    ? (S.keyName || S.key)
-    : ({ agency: '整商', district: '商圈片（UB考核单位）' })[S.level] || '全部';
+  // ★ 标明这排数字是"谁"的 —— 否则点了站点，卡片数字变了却看不出在讲哪个站点。
+  //   整商维度不设 S.key，卡片固定是整商汇总（考核按商圈片结算，想看单个请切「商圈片」）。
+  var scope = (S.level === 'agency') ? '整商（全部商圈片）'
+            : S.key ? (S.keyName || S.key)
+            : ({ district: '商圈片（UB考核单位）' })[S.level] || '全部';
   $('cards').innerHTML = '<div class="cardScope">当前对象：<b>' + esc(scope) + '</b></div>' + c.join('');
 }
 
@@ -273,16 +274,21 @@ function loadScore() {
 /* ── 点开某一行：在列表下方显示该对象的考核得分 ─────────────────────
    ★ 明细与考核得分合成一个模块：列表在上，得分在下。
      得分直接复用 /api/scoreboard（level/key 与当前一致）。 */
-function loadObjScore() {
+function loadObjScore(el) {
   var box = $('objScore');
-  if (!S.key) { box.hidden = true; return; }
+  // ★ 整商维度不设 S.key（否则卡片会被切成单个商圈片），
+  //   所以得分对象要临时从点击的那一行取。
+  var key = S.key || (el ? el.getAttribute('data-id') : '');
+  var name = S.keyName || (el ? el.getAttribute('data-nm') : '');
+  var lv = S.level === 'agency' ? 'district' : S.level;
+  if (!key) { box.hidden = true; return; }
   var r = computeRange();
   var day = r[0] || today();
   var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
   box.hidden = false;
-  box.innerHTML = '<div class="loading">正在加载 ' + esc(S.keyName || S.key) + ' 的考核得分…</div>';
+  box.innerHTML = '<div class="loading">正在加载 ' + esc(name || key) + ' 的考核得分…</div>';
   api('/api/scoreboard?' + aq + 'month=' + q(day.slice(0, 7)) + '&day=' + q(day) +
-      '&level=' + q(S.level === 'agency' ? 'district' : S.level) + '&key=' + q(S.key))
+      '&level=' + q(lv) + '&key=' + q(key))
     .then(function (j) {
       var d = (j.districts || [])[0];
       if (!d) { box.innerHTML = '<div class="empty">该对象本月暂无考核数据</div>'; return; }
@@ -437,7 +443,10 @@ function renderList(rows) {
   //   考核本来就是按商圈片结算的，所以整商维度直接复用商圈片口径。
   var mlv = S.level === 'agency' ? 'district' : S.level;
   $('listPanel').hidden = false;
-  $('listTitle').firstChild.nodeValue = ({ agency: '整商 · 商圈片明细', district: '商圈片明细', site: '站点明细', rider: '骑手明细' })[S.level] || '明细';
+  $('listTitle').firstChild.nodeValue = ({
+    agency: '整商汇总 · 点商圈片看它的考核得分',
+    district: '商圈片明细', site: '站点明细', rider: '骑手明细'
+  })[S.level] || '明细';
   if (!rows.length) { $('list').innerHTML = '<div class="empty">该区间暂无数据</div>'; return; }
   $('list').innerHTML = rows.slice(0, 200).map(function (r) {
     // ★ 紧凑行：默认只一行摘要；点开的那个才展开完整指标（master-detail）。
@@ -468,14 +477,19 @@ function renderList(rows) {
   Array.prototype.forEach.call(items, function (el) {
     if (el.getAttribute('data-id') === S.key) { el.classList.add('on'); el.classList.add('open'); }
     el.onclick = function () {
-      S.key = el.getAttribute('data-id'); S.keyName = el.getAttribute('data-nm');
+      var isAgency = (S.level === 'agency');
+      // ★ 整商维度：只展开该商圈片的考核得分，【不改 S.key】。
+      //   否则一选中卡片就切成那个商圈片，整商汇总被顶掉。
+      if (!isAgency) {
+        S.key = el.getAttribute('data-id'); S.keyName = el.getAttribute('data-nm');
+      }
       mark(el);
       // ★ 卡片也要跟着切到该站点：只调 loadScore() 的话，
       //   上面那排数据卡片始终是整段日期的总量，看着像"点了没反应"。
       //   不能用 loadAll() —— 本函数就是在它的 then() 里跑的，会递归。
-      loadCards();
+      if (!isAgency) loadCards();
       // ★ 点开某一行 → 在列表下方渲染【该对象】的考核得分
-      loadObjScore();
+      loadObjScore(el);
     };
   });
   // 「考核口径明细」的展开/收起不应触发整行选中（否则每点一下就重新拉数据）
@@ -486,6 +500,11 @@ function renderList(rows) {
   //   列表是异步渲染的，而 loadAll 里 loadScore() 是同步先跑的 ——
   // ★ 四个颗粒度统一：列表渲完自动选中第一行，并直接带上它的考核得分。
   //   不自动选中的话「点站点/骑手维度」只会看到一句提示语，永远出不来分。
+  // ★ 但【整商】维度例外：它的列表是商圈片，点谁都会把 S.key 设成商圈片，
+  //   卡片随即变成那个商圈片的数据 —— 整商汇总反而被顶掉，用户就说"看不到整商"。
+  //   考核是按商圈片结算的，所以整商维度的卡片固定显示整商汇总，
+  //   想看单个商圈片请切到「商圈片」tab。
+  if (S.level === 'agency') { $('objScore').hidden = true; return; }
   if (items.length &&
       !Array.prototype.some.call(items, function (x) {
         return x.getAttribute('data-id') === S.key;
