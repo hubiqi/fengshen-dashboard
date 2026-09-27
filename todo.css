@@ -25,7 +25,10 @@
 
 /* ★ 甘特不再靠 min-width 撑宽度 —— 靠上面的 clamp 三列自适应，容器永不溢出。
    overflow-x:auto 只作为极端窄屏的兜底。 */
-.gantt-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* ★ 1px 溢出：只写 overflow-x:auto 时，纵向溢出仍是 visible，
+   在有圆角边框的容器上会算出 1px 亚像素溢出 → 手机上出现横向滚动条。
+   两轴都裁掉即可（轴/条都在容器内，不会误裁内容）。 */
+.gantt-wrap { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
 .gantt { min-width: 0; }
 .gantt .empty { padding: 18px 4px; color: #8a929e; font-size: 13px; }
 
@@ -54,13 +57,20 @@
 }
 
 .gantt-axis .g-track { min-height: 18px; margin-bottom: 2px; }
+/* ★ 修 1px 溢出：.g-tick 用 left:X% 定位且带 1px border-left。
+   当刻度落在 left:100% 时，这条 1px 线正好画在容器右缘【之外】
+   → gantt-wrap 恒定多出 1px scrollWidth（手机端也会出现横向滚动）。
+   修法：margin-left:-1px 把这条线整体拉回容器内，视觉位置不变。 */
 .g-tick {
-  position: absolute; top: 0; bottom: 0; border-left: 1px solid #f0f3f7;
+  position: absolute; top: 0; bottom: 0; margin-left: -1px;
+  border-left: 1px solid #f0f3f7;
 }
 .g-tick span {
   position: absolute; top: 0; left: 3px; font-size: 10px; color: #a3abb8; white-space: nowrap;
 }
-.g-tick.now { border-left: 1px solid #1f6feb; }
+/* 靠右的刻度（JS 加 .r）：nowrap 标签会向右伸出容器，改为右对齐向左展开 */
+.g-tick.r span { left: auto; right: 3px; }
+.g-tick.now { border-left-color: #1f6feb; }
 .g-tick.now span { color: #1f6feb; font-weight: 600; }
 .g-nowline {
   position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px;
@@ -150,15 +160,18 @@
   .g-row.over { border-color: #f3c9c0; background: #fffaf9; }
   .g-row.soon { border-color: #f2ddb8; background: #fffdf7; }
 
-  /* 标题列 → 全宽块 */
+  /* 标题列 → 全宽块，但整体为右上角徽标【让出空间】。
+     ★ 修重叠的关键：留白必须加在父级 .g-lab 上。
+       原来只给 .g-title 加 padding-right，标题元素盒子本身仍延伸到卡片右边缘，
+       absolutely positioned 的徽标就压在标题文字上（标题 3 行时第一行末尾被盖）。
+       父级留白才能让整个文字块的可用宽度止步于徽标左边。 */
   .g-lab {
-    flex: none; width: auto; max-width: none; min-width: 0; padding-right: 0;
+    flex: none; width: auto; max-width: none; min-width: 0;
+    padding-right: 78px;          /* 徽标最宽 ~70px + 8px 间隙 */
   }
   .g-title {
     font-size: 13.5px; line-height: 1.4; font-weight: 600; color: #16202e;
     -webkit-line-clamp: 3;
-    /* 右侧给「剩余时间」留出空间，标题不再顶到角标 */
-    padding-right: 74px;
   }
   .g-sub { font-size: 11.5px; margin-top: 2px; white-space: normal; }
 
