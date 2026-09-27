@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#1f6feb">
 <title>风神考核看板</title>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="todo.css">
 </head>
 <body>
 
@@ -60,6 +61,22 @@
   </div>
 </div>
 
+<!-- ═══ 待办任务（甘特图）═══ -->
+<section class="panel todo" id="todoPanel">
+  <div class="todo-head">
+    <h2>待办任务 <span class="hint">点条目标签可直接跳到风神后台处理</span></h2>
+    <div class="todo-btns">
+      <span id="todoStat" class="todo-stat"></span>
+      <button id="todoRefresh" class="mini" title="重新拉取待办">↻</button>
+      <button id="todoFold" class="mini" title="折叠/展开">▾</button>
+    </div>
+  </div>
+  <div id="todoBody" class="todo-body">
+    <div id="todoChart" class="gantt"></div>
+    <div id="todoTip" class="hint"></div>
+  </div>
+</section>
+
 <nav class="tabs" id="lvlTabs">
   <button data-lvl="agency" class="on">整商</button>
   <button data-lvl="district">商圈片</button>
@@ -86,8 +103,12 @@
   <section class="cards" id="cards"></section>
 
   <section class="panel" id="scorePanel">
-    <h2>考核得分 · 按商圈片 <span class="hint" id="scoreHint"></span></h2>
+    <h2 id="scoreTitle">考核得分 · 按商圈片 <span class="hint" id="scoreHint"></span></h2>
     <div id="sbSummary" class="sb-list"></div>
+    <div id="abnWrap" class="abn-wrap">
+      <div class="abn-title">异常明细 <span class="hint">点标签看具体运单</span></div>
+      <div id="abnBar" class="abnbar"></div>
+    </div>
     <div class="chart-title">全月每日得分走势 <span class="hint">（实线=大网质量得分，虚线=妥投/准时/不满意/复合时长）</span></div>
     <div class="chart-wrap"><div id="sbChart"></div></div>
     <div class="legend" id="sbLegend"></div>
@@ -150,6 +171,17 @@
     </details>
 
     <div class="hint" id="cfgStatus"></div>
+  </div>
+</div>
+
+<!-- 异常单明细 -->
+<div class="modal" id="abnModal" hidden>
+  <div class="modal-card wide">
+    <div class="card-head"><h3 id="abnTitle">异常单明细</h3>
+      <button id="abnClose" class="mini">关闭 ✕</button></div>
+    <div class="hint" id="abnMeta"></div>
+    <div class="daily-wrap"><table id="abnTbl"></table></div>
+    <div class="hint" id="abnMore"></div>
   </div>
 </div>
 
