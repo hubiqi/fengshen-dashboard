@@ -692,7 +692,10 @@ function renderTodo() {
     ticks.map(function (ms, i) {
       var isToday = dstr2(ms) === today();
       var show = (i % labelEvery) === 0;
-      return '<div class="g-tick' + (isToday ? ' now' : '') + '" style="left:' + X(ms) + '%">' +
+      /* ★ 靠右的刻度：span 是 nowrap + left:3px，文字必然向右伸出容器
+         → gantt-wrap 出现几 px 横向溢出。给这类刻度加 .r 让 CSS 改成右对齐。 */
+      var edge = X(ms) >= 88 ? ' r' : '';
+      return '<div class="g-tick' + (isToday ? ' now' : '') + edge + '" style="left:' + X(ms) + '%">' +
         (show ? '<span>' + mdd(ms) + '</span>' : '') + '</div>';
     }).join('') + '<div class="g-nowline" style="left:' + X(now) + '%"></div></div></div>');
 
