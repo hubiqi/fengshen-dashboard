@@ -727,7 +727,8 @@ function renderTodo() {
         (it.url ? ' role="link"' : '') + '>' +
         '<div class="g-lab"><div class="g-title" title="' + esc(it.title) + '">' + esc(it.title) + '</div>' +
           '<div class="g-sub">' + esc(it.site || '') + (it.owner ? ' · ' + esc(it.owner) : '') + '</div></div>' +
-        '<div class="g-track"><div class="g-bar" style="left:' + a + '%;width:' + wid + '%" ' +
+        '<div class="g-track' + (it.tip ? ' has-tip' : '') + '">' +
+        '<div class="g-bar" style="left:' + a + '%;width:' + wid + '%" ' +
           'title="' + esc(it.title + ' · ' + meta.join(' · ')) + '">' +
           (it.priority ? '<span class="g-pri">' + esc(it.priority) + '</span>' : '') + '</div>' +
         (it.tip ? '<div class="g-tip">' + esc(it.tip) + '</div>' : '') + '</div>' +
