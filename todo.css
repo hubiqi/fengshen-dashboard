@@ -41,11 +41,15 @@
 
 /* 轴 + 行都用同一套栅格，保证竖线对齐 */
 .gantt-axis, .g-row { display: flex; align-items: stretch; }
-/* ★ 桌面版固定三列，宽度用 min() 保证总和永不超容器：
-     190 + 96 + minmax(0,1fr)。之前 min-width:560px 写死 → 窄屏必溢出 30px。 */
+/* ★ 桌面版固定三列，宽度用 clamp() 保证总和永不超容器。
+     之前 min-width:560px 写死 → 窄屏必溢出 30px。
+   ★ 顺带修「长标题被裁」：列宽原封顶 200px，配 -webkit-line-clamp:2，
+     稍长的任务名（如「商圈任务 · 高优先级 · 商家签约资质年审…」）实测需要 3 行
+     → scrollHeight 49px vs clientHeight 32px，第 3 行直接丢内容。
+     放宽到 280px 并给 3 行，长标题即可完整显示。 */
 .g-lab {
-  flex: 0 0 clamp(120px, 16vw, 200px);
-  min-width: 0; max-width: clamp(120px, 16vw, 200px);
+  flex: 0 0 clamp(120px, 18vw, 280px);
+  min-width: 0; max-width: clamp(120px, 18vw, 280px);
   padding-right: 8px; box-sizing: border-box;
 }
 .g-track { flex: 1 1 0; position: relative; min-height: 20px; min-width: 0; }
@@ -82,11 +86,12 @@
   transition: background .12s;
 }
 .g-row:hover { background: #f6f9fe; }
-/* ★ 标题原来 nowrap+ellipsis，在 clamp 宽度下必然被截 → 改成最多两行，
-   保住信息（完整内容仍有 title 悬浮提示）。 */
+/* ★ 标题原来 nowrap+ellipsis，在 clamp 宽度下必然被截 → 改成最多三行，
+   保住信息（完整内容仍有 title 悬浮提示）。
+   三行是实测出来的：列宽放宽到 280px 后，最长的任务名仍需 3 行才不断字。 */
 .g-title {
   font-size: 12px; color: #1f2733; line-height: 1.35;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
   overflow: hidden; word-break: break-word;
 }
 .g-sub {
@@ -120,11 +125,13 @@
 .g-right b { font-weight: 600; color: #6b7482; }
 .g-right .dim { color: #a3abb8; }
 
-.g-tip {
-  position: absolute; top: 20px; font-size: 10px; color: #a3abb8;
-  white-space: nowrap; pointer-events: none;
-  max-width: 60%; overflow: hidden; text-overflow: ellipsis;
-}
+/* ★ 修「备注压下一行」：.g-tip 是 .g-track 的子元素且 absolute，不占布局高度。
+   .g-track 固定 min-height:20px → tip 溢出 track 又溢出 .g-row，压到下一张卡
+   （实测 tip 底 295 vs row 底 288）。
+   修法：只在【确实有备注】的行给 track 加下方内边距预留空间。
+   判定靠 JS 输出的 .has-tip 类 —— 不用 :has()，WebView 支持不稳。
+   （padding 不影响 .g-bar 定位 —— 它用的是 left/width 百分比。） */
+.g-track.has-tip { padding-bottom: 15px; }
 
 #todoTip { padding: 8px 2px 2px; font-size: 11px; }
 #todoTip b.over { color: #c9362b; }
