@@ -135,7 +135,11 @@ function renderCards(t) {
   c.push(card('预测T8准时率', pct(t.t8), '', t8d));
   c.push(card('单均复合时长', t.duration == null ? '—' : t.duration, '秒', dud));
   c.push(card('非时效不满意率', pct(t.dissat, 3), '', '（差评×5+投诉×5+索赔×1）/接单量'));
-  $('cards').innerHTML = c.join('');
+  // ★ 标明这排数字是"谁"的 —— 否则点了站点，卡片数字变了却看不出在讲哪个站点
+  var scope = S.key
+    ? (S.keyName || S.key)
+    : ({ agency: '整商', district: '商圈片（UB考核单位）' })[S.level] || '全部';
+  $('cards').innerHTML = '<div class="cardScope">当前对象：<b>' + esc(scope) + '</b></div>' + c.join('');
 }
 
 /* ── 得分（按商圈片）──────────────────────────────────────────────── */
@@ -381,7 +385,11 @@ function renderList(rows) {
     if (el.getAttribute('data-id') === S.key) el.classList.add('on');
     el.onclick = function () {
       S.key = el.getAttribute('data-id'); S.keyName = el.getAttribute('data-nm');
-      mark(el); loadScore();
+      mark(el);
+      // ★ 卡片也要跟着切到该站点：只调 loadScore() 的话，
+      //   上面那排数据卡片始终是整段日期的总量，看着像"点了没反应"。
+      //   不能用 loadAll() —— 本函数就是在它的 then() 里跑的，会递归。
+      loadCards(); loadScore();
     };
   });
   // ★ 站点/骑手：列表渲染完自动选中第一行。
@@ -507,12 +515,28 @@ function loadAll() {
   $('heroSub').textContent = '数据区间 ' + (r[0] === r[1] ? r[0] : r[0] + ' ~ ' + r[1]) +
     ' · ' + ({ agency: '整商', district: '商圈片（UB考核单位）', site: '站点', rider: '骑手' })[S.level];
   var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
-  $('cards').innerHTML = '<div class="loading">加载中…</div>';
-  api('/api/metrics?' + aq + 'level=' + S.level + '&from=' + r[0] + '&to=' + r[1])
-    .then(function (j) { renderCards(j.total); renderList(j.rows || []); })
-    .catch(function (e) { $('cards').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
+  loadCards(r[0], r[1], true);
   loadScore();
   loadRt();
+}
+
+/* 单独刷新顶部数据卡片。抽出成独立函数，点站点/骑手时只重拉卡片，
+   不重跑 loadAll（那会连列表一起重渲、把当前选中态冲掉）。
+   withList=false 时不重渲对象列表 —— 点站点时列表内容没变，重复渲会把选中态闪掉。 */
+function loadCards(dfrom, dto, withList) {
+  var r = computeRange();
+  dfrom = dfrom || r[0]; dto = dto || r[1];
+  var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
+  $('cards').innerHTML = '<div class="loading">加载中…</div>';
+  // ★ 选中站点/骑手后要带上 key，否则卡片永远是整段日期的总量
+  //   （之前请求里只有 level，从没传过 key —— 点了站点卡片数字不动）
+  var keyq = S.key ? '&key=' + q(S.key) : '';
+  return api('/api/metrics?' + aq + 'level=' + S.level + '&from=' + dfrom + '&to=' + dto + keyq)
+    .then(function (j) {
+      renderCards(j.total);
+      if (withList) renderList(j.rows || []);
+    })
+    .catch(function (e) { $('cards').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
 }
 
 /* 旧版 loadScore 已移除（会覆盖新版并因 dailyTbl 不存在而抛错） */
