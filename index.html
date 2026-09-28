@@ -68,10 +68,12 @@
     <div class="todo-btns">
       <span id="todoStat" class="todo-stat"></span>
       <button id="todoRefresh" class="mini" title="重新拉取待办">↻</button>
-      <button id="todoFold" class="mini" title="折叠/展开">▾</button>
+      <button id="todoFold" class="mini" title="展开待办">▸</button>
     </div>
   </div>
-  <div id="todoBody" class="todo-body">
+  <!-- ★ 默认折叠：待办是每天都要看的东西，但一进来就占掉半屏，
+       指标卡和明细才是主内容。点 ▸ 展开，状态由 app.js 记住。 -->
+  <div id="todoBody" class="todo-body" hidden>
     <div id="todoChart" class="gantt"></div>
     <div id="todoTip" class="hint"></div>
   </div>
