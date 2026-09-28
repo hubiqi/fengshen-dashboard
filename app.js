@@ -115,7 +115,7 @@ function card(k, v, u, d) {
     (u ? '<span class="u">' + u + '</span>' : '') + '</div>' + (d ? '<div class="d">' + d + '</div>' : '') + '</div>';
 }
 function renderCards(t) {
-  var mi = t.mealImpact || {};
+  var mi = t.mealImpact || {}, sci = t.secondcallImpact || {};
   var t8d = '考核口径', dud = '复合超时时长 ÷ 有效完单';
   if (mi.orders) {
     var sh = (mi.share == null ? '—' : mi.share + '%');
@@ -123,6 +123,13 @@ function renderCards(t) {
     if (mi.t8_delta_pct) t8d += '，若剔除 ' + (mi.t8_delta_pct > 0 ? '+' : '') + mi.t8_delta_pct + '%';
     dud += ' · 卡餐 ' + num(mi.delivered) + '单(' + sh + ')';
     if (mi.duration_delta_pct) dud += '，若剔除 ' + (mi.duration_delta_pct > 0 ? '+' : '') + mi.duration_delta_pct + '%';
+  }
+  // ★ 二呼单：考核口径下【不记复合时长】，准时判定用骑手T（无 8 分钟缓冲）。
+  //   标注它的占比与非准时数，便于判断 T0 预估里有多少是二呼贡献的。
+  if (sci.orders) {
+    var ssh = (sci.share == null ? '—' : sci.share + '%');
+    t8d += ' · 二呼 ' + num(sci.delivered) + '单(' + ssh + ')';
+    dud += ' · 二呼 ' + num(sci.delivered) + '单(' + ssh + '，不计复合)';
   }
   var c = [card('完单量', num(t.orders), '单', '运单总数 ' + num(t.ordersTotal))];
   if (S.level !== 'rider') {
@@ -411,7 +418,7 @@ function openAbn(flag) {
    分子/分母这类对账信息单独折一层 —— 常看的是「准时率多少、完单多少」，
    分子分母只在需要核数时才翻出来。全铺开会让展开行高到 300px。 */
 function detailGrid(r) {
-  var p = r.parts || {}, mi = r.mealImpact || {};
+  var p = r.parts || {}, mi = r.mealImpact || {}, sci = r.secondcallImpact || {};
   function kv(k, v) { return '<div class="kv"><span>' + k + '</span><b>' + v + '</b></div>'; }
   function sgn(v) { return v == null ? '—' : (v > 0 ? '+' : '') + v + '%'; }
   var core = [
@@ -422,14 +429,19 @@ function detailGrid(r) {
     kv('单均复合', r.duration == null ? '—' : r.duration + ' 秒'),
     kv('电联率', pct(r.callRate)), kv('IM及时率', pct(r.imRate)),
     kv('卡餐单量', num(mi.orders)),
-    kv('卡餐影响·准时', sgn(mi.t8_delta_pct))
+    kv('卡餐影响·准时', sgn(mi.t8_delta_pct)),
+    kv('二呼单量', num(sci.orders)),
+    kv('二呼占比', sci.share == null ? '—' : sci.share + '%')
   ];
   var deep = [
     kv('妥投 分子/分母', num(p.likt_n) + ' / ' + num(p.likt_d)),
     kv('准时 分子/分母', num(p.ont_n) + ' / ' + num(p.ont_d)),
     kv('不满意 分子/分母', num(p.dis_n) + ' / ' + num(p.dis_d)),
     kv('复合 合计/完单', num(p.dur_n) + ' / ' + num(p.dur_d)),
-    kv('卡餐影响·复合', sgn(mi.duration_delta_pct))
+    kv('卡餐影响·复合', sgn(mi.duration_delta_pct)),
+    kv('二呼·非准时', num(sci.late)),
+    kv('二呼·复合合计', num(sci.composite_excl) + '（不计）'),
+    kv('二呼影响·复合', sgn(sci.duration_delta_pct))
   ];
   return '<details class="deep"><summary>考核口径明细 ▾</summary>' +
     core.join('') + '<div class="deepGrid">' + deep.join('') + '</div></details>';
