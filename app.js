@@ -283,11 +283,11 @@ function loadScore() {
      得分直接复用 /api/scoreboard（level/key 与当前一致）。 */
 function loadObjScore(el) {
   var box = $('objScore');
-  // ★ 整商维度不设 S.key（否则卡片会被切成单个商圈片），
-  //   所以得分对象要临时从点击的那一行取。
+  // ★ 得分对象与列表【同一层级】——之前 agency 被降级成 district，
+  //   于是点「整商」查出的是商圈片得分，颗粒度被偷换。
   var key = S.key || (el ? el.getAttribute('data-id') : '');
   var name = S.keyName || (el ? el.getAttribute('data-nm') : '');
-  var lv = S.level === 'agency' ? 'district' : S.level;
+  var lv = S.level;
   if (!key) { box.hidden = true; return; }
   var r = computeRange();
   var day = r[0] || today();
@@ -448,16 +448,13 @@ function detailGrid(r) {
 }
 
 function renderList(rows) {
-  // ★ 整商/商圈片/站点/骑手四个颗粒度都要有列表可点。
-  //   原来只有商圈片/站点/骑手有列表，整商直接隐藏面板 → 看不到任何东西。
-  // ★ level=agency 时 /api/metrics 按 agency_id 分组 → 整个代理商只有 1 行（公司名），
-  //   而 /api/scoreboard 在 agency 层级列出的却是商圈片，两边对不上。
-  //   考核本来就是按商圈片结算的，所以整商维度直接复用商圈片口径。
-  var mlv = S.level === 'agency' ? 'district' : S.level;
+  // ★ 四个颗粒度严格分开：整商=代理商本身(1行)、商圈片=各商圈片、站点、骑手。
+  //   原来把 agency 降级成 district 复用商圈片口径，等于凭空造了个不存在的层级，
+  //   用户点「整商」看到商圈片数据。
+  var mlv = S.level;
   $('listPanel').hidden = false;
   $('listTitle').firstChild.nodeValue = ({
-    agency: '整商汇总 · 点商圈片看它的考核得分',
-    district: '商圈片明细', site: '站点明细', rider: '骑手明细'
+    agency: '整商明细', district: '商圈片明细', site: '站点明细', rider: '骑手明细'
   })[S.level] || '明细';
   if (!rows.length) { $('list').innerHTML = '<div class="empty">该区间暂无数据</div>'; return; }
   $('list').innerHTML = rows.slice(0, 200).map(function (r) {
@@ -489,17 +486,15 @@ function renderList(rows) {
   Array.prototype.forEach.call(items, function (el) {
     if (el.getAttribute('data-id') === S.key) { el.classList.add('on'); el.classList.add('open'); }
     el.onclick = function () {
-      var isAgency = (S.level === 'agency');
-      // ★ 整商维度：只展开该商圈片的考核得分，【不改 S.key】。
-      //   否则一选中卡片就切成那个商圈片，整商汇总被顶掉。
-      if (!isAgency) {
-        S.key = el.getAttribute('data-id'); S.keyName = el.getAttribute('data-nm');
-      }
+      // ★ 四个颗粒度行为完全一致：选中即切 key、卡片跟着走、得分同步刷新。
+      //   之前给 agency 开特例（不设 S.key、卡片不刷新），
+      //   是为了掩盖"agency 被降级成 district"造成的口径错位。
+      S.key = el.getAttribute('data-id'); S.keyName = el.getAttribute('data-nm');
       mark(el);
       // ★ 卡片也要跟着切到该站点：只调 loadScore() 的话，
       //   上面那排数据卡片始终是整段日期的总量，看着像"点了没反应"。
       //   不能用 loadAll() —— 本函数就是在它的 then() 里跑的，会递归。
-      if (!isAgency) loadCards();
+      loadCards();
       // ★ 点开某一行 → 在列表下方渲染【该对象】的考核得分
       loadObjScore(el);
     };
@@ -508,15 +503,8 @@ function renderList(rows) {
   Array.prototype.forEach.call($('list').querySelectorAll('.deep summary'), function (s) {
     s.addEventListener('click', function (e) { e.stopPropagation(); });
   });
-  // ★ 站点/骑手：列表渲染完自动选中第一行。
-  //   列表是异步渲染的，而 loadAll 里 loadScore() 是同步先跑的 ——
   // ★ 四个颗粒度统一：列表渲完自动选中第一行，并直接带上它的考核得分。
   //   不自动选中的话「点站点/骑手维度」只会看到一句提示语，永远出不来分。
-  // ★ 但【整商】维度例外：它的列表是商圈片，点谁都会把 S.key 设成商圈片，
-  //   卡片随即变成那个商圈片的数据 —— 整商汇总反而被顶掉，用户就说"看不到整商"。
-  //   考核是按商圈片结算的，所以整商维度的卡片固定显示整商汇总，
-  //   想看单个商圈片请切到「商圈片」tab。
-  if (S.level === 'agency') { $('objScore').hidden = true; return; }
   if (items.length &&
       !Array.prototype.some.call(items, function (x) {
         return x.getAttribute('data-id') === S.key;
@@ -654,9 +642,10 @@ function loadCards(dfrom, dto, withList) {
   // ★ 选中站点/骑手后要带上 key，否则卡片永远是整段日期的总量
   //   （之前请求里只有 level，从没传过 key —— 点了站点卡片数字不动）
   var keyq = S.key ? '&key=' + q(S.key) : '';
-  // ★ 整商维度列表按商圈片出（见 renderList 注释），取数也要用同一口径，
-  //   否则点「整商」时列表是商圈片、卡片却是整段总量，两边对不上。
-  var mlv = S.level === 'agency' ? 'district' : S.level;
+  // ★ 每个颗粒度严格按自己的层级取数，不再把 agency 降级成 district。
+  //   之前这里硬写 'agency'→'district'，导致点「整商」看到的是商圈片数据。
+  //   现在 agency 就查 agency（1 家公司），district 查 district（各商圈片），互不串。
+  var mlv = S.level;
   return api('/api/metrics?' + aq + 'level=' + mlv + '&from=' + dfrom + '&to=' + dto + keyq)
     .then(function (j) {
       renderCards(j.total);
@@ -926,10 +915,26 @@ function loadTodo(force) {
 
 $('todoRefresh').onclick = function () { this.textContent = '…'; loadTodo(true); setTimeout(todoRefreshIdle, 1200); };
 function todoRefreshIdle() { $('todoRefresh').textContent = '↻'; }
+// ★ 待办默认折叠（index.html 里 todoBody 带 hidden）。
+//   折叠状态存 S.todoFold 并写 localStorage：刷新页面后保持用户上次的选择，
+//   不会每次都被强制弹开。
 $('todoFold').onclick = function () {
   var b = $('todoBody'), f = b.hidden;
-  b.hidden = !f; this.textContent = f ? '▾' : '▴';
+  b.hidden = !f;
+  // 折叠中(刚展开)→ 显示 ▾ 表示「点它可收起」；展开中(刚折叠)→ 显示 ▸
+  this.textContent = f ? '▾' : '▸';
+  this.title = f ? '折叠待办' : '展开待办';
+  S.todoFold = f;
+  try { localStorage.setItem('fs.todoFold', f ? '1' : '0'); } catch (e) {}
 };
+// 恢复上次状态（首次访问没有记录 → 保持默认折叠）
+try {
+  if (localStorage.getItem('fs.todoFold') === '1') {
+    $('todoBody').hidden = false;
+    $('todoFold').textContent = '▾';
+    $('todoFold').title = '折叠待办';
+  }
+} catch (e) {}
 
 /* 保留旧名字，拉取页面的按钮还在用 */
 function pollProgress() { syncTick(); }
