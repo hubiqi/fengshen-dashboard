@@ -161,6 +161,7 @@ function renderCards(t) {
     var f = function (v) {
       if (v == null) return '—';
       if (kind === 'num') return num(v);
+      if (kind === 'score') return v == null ? '—' : Number(v).toFixed(2);
       if (kind === 'sec') return Number(Number(v).toFixed(2)) + 's';
       return pct(v, kind === 'rate3' ? 3 : 2);
     };
@@ -193,7 +194,7 @@ function renderCards(t) {
 
   var c = [
     cell('大网质量得分', t.bigNet != null ? t.bigNet : CUR_SCORE.cur,
-      t.monthBigNet != null ? t.monthBigNet : CUR_SCORE.month, null, 'num'),
+      t.monthBigNet != null ? t.monthBigNet : CUR_SCORE.month, null, 'score'),
     cell('完单量', t.orders, mp.orders, pv.orders, 'num'),
     cell('出勤骑手数', t.attendRiders, mp.attendRiders, pv.attendRiders, 'num'),
     cell('人效', t.efficiency, mp.efficiency, pv.efficiency, 'num', '完单 ÷ 出勤'),
@@ -356,12 +357,17 @@ function loadObjScore(el) {
     .then(function (j) {
       var d = (j.districts || [])[0];
       if (!d) return;
-      var big = (d.month || {}).bigNet;
-      CUR_SCORE.cur = big; CUR_SCORE.month = big;
+      // ★ 得分有两套值，不能混用：
+//     所选日期得分 = d.today.dayNet   （当日四项加权 + 过程项 15）
+//     全月得分     = d.month.bigNet  （全月四项加权 + 过程项 15）
+//   之前 cur 和 month 都取了 d.month.bigNet → 两格显示同一个数。
+var dayS = (d.today || {}).dayNet;
+var monS = (d.month || {}).bigNet;
+CUR_SCORE.cur = dayS; CUR_SCORE.month = monS;
       // ★ 得分写回行数据并重绘这一行
       var row = LIST_ROWS[key];
       if (row) {
-        row.score = { cur: big, month: big };
+        row.score = { cur: dayS, month: monS };
         var box = $('list').querySelector('.item[data-id="' + key + '"] .row3');
         if (box) box.innerHTML = detailGrid(row);
       }
@@ -370,10 +376,10 @@ function loadObjScore(el) {
       //   所以 loadCards 渲染时只能显示「—」，必须等得分回来再补。
       //   用原地改 textContent 而不是 renderCards() 重渲，避免整排卡片闪烁 + 重复请求。
       var hi = $('cards').querySelector('.tcard.hi');
-      if (hi && big != null) {
+      if (hi) {
         var v = hi.querySelector('.v'), cm = hi.querySelector('.cmp');
-        if (v) v.textContent = Number(big).toFixed(2);
-        if (cm) cm.innerHTML = '<span>全月 ' + Number(big).toFixed(2) + '</span>';
+        if (v) v.textContent = dayS == null ? '—' : Number(dayS).toFixed(2);
+        if (cm) cm.innerHTML = '<span>全月 ' + (monS == null ? '—' : Number(monS).toFixed(2)) + '</span>';
       }
     })
     .catch(function () { /* 得分取不到就只显示数据，不打断 */ });
@@ -506,7 +512,10 @@ function detailGrid(r) {
   var p = r.parts || {}, sc = r.score || {};
   function kv(k, v) { return '<div class="kv"><span>' + k + '</span><b>' + v + '</b></div>'; }
   var g = [];
-  if (sc.cur != null) g.push(kv('大网质量得分', Number(sc.cur).toFixed(2)));
+  if (sc.cur != null || sc.month != null) {
+    g.push(kv('得分·所选日期', sc.cur == null ? '—' : Number(sc.cur).toFixed(2)));
+    g.push(kv('得分·全月', sc.month == null ? '—' : Number(sc.month).toFixed(2)));
+  }
   g.push(kv('妥投 分子/分母', num(p.likt_n) + ' / ' + num(p.likt_d)));
   g.push(kv('准时 分子/分母', num(p.ont_n) + ' / ' + num(p.ont_d)));
   g.push(kv('不满意 分子/分母', num(p.dis_n) + ' / ' + num(p.dis_d)));
