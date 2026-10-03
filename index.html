@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1f6feb">
 <title>风神考核看板</title>
-<link rel="stylesheet" href="style.css?v=2873894f">
-<link rel="stylesheet" href="todo.css?v=2873894f">
+<link rel="stylesheet" href="style.css?v=38c3cf2b">
+<link rel="stylesheet" href="todo.css?v=38c3cf2b">
 </head>
 <body>
 
@@ -72,16 +72,14 @@
 </section>
 
 <main>
-  <section class="cards" id="cards"></section>
-
-  <!-- ★ 明细 + 考核得分 合并成一个模块：
-       默认显示列表（紧凑行），点开某一行才在下方显示该对象的考核得分。
-       原来「考核得分」在上、「明细」在下各占一屏，站点一多就得滚很久。 -->
+  <!-- ★ 明细列表放【最顶部】：用户进来第一眼就要看「哪个站点/商圈片有问题」，
+       原先排在指标卡之后，得先滚过卡片才能判断。 -->
   <section class="panel" id="listPanel">
-    <h2 id="listTitle">明细 <span class="hint" id="listHint">点一行看它的考核得分</span></h2>
+    <h2 id="listTitle">明细 <span class="hint" id="listHint">点开某一行看它的完整指标</span></h2>
     <div class="list" id="list"></div>
-    <div id="objScore" class="objscore" hidden></div>
   </section>
+
+  <section class="cards" id="cards"></section>
 
   <section class="panel" id="scorePanel" hidden>
     <h2 id="scoreTitle">考核得分 <span class="hint" id="scoreHint"></span></h2>
@@ -217,6 +215,6 @@
   </div>
 </div>
 
-<script src="app.js?v=2873894f"></script>
+<script src="app.js?v=38c3cf2b"></script>
 </body>
 </html>
