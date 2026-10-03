@@ -49,6 +49,11 @@ main{padding:12px 16px 40px}
 .card .v{font-size:22px;font-weight:650;margin-top:4px;letter-spacing:-.3px}
 .card .u{font-size:12px;font-weight:400;color:var(--sub);margin-left:2px}
 .card .d{font-size:11px;color:var(--sub);margin-top:3px}
+/* ★ 环比昨日：给静态数字一个上下文。good/bad 由 JS 按指标语义判定
+   （准时率涨=好，不满意率/复合时长涨=坏），不在这里用红绿一刀切。 */
+.card .mom{font-size:11px;margin-top:3px;font-weight:600}
+.card .mom.good{color:#2e7d32}
+.card .mom.bad{color:#c62828}
 .card.wide{grid-column:span 2}
 .g{color:var(--green)}.r{color:var(--red)}.a{color:var(--amber)}
 
