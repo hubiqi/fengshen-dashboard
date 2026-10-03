@@ -110,9 +110,30 @@ function computeRange() {
 }
 
 /* ── 指标卡 ───────────────────────────────────────────────────────── */
-function card(k, v, u, d) {
+function card(k, v, u, d, mom, upIsGood) {
+  // ★ mom = 环比昨日（罗盘 compareDayRate）。原来卡片只有静态数字，
+  //   完全没有上下文 —— 看不出"掉了还是涨了"。数据本来就在罗盘接口里，搬上来零成本。
+  // ★ upIsGood：涨是好事还是坏事。准时率涨=好，不满意率/复合时长涨=坏，
+  //   同一套红绿会误导，所以按指标区分颜色。
+  var m = '';
+  if (mom != null && !isNaN(mom)) {
+    var up = mom >= 0;
+    var good = upIsGood == null ? true : (up ? upIsGood : !upIsGood);
+    m = '<div class="mom ' + (good ? 'good' : 'bad') + '">环比 ' +
+        (up ? '▲' : '▼') + Math.abs(mom * 100).toFixed(1) + '%</div>';
+  }
   return '<div class="card"><div class="k">' + k + '</div><div class="v">' + v +
-    (u ? '<span class="u">' + u + '</span>' : '') + '</div>' + (d ? '<div class="d">' + d + '</div>' : '') + '</div>';
+    (u ? '<span class="u">' + u + '</span>' : '') + '</div>' + m +
+    (d ? '<div class="d">' + d + '</div>' : '') + '</div>';
+}
+
+// 罗盘环比缓存（/api/realtime 拉一次，按指标名索引）
+var MOM = {};
+function momOf(name) {
+  for (var k in MOM) {
+    if (k.indexOf(name) >= 0 && MOM[k] && MOM[k].dayRate != null) return MOM[k].dayRate;
+  }
+  return null;
 }
 function renderCards(t) {
   var mi = t.mealImpact || {}, sci = t.secondcallImpact || {};
@@ -131,17 +152,18 @@ function renderCards(t) {
     t8d += ' · 二呼 ' + num(sci.delivered) + '单(' + ssh + ')';
     dud += ' · 二呼 ' + num(sci.delivered) + '单(' + ssh + '，不计复合)';
   }
-  var c = [card('完单量', num(t.orders), '单', '运单总数 ' + num(t.ordersTotal))];
+  var c = [card('完单量', num(t.orders), '单', '运单总数 ' + num(t.ordersTotal), momOf('完单'))];
   if (S.level !== 'rider') {
     c.push(card('出勤骑手数', num(t.attendRiders), '人', '有完单的骑手'));
     c.push(card('人效', t.efficiency == null ? '—' : t.efficiency, '单/人', '完单量 ÷ 出勤骑手数'));
   } else {
     c.push(card('完单占比', pct(t.ordersTotal ? t.orders / t.ordersTotal : null), '', '该骑手 / 全部'));
   }
-  c.push(card('完全妥投率', pct(t.likt), '', '考核口径'));
-  c.push(card('预测T8准时率', pct(t.t8), '', t8d));
-  c.push(card('单均复合时长', t.duration == null ? '—' : t.duration, '秒', dud));
-  c.push(card('非时效不满意率', pct(t.dissat, 3), '', '（差评×5+投诉×5+索赔×1）/接单量'));
+  c.push(card('完全妥投率', pct(t.likt), '', '考核口径', momOf('妥投'), true));
+  c.push(card('预测T8准时率', pct(t.t8), '', t8d, momOf('准时'), true));
+  // ↓ 这两个涨了是变差，颜色要反过来
+  c.push(card('单均复合时长', t.duration == null ? '—' : t.duration, '秒', dud, momOf('复合'), false));
+  c.push(card('非时效不满意率', pct(t.dissat, 3), '', '（差评×5+投诉×5+索赔×1）/接单量', momOf('不满意'), false));
   // ★ 标明这排数字是"谁"的 —— 否则点了站点，卡片数字变了却看不出在讲哪个站点。
   //   整商维度不设 S.key，卡片固定是整商汇总（考核按商圈片结算，想看单个请切「商圈片」）。
   var scope = (S.level === 'agency') ? '整商（全部商圈片）'
@@ -352,7 +374,10 @@ function objScoreHtml(d, j) {
         (m.bigNet != null ? Number(m.bigNet).toFixed(2) : '—') + '</b></div>' +
     '</div>' +
     block('全月（' + (j.from || '') + ' ~ ' + (j.to || '') + '）', m) +
-    block('今日（' + (t ? String(t.date).slice(5) : '—') + '）', t, '未判责·仅供参考') + warn;
+    // ★ 去掉「今日」那组：它跟顶部指标卡逐字相同，是重复信息，白占一屏。
+    //   月度四指标 + 总分才是真正的新信息（考核已判责）。
+    //   要看今日就切日期区间到「今天」，顶部指标卡就是它。
+    (d.scene ? '<div class="os-warn">场景分层：' + esc(d.scene) + '</div>' : '');
 }
 /* ── 异常单明细（点标签弹窗看具体运单）── */
 var ABN = { counts: null, scope: null };
@@ -506,12 +531,24 @@ function itemHtml(r) {
 
 function renderList(rows) {
   // ★ 四个颗粒度严格分开：整商=代理商本身(1行)、商圈片=各商圈片、站点、骑手。
-  //   原来把 agency 降级成 district 复用商圈片口径，等于凭空造了个不存在的层级，
-  //   用户点「整商」看到商圈片数据。
+  //   原来把 agency 降级成 district 复用商圈片口径，等于凭空造了一个不存在的层级。
   var mlv = S.level;
+
+  // ★ 整商层级【不出列表】：整个代理商就一行，"福州…公司 4,312 | 31.47 | 99.86%…"
+  //   信息量等于零，还占掉一屏。改成一行「已选：整商」提示。
+  //   整商数据本来就在顶部卡片里，看明细请切到商圈片/站点/骑手。
+  if (S.level === 'agency') {
+    $('listPanel').hidden = false;
+    $('listTitle').firstChild.nodeValue = '整商';
+    $('list').innerHTML = '<div class="empty">当前层级：整商（数据见上方指标卡）。' +
+      '要看逐个对象，请切到<b>商圈片 / 站点 / 骑手</b>。</div>';
+    $('objScore').hidden = true;
+    return;
+  }
+
   $('listPanel').hidden = false;
   $('listTitle').firstChild.nodeValue = ({
-    agency: '整商明细', district: '商圈片明细', site: '站点明细', rider: '骑手明细'
+    district: '商圈片明细', site: '站点明细', rider: '骑手明细'
   })[S.level] || '明细';
   if (!rows.length) { $('list').innerHTML = '<div class="empty">该区间暂无数据</div>'; return; }
   // ★ 行数据存全局：objScore 拿到分数后要写回对应行，卡片内的分数才能显示。
@@ -707,7 +744,12 @@ function loadCards(dfrom, dto, withList) {
 function loadRt() {
   var aq = ACCT ? '?acct=' + q(ACCT) : '';
   api('/api/realtime' + aq).then(function (j) {
-    if (j.ok && j.indicators) { $('rtPanel').hidden = false; renderRt(j); }
+    if (j.ok && j.indicators) {
+      // ★ 顺带把环比喂给顶部指标卡（一次请求，两个用途）
+      MOM = j.indicators;
+      $('rtPanel').hidden = false;
+      renderRt(j);
+    }
   }).catch(function () { $('rtPanel').hidden = true; });
 }
 
@@ -963,26 +1005,30 @@ function loadTodo(force) {
 
 $('todoRefresh').onclick = function () { this.textContent = '…'; loadTodo(true); setTimeout(todoRefreshIdle, 1200); };
 function todoRefreshIdle() { $('todoRefresh').textContent = '↻'; }
-// ★ 待办默认折叠（index.html 里 todoBody 带 hidden）。
-//   折叠状态存 S.todoFold 并写 localStorage：刷新页面后保持用户上次的选择，
-//   不会每次都被强制弹开。
-$('todoFold').onclick = function () {
-  var b = $('todoBody'), f = b.hidden;
-  b.hidden = !f;
-  // 折叠中(刚展开)→ 显示 ▾ 表示「点它可收起」；展开中(刚折叠)→ 显示 ▸
-  this.textContent = f ? '▾' : '▸';
-  this.title = f ? '折叠待办' : '展开待办';
-  S.todoFold = f;
-  try { localStorage.setItem('fs.todoFold', f ? '1' : '0'); } catch (e) {}
-};
-// 恢复上次状态（首次访问没有记录 → 保持默认折叠）
-try {
-  if (localStorage.getItem('fs.todoFold') === '1') {
-    $('todoBody').hidden = false;
-    $('todoFold').textContent = '▾';
-    $('todoFold').title = '折叠待办';
-  }
-} catch (e) {}
+// ★ 待办与罗盘都默认折叠（index.html 里 body 带 hidden）。
+//   折叠状态写 localStorage：刷新后保持用户上次的选择，不会每次都被强制弹开。
+//   两块共用一个 toggle —— 逻辑一样，别复制两份。
+function initFold(btnId, bodyId, lsKey, openTip, closeTip) {
+  var btn = $(btnId), body = $(bodyId);
+  if (!btn || !body) return;
+  btn.onclick = function () {
+    var f = body.hidden;
+    body.hidden = !f;
+    this.textContent = f ? '▾' : '▸';
+    this.title = f ? closeTip : openTip;
+    try { localStorage.setItem(lsKey, f ? '1' : '0'); } catch (e) {}
+  };
+  // 恢复上次状态（首次访问无记录 → 保持默认折叠）
+  try {
+    if (localStorage.getItem(lsKey) === '1') {
+      body.hidden = false;
+      btn.textContent = '▾';
+      btn.title = closeTip;
+    }
+  } catch (e) {}
+}
+initFold('todoFold', 'todoBody', 'fs.todoFold', '展开待办', '折叠待办');
+initFold('rtFold', 'rtBody', 'fs.rtFold', '展开罗盘', '折叠罗盘');
 
 /* 保留旧名字，拉取页面的按钮还在用 */
 function pollProgress() { syncTick(); }
