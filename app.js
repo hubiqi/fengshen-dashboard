@@ -304,36 +304,29 @@ function loadScore() {
 /* ── 点开某一行：在列表下方显示该对象的考核得分 ─────────────────────
    ★ 明细与考核得分合成一个模块：列表在上，得分在下。
      得分直接复用 /api/scoreboard（level/key 与当前一致）。 */
+/* 拉某对象的考核得分 → 回写进该行的卡片（分数已并入数据卡片，不再单独渲染面板） */
 function loadObjScore(el) {
-  var box = $('objScore');
-  // ★ 得分对象与列表【同一层级】——之前 agency 被降级成 district，
-  //   于是点「整商」查出的是商圈片得分，颗粒度被偷换。
   var key = S.key || (el ? el.getAttribute('data-id') : '');
-  var name = S.keyName || (el ? el.getAttribute('data-nm') : '');
   var lv = S.level;
-  if (!key) { box.hidden = true; return; }
+  if (!key) return;
   var r = computeRange();
   var day = r[0] || today();
   var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
-  box.hidden = false;
-  box.innerHTML = '<div class="loading">正在加载 ' + esc(name || key) + ' 的考核得分…</div>';
   api('/api/scoreboard?' + aq + 'month=' + q(day.slice(0, 7)) + '&day=' + q(day) +
       '&level=' + q(lv) + '&key=' + q(key))
     .then(function (j) {
       var d = (j.districts || [])[0];
-      if (!d) { box.innerHTML = '<div class="empty">该对象本月暂无考核数据</div>'; return; }
-      box.innerHTML = objScoreHtml(d, j);
-      // ★ 分数写回行数据，并只重绘这一行的明细区 —— 分数与数据同处一张卡片，
-      //   不必滚到下面的 objScore 面板去对照。
+      if (!d) return;
+      // ★ 得分写回行数据并重绘这一行：分数与数据同处一张卡片，
+      //   不必滚到别处去对照（原来的 objScore 面板已并入 detailGrid）。
       var row = LIST_ROWS[key];
       if (row) {
-        row.bigNet = (d.month || {}).bigNet;
-        row.monthBigNet = (d.month || {}).bigNet;
-        var el = $('list').querySelector('.item[data-id="' + key + '"] .row3');
-        if (el) el.innerHTML = detailGrid(row);
+        row.score = { cur: (d.month || {}).bigNet, month: (d.month || {}).bigNet };
+        var box = $('list').querySelector('.item[data-id="' + key + '"] .row3');
+        if (box) box.innerHTML = detailGrid(row);
       }
     })
-    .catch(function (e) { box.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
+    .catch(function () { /* 得分取不到就只显示数据，不打断 */ });
 }
 
 var SB_W = { likt: 0.2, ontime: 0.3, dissat: 0.2, dur: 0.15 };
@@ -450,67 +443,87 @@ function openAbn(flag) {
     .catch(function (e) { $('abnMeta').textContent = '加载失败：' + e.message; });
 }
 
-/* ── 对象列表 ─────────────────────────────────────────────────────── */
-/* 展开后的详情：核心指标 + 可展开的「考核口径明细」。
-   分子/分母这类对账信息单独折一层 —— 常看的是「准时率多少、完单多少」，
-   分子分母只在需要核数时才翻出来。全铺开会让展开行高到 300px。 */
+/* ── 对象列表 ─────────────────────────────────────────────────────── *//* ── 数据卡片：所选日期 / 全月 / 环比昨天 三行合一 ────────────────
+ * 撤销上一版的「本月红字段独立分组 + 分数内嵌」做法，改为每个指标一格、
+ * 格内三行对照：所选日期、全月平均、环比昨天。
+ * 全部数据由【本地运单】自算：站点级能算出商圈片（按订单比例加权），
+ * 环比一律用所选日期 vs 前一天，不用平台罗盘的现成字段，维度更灵活。
+ */
+function triCell(opt) {
+  // opt: {label, cur, month, prev, kind}
+  var kind = opt.kind || 'rate';
+  function fmt(v) {
+    if (v == null) return '—';
+    if (kind === 'num') return num(v);
+    if (kind === 'sec') return Number(Number(v).toFixed(2)) + 's';
+    return pct(v, kind === 'rate3' ? 3 : 2);
+  }
+  function delta(cur, prev) {
+    if (cur == null || prev == null || prev === 0) return null;
+    if (kind === 'num') {
+      var d = (cur - prev) / Math.abs(prev) * 100;
+      return (d > 0 ? '+' : '') + d.toFixed(1) + '%';
+    }
+    var diff = kind === 'sec' ? (cur - prev) : (cur - prev);
+    var u = kind === 'sec' ? 's' : 'pp';
+    var s = diff > 0 ? '+' : '';
+    return s + (kind === 'sec' ? Number(diff.toFixed(2)) : Number((diff * 100).toFixed(2))) + u;
+  }
+  var d = delta(opt.cur, opt.prev);
+  // 「越大越好」的指标（率）；越小越好（复合时长）用反向配色
+  var good = d == null ? null : (kind === 'sec' ? Number(d) <= 0 : Number(d) >= 0);
+  var cls = d == null ? '' : (good ? ' up' : ' dn');
+  return '<div class="tri">' +
+    '<div class="k">' + esc(opt.label) + '</div>' +
+    '<div class="cur">' + fmt(opt.cur) + '</div>' +
+    '<div class="sub"><span>全月 ' + fmt(opt.month) + '</span>' +
+      '<span class="dl' + cls + '">' + (d == null ? '' : '环比 ' + d) + '</span>' +
+    '</div>' +
+  '</div>';
+}
+
+function scoreCell(label, cur, month) {
+  function f(v) { return v == null ? '—' : Number(v).toFixed(2); }
+  return '<div class="tri score">' +
+    '<div class="k">' + esc(label) + '</div>' +
+    '<div class="cur big">' + f(cur) + '</div>' +
+    '<div class="sub"><span>全月 ' + f(month) + '</span></div>' +
+  '</div>';
+}
+
 function detailGrid(r) {
   var p = r.parts || {}, mi = r.mealImpact || {}, sci = r.secondcallImpact || {};
-  var mp = r.monthParts || {};                     // 本月（考核）口径，红色
-  function kv(k, v) { return '<div class="kv"><span>' + k + '</span><b>' + v + '</b></div>'; }
-  function kvR(k, v) { return '<div class="kv red"><span>' + k + '</span><b>' + v + '</b></div>'; }
-  function sgn(v) { return v == null ? '—' : (v > 0 ? '+' : '') + v + '%'; }
+  var mp = r.monthParts || {};        // 全月
+  var pv = r.prevParts || {};        // 前一天（环比基准）
+  var sc = r.score || {};            // 得分（所选日期 / 全月）
 
-  // ★ 分数并入卡片：原来分数在独立的 objScore 面板里，与这些数据分属两块、
-  //   滚动才能对照。现在直接排在同一张卡片内。
-  var W = { likt: 0.20, ontime: 0.30, dissat: 0.20, dur: 0.15 };
-  function scoreLine(v, tag, red) {
-    if (v == null) return '';
-    return '<div class="kv score' + (red ? ' red' : '') + '"><span>' + tag + '</span><b>' +
-      Number(v).toFixed(2) + '</b></div>';
+  var grid = [
+    scoreCell('大网质量得分', sc.cur, sc.month),
+    triCell({ label: '完单量', cur: r.orders, month: mp.orders, prev: pv.orders, kind: 'num' }),
+    triCell({ label: '出勤骑手', cur: r.attendRiders, month: mp.attendRiders, prev: pv.attendRiders, kind: 'num' }),
+    triCell({ label: '人效', cur: r.efficiency, month: mp.efficiency, prev: pv.efficiency, kind: 'num' }),
+    triCell({ label: '物流妥投率', cur: r.likt, month: mp.likt, prev: pv.likt }),
+    triCell({ label: '考核准时率(T8)', cur: r.t8, month: mp.ontime, prev: pv.ontime }),
+    triCell({ label: '不满意率', cur: r.dissat, month: mp.dissat, prev: pv.dissat, kind: 'rate3' }),
+    triCell({ label: '单均复合时长', cur: r.duration, month: mp.dur, prev: pv.dur, kind: 'sec' }),
+    triCell({ label: '电联率', cur: r.callRate, month: mp.callRate, prev: pv.callRate }),
+    triCell({ label: 'IM及时率', cur: r.imRate, month: mp.imRate, prev: pv.imRate }),
+    triCell({ label: '卡餐单量', cur: mi.delivered, month: mp.mealOrders, prev: pv.mealOrders, kind: 'num' }),
+    triCell({ label: '二呼单量', cur: sci.delivered, month: mp.scOrders, prev: pv.scOrders, kind: 'num' })
+  ];
+  // 分子分母放最底，需要核对数字时才看
+  var parts = [
+    kvPair('妥投 分子/分母', p.likt_n, p.likt_d),
+    kvPair('准时 分子/分母', p.ont_n, p.ont_d),
+    kvPair('不满意 分子/分母', p.dis_n, p.dis_d),
+    kvPair('复合 合计/完单', p.dur_n, p.dur_d)
+  ];
+  function kvPair(k, n, d) {
+    return '<div class="kv"><span>' + k + '</span><b>' + num(n) + ' / ' + num(d) + '</b></div>';
   }
-
-  var core = [
-    kv('完单量', num(r.orders)), kv('接单量', num(r.ordersTotal)),
-    kv('出勤骑手', num(r.attendRiders)), kv('人效', r.efficiency == null ? '—' : r.efficiency),
-    kv('物流妥投', pct(r.likt)), kv('考核准时', pct(r.t8)),
-    kv('不满意率', pct(r.dissat, 3)),
-    kv('单均复合', sec(r.duration)),
-    kv('电联率', pct(r.callRate)), kv('IM及时率', pct(r.imRate)),
-    kv('卡餐单量', num(mi.orders)),
-    kv('卡餐影响·准时', sgn(mi.t8_delta_pct)),
-    kv('二呼单量', num(sci.orders)),
-    kv('二呼占比', sci.share == null ? '—' : sci.share + '%')
-  ];
-  // ★ 后端 dur 若哪天忘了截断，这里兜底 —— 否则会显示出 14.99061767005473 这种。
-  function sec(v) { return v == null ? '—' : Number(Number(v).toFixed(2)) + ' 秒'; }
-  // ★ 本月（考核口径）单独一组，红色标注 —— 与上面的「所选日期」区分开。
-  var mon = [
-    kvR('本月·完单量', num(mp.orders)),
-    kvR('本月·物流妥投', pct(mp.likt)),
-    kvR('本月·考核准时', pct(mp.ontime)),
-    kvR('本月·不满意率', pct(mp.dissat, 3)),
-    kvR('本月·单均复合', sec(mp.dur)),
-    kvR('本月·出勤骑手', num(mp.attendRiders)),
-    kvR('本月·人效', mp.efficiency == null ? '—' : mp.efficiency)
-  ];
-  // ★ 只保留【分数】和【分子分母】：其余指标与上面的卡片重复，不再重复展示。
-  var deep = [
-    scoreLine(r.bigNet, '所选日期·大网得分', false),
-    scoreLine(mp.bigNet, '本月·大网得分', true),
-    kv('妥投 分子/分母', num(p.likt_n) + ' / ' + num(p.likt_d)),
-    kv('准时 分子/分母', num(p.ont_n) + ' / ' + num(p.ont_d)),
-    kv('不满意 分子/分母', num(p.dis_n) + ' / ' + num(p.dis_d)),
-    kv('复合 合计/完单', num(p.dur_n) + ' / ' + num(p.dur_d)),
-    kv('卡餐影响·复合', sgn(mi.duration_delta_pct)),
-    kv('二呼·非准时', num(sci.late)),
-    kv('二呼·复合合计', num(sci.composite_excl) + '（不计）'),
-    kv('二呼影响·复合', sgn(sci.duration_delta_pct))
-  ];
-  var monHtml = mon.length ? '<div class="deepGrid mon">' + mon.join('') + '</div>' : '';
-  return '<details class="deep"><summary>考核口径明细 ▾</summary>' +
-    '<div class="deepGrid">' + core.join('') + '</div>' + monHtml +
-    '<div class="deepGrid">' + deep.join('') + '</div></details>';
+  return '<div class="tris">' + grid.join('') + '</div>' +
+    '<details class="deep"><summary>考核口径 · 分子分母 ▾</summary>' +
+    '<div class="deepGrid">' + parts.join('') + '</div></details>';
 }
 
 function itemHtml(r) {
@@ -528,23 +541,11 @@ function itemHtml(r) {
     '<div class="row3">' + detailGrid(r) + '</div>' +
   '</div>';
 }
-
 function renderList(rows) {
-  // ★ 四个颗粒度严格分开：整商=代理商本身(1行)、商圈片=各商圈片、站点、骑手。
-  //   原来把 agency 降级成 district 复用商圈片口径，等于凭空造了一个不存在的层级。
+  // ★ 四个颗粒度严格分开、行为一致：整商=代理商本身(1行)、商圈片、站点、骑手。
+  //   原来 agency 被降级成 district，又额外开了「不出列表」特例，
+  //   导致点整商看到的是商圈片数据、或干脆什么都不显示。
   var mlv = S.level;
-
-  // ★ 整商层级【不出列表】：整个代理商就一行，"福州…公司 4,312 | 31.47 | 99.86%…"
-  //   信息量等于零，还占掉一屏。改成一行「已选：整商」提示。
-  //   整商数据本来就在顶部卡片里，看明细请切到商圈片/站点/骑手。
-  if (S.level === 'agency') {
-    $('listPanel').hidden = false;
-    $('listTitle').firstChild.nodeValue = '整商';
-    $('list').innerHTML = '<div class="empty">当前层级：整商（数据见上方指标卡）。' +
-      '要看逐个对象，请切到<b>商圈片 / 站点 / 骑手</b>。</div>';
-    $('objScore').hidden = true;
-    return;
-  }
 
   $('listPanel').hidden = false;
   $('listTitle').firstChild.nodeValue = ({
@@ -604,19 +605,62 @@ function renderList(rows) {
 }
 
 /* ── 实时 ─────────────────────────────────────────────────────────── */
-function renderRt(j) {
-  var ind = j.indicators || {};
-  var pick = ['complete_order_count', 'attend_driver_count', 'online_driver_count',
-    'wl_complete_order_rate', 'predict_t8_ontime_rate', 'avg_delivery_time',
-    'complain_order_rate', 'bad_rating_order_rate'];
-  var h = pick.filter(function (k) { return ind[k]; }).map(function (k) {
-    var x = ind[k], v = x.value;
-    if (k.indexOf('rate') >= 0) v = (parseFloat(v) * 100).toFixed(2) + '%';
-    return '<div class="item"><div class="nm"><b>' + esc(x.name) + '</b>' +
-      (x.dayRate != null ? '<div class="sub">环比昨日 ' + (x.dayRate * 100).toFixed(1) + '%</div>' : '') +
-      '</div><div class="sc">' + v + '</div></div>';
-  }).join('');
-  $('rt').innerHTML = h || '<div class="empty">无实时数据</div>';
+/* 今日实时罗盘：数据全部由【本地运单自算】，维度到站点。
+ * 不再用平台罗盘的现成字段——那个只有整商粒度、且指标有限。
+ * 站点级能算出商圈片（按订单比例加权），所以这里直接列站点，信息更灵活。 */
+function renderRt() {
+  var r = computeRange();
+  var d = r[0] || today();
+  var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
+  var box = $('rt');
+  box.innerHTML = '<div class="loading">加载中…</div>';
+  // 环比基准 = 前一天
+  var prev = shift(-1);
+  api('/api/metrics?' + aq + 'level=site&from=' + d + '&to=' + d)
+    .then(function (cur) {
+      return api('/api/metrics?' + aq + 'level=site&from=' + prev + '&to=' + prev)
+        .then(function (pv) {
+          var cm = {}, pm = {};
+          (cur.rows || []).forEach(function (x) { cm[x.id] = x; });
+          (pv.rows || []).forEach(function (x) { pm[x.id] = x; });
+          var rows = (cur.rows || []).slice().sort(function (a, b) {
+            return (b.orders || 0) - (a.orders || 0);
+          });
+          if (!rows.length) { box.innerHTML = '<div class="empty">今日暂无站点数据</div>'; return; }
+          function cell(name, val, cmp, fmt) {
+            var d = '';
+            if (cmp != null && val != null) {
+              var diff = (fmt === 'num') ? (val - cmp) : (val - cmp);
+              var u = (fmt === 'num') ? '' : 'pp';
+              var g = (fmt === 'num') ? (diff > 0) : (diff >= 0);
+              d = '<span class="rt-d ' + (g ? 'up' : 'dn') + '">' +
+                  ((fmt === 'num' ? (diff > 0 ? '+' : '') + diff
+                                   : (diff > 0 ? '+' : '') + (diff * 100).toFixed(2) + u)) + '</span>';
+            }
+            var v = val == null ? '—' : (fmt === 'num' ? num(val)
+                  : fmt === 'sec' ? Number(val).toFixed(2) + 's' : pct(val, 2));
+            return '<div class="rt-cell"><div class="k">' + name + '</div>' +
+                   '<div class="v">' + v + '</div>' + d + '</div>';
+          }
+          box.innerHTML = '<div class="rt-head">' + d + ' · 按站点（共 ' + rows.length +
+            '）<span class="hint">环比昨日</span></div>' +
+            rows.map(function (x) {
+              var p = pm[x.id] || {};
+              return '<div class="rt-row">' +
+                '<div class="rt-nm"><b>' + esc(x.name) + '</b>' +
+                  '<span class="rt-sub">' + num(x.orders) + ' 单 · ' +
+                  num(x.attendRiders) + ' 人' + (x.efficiency != null ? ' · 人效' + x.efficiency : '') +
+                  '</span></div>' +
+                '<div class="rt-cells">' +
+                  cell('妥投', x.likt, p.likt) +
+                  cell('T8准时', x.t8, p.t8) +
+                  cell('复合', x.duration, p.duration, 'sec') +
+                  cell('单量', x.orders, p.orders, 'num') +
+                '</div></div>';
+            }).join('');
+        });
+    })
+    .catch(function (e) { box.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
 }
 
 /* ── 账号 ─────────────────────────────────────────────────────────── */
@@ -748,7 +792,7 @@ function loadRt() {
       // ★ 顺带把环比喂给顶部指标卡（一次请求，两个用途）
       MOM = j.indicators;
       $('rtPanel').hidden = false;
-      renderRt(j);
+      renderRt();
     }
   }).catch(function () { $('rtPanel').hidden = true; });
 }
