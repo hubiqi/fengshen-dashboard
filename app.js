@@ -214,7 +214,8 @@ function renderCards(t) {
 /* ── 得分（按商圈片）──────────────────────────────────────────────── */
 var SB = { districts: [], sel: null };
 var LIST_ROWS = {};   // 行 id → 行数据（objScore 回写分数时要用）
-var CUR_SCORE = { cur: null, month: null };   // 当前对象的得分（scoreboard 才有）
+var CUR_SCORE = { cur: null, month: null };
+var LAST_TOTAL = {};      // 最近一次 /api/metrics 的 total（罗盘核对用）   // 当前对象的得分（scoreboard 才有）
 function fmt1(v) { return v == null ? '—' : Number(v).toFixed(1); }
 
 function renderScoreBoard(j) {
@@ -610,202 +611,138 @@ function mark(el, expand) {
   }
 }
 
-/* ── 实时 ─────────────────────────────────────────────────────────── */
-/* 今日实时罗盘：数据全部由【本地运单自算】，维度到站点。
- * 不再用平台罗盘的现成字段——那个只有整商粒度、且指标有限。
- * 站点级能算出商圈片（按订单比例加权），所以这里直接列站点，信息更灵活。 */
-function renderRt() {
-  var r = computeRange();
-  var d = r[0] || today();
-  var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
-  var box = $('rt');
-  box.innerHTML = '<div class="loading">加载中…</div>';
-  // 环比基准 = 前一天
-  var prev = shift(-1);
-  // ★ 必须跟随当前维度：原来硬编码 level=site，导致点整商/商圈片/骑手时
-  //   罗盘永远显示站点，四个维度切换它却不动。
-  var lv = S.level;
-  api('/api/metrics?' + aq + 'level=' + q(lv) + '&from=' + d + '&to=' + d)
-    .then(function (cur) {
-      return api('/api/metrics?' + aq + 'level=' + q(lv) + '&from=' + prev + '&to=' + prev)
-        .then(function (pv) {
-          var cm = {}, pm = {};
-          (cur.rows || []).forEach(function (x) { cm[x.id] = x; });
-          (pv.rows || []).forEach(function (x) { pm[x.id] = x; });
-          var rows = (cur.rows || []).slice().sort(function (a, b) {
-            return (b.orders || 0) - (a.orders || 0);
-          });
-
-          if (!rows.length) { box.innerHTML = '<div class="empty">今日暂无站点数据</div>'; return; }
-          function cell(name, val, cmp, fmt) {
-            var d = '';
-            if (cmp != null && val != null) {
-              var diff = (fmt === 'num') ? (val - cmp) : (val - cmp);
-              var u = (fmt === 'num') ? '' : 'pp';
-              var g = (fmt === 'num') ? (diff > 0) : (diff >= 0);
-              d = '<span class="rt-d ' + (g ? 'up' : 'dn') + '">' +
-                  ((fmt === 'num' ? (diff > 0 ? '+' : '') + diff
-                                   : (diff > 0 ? '+' : '') + (diff * 100).toFixed(2) + u)) + '</span>';
-            }
-            var v = val == null ? '—' : (fmt === 'num' ? num(val)
-                  : fmt === 'sec' ? Number(val).toFixed(2) + 's' : pct(val, 2));
-            return '<div class="rt-cell"><div class="k">' + name + '</div>' +
-                   '<div class="v">' + v + '</div>' + d + '</div>';
-          }
-          box.innerHTML = '<div class="rt-head">' + d + ' · ' +
-            ({ agency: '整商', district: '商圈片', site: '站点', rider: '骑手' })[lv] +
-            '（共 ' + rows.length + '）<span class="hint">环比昨日</span></div>' +
-            rows.map(function (x) {
-              var p = pm[x.id] || {};
-              return '<div class="rt-row">' +
-                '<div class="rt-nm"><b>' + esc(x.name) + '</b>' +
-                  '<span class="rt-sub">' + num(x.orders) + ' 单 · ' +
-                  num(x.attendRiders) + ' 人' + (x.efficiency != null ? ' · 人效' + x.efficiency : '') +
-                  '</span></div>' +
-                '<div class="rt-cells">' +
-                  cell('妥投', x.likt, p.likt) +
-                  cell('T8准时', x.t8, p.t8) +
-                  cell('复合', x.duration, p.duration, 'sec') +
-                  cell('单量', x.orders, p.orders, 'num') +
-                '</div></div>';
-            }).join('');
-        });
-    })
-    .catch(function (e) { box.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
-}
-
-/* ── 账号 ─────────────────────────────────────────────────────────── */
-function loadAccounts() {
-  return api('/api/accounts').then(function (j) {
-    ACC = j;
-    var sel = $('acctSel');
-    if (!j.list.length) {
-      sel.innerHTML = '<option value="">未配置风神账号</option>';
-      $('acctState').textContent = '';
-    } else {
-      sel.innerHTML = j.list.map(function (a) {
-        return '<option value="' + esc(a.id) + '"' + (a.id === j.active ? ' selected' : '') + '>' +
-          esc(a.accountMask || a.account) + (a.agencyName ? ' · ' + esc(a.agencyName.slice(0, 8)) : '') + '</option>';
-      }).join('');
-      var act = j.list.filter(function (a) { return a.id === j.active; })[0];
-      $('acctState').textContent = act ? (act.status === 'ok' ? '登录态 ✓' : '登录态 ✗') : '';
-    }
-    if (j.active && ACCT !== j.active) { ACCT = j.active; localStorage.setItem(LS_ACCT, ACCT); }
-    renderAcctList();
-    return j;
-  });
-}
-function renderAcctList() {
-  if (!ACC.list.length) { $('acctList').innerHTML = '<div class="empty">还没有风神账号，下面添加一个</div>'; return; }
-  $('acctList').innerHTML = ACC.list.map(function (a) {
-    var on = a.id === ACC.active;
-    return '<div class="acct-row' + (on ? ' on' : '') + '">' +
-      '<div class="nm"><b>' + esc(a.accountMask) + '</b>' +
-      '<div class="sub">' + (a.agencyName ? esc(a.agencyName) : '未取到代理商') +
-      (a.user ? ' · ' + esc(a.user) : '') + ' · ' +
-      (a.status === 'ok' ? '<span class="g">登录态✓</span>' : '<span class="r">未登录</span>') + '</div></div>' +
-      '<button class="mini" data-act="use" data-id="' + esc(a.id) + '">' + (on ? '当前' : '切换') + '</button>' +
-      '<button class="mini" data-act="login" data-id="' + esc(a.id) + '">登录</button>' +
-      '<button class="mini danger" data-act="del" data-id="' + esc(a.id) + '">删</button>' +
-      '</div>';
-  }).join('');
-  Array.prototype.forEach.call($('acctList').querySelectorAll('button'), function (b) {
-    b.onclick = function () {
-      var act = b.getAttribute('data-act'), id = b.getAttribute('data-id');
-      if (act === 'use') {
-        api('/api/accounts/active', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id }) })
-          .then(function () { ACCT = id; localStorage.setItem(LS_ACCT, id); return loadAccounts(); })
-          .then(function () { S.key = ''; loadAll(); });
-      } else if (act === 'login') {
-        var a = ACC.list.filter(function (x) { return x.id === id; })[0];
-        doLogin(a.account, null);
-      } else if (act === 'del') {
-        if (!confirm('删除该风神账号？')) return;
-        api('/api/accounts/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id }) })
-          .then(function () { return loadAccounts(); }).then(function () { loadAll(); });
-      }
-    };
-  });
-}
-
-function doLogin(account, password) {
-  if (!TOKEN || $('appView').hidden) { showLogin(false); return; }
-  $('cfgStatus').textContent = '正在启动无头浏览器登录 ' + account + ' …（约 20-40 秒）';
-  api('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ account: account, password: password }) })
-    .then(function (j) {
-      if (j.status === 'captcha') {
-        // ★ 验证码只可能在「已登录看板 + 添加风神账号」时出现
-        if (!TOKEN || document.getElementById('appView').hidden) {
-          $('cfgStatus').textContent = '✗ 需要先登录看板';
-          return;
-        }
-        LOGIN.sid = j.sid; LOGIN.account = account;
-        // 只用内嵌 base64（图片 URL 需要额外放行，不安全）
-        var mime = j.captchaMime || 'image/png';
-        $('capImg').src = 'data:' + mime + ';base64,' + j.captcha;
-        $('capMsg').textContent = j.tip || '';
-        $('capModal').hidden = false;
-        $('cfgStatus').textContent = '需要图形验证码';
-        return;
-      }
-      if (j.status === 'ok') {
-        $('cfgStatus').textContent = '✓ 登录成功 · ' + (j.agencyName || '') + ' · ' + (j.user || '');
-        return loadAccounts().then(function () { loadAll(); });
-      }
-      $('cfgStatus').textContent = '✗ ' + (j.error || '登录失败');
-    })
-    .catch(function (e) { $('cfgStatus').textContent = '✗ ' + e.message; });
-}
-
-/* ── 主流程 ───────────────────────────────────────────────────────── */
+/* ── 取数：卡片 + 明细列表 ────────────────────────────────────────
+ * ★ 这两个函数（loadAll / loadCards）曾被我用 Python 切片替换时误删过，
+ *   页面不报错、列表也不动，只是卡片永远停在「加载中…」——极难察觉。
+ *   改这个文件请优先用 file_edit，别用脚本做区间替换。 */
 function loadAll() {
   var r = computeRange();
   S.from = r[0]; S.to = r[1];
   $('rangeText').textContent = r[0] === r[1] ? r[0] : (r[0] + ' ~ ' + r[1]);
-  $('heroSub').textContent = '数据区间 ' + (r[0] === r[1] ? r[0] : r[0] + ' ~ ' + r[1]) +
+  $('heroSub').textContent = '数据区间 ' + (r[0] === r[1] ? r[0] : (r[0] + ' ~ ' + r[1])) +
     ' · ' + ({ agency: '整商', district: '商圈片（UB考核单位）', site: '站点', rider: '骑手' })[S.level];
-  var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
   loadCards(r[0], r[1], true);
   loadScore();
   loadRt();
 }
 
-/* 单独刷新顶部数据卡片。抽出成独立函数，点站点/骑手时只重拉卡片，
-   不重跑 loadAll（那会连列表一起重渲、把当前选中态冲掉）。
-   withList=false 时不重渲对象列表 —— 点站点时列表内容没变，重复渲会把选中态闪掉。 */
+/* withList=false 时不重渲列表 —— 点对象时列表内容没变，重复渲会把选中态闪掉。 */
 function loadCards(dfrom, dto, withList) {
   var r = computeRange();
   dfrom = dfrom || r[0]; dto = dto || r[1];
   var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
   $('cards').innerHTML = '<div class="loading">加载中…</div>';
-  // ★ 选中站点/骑手后要带上 key，否则卡片永远是整段日期的总量
-  //   （之前请求里只有 level，从没传过 key —— 点了站点卡片数字不动）
   var keyq = S.key ? '&key=' + q(S.key) : '';
-  // ★ 每个颗粒度严格按自己的层级取数，不再把 agency 降级成 district。
-  //   之前这里硬写 'agency'→'district'，导致点「整商」看到的是商圈片数据。
-  //   现在 agency 就查 agency（1 家公司），district 查 district（各商圈片），互不串。
-  var mlv = S.level;
-  return api('/api/metrics?' + aq + 'level=' + mlv + '&from=' + dfrom + '&to=' + dto + keyq)
+  return api('/api/metrics?' + aq + 'level=' + S.level + '&from=' + dfrom + '&to=' + dto + keyq)
     .then(function (j) {
+      LAST_TOTAL = j.total || {};
       renderCards(j.total);
       if (withList) renderList(j.rows || []);
+      return j;
     })
     .catch(function (e) { $('cards').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
 }
 
-/* 旧版 loadScore 已移除（会覆盖新版并因 dailyTbl 不存在而抛错） */
+/* ── 实时 ─────────────────────────────────────────────────────────── */
+/* 今日实时（风神实时运营罗盘）
+ * ────────────────────────────────────────────────────────────────
+ * 数据来源：**风神后台原样拉取**（/api/realtime → basicAnalysis）。
+ * ★ 这个模块存在的意义是【核对】：把平台给的今日实时值和本地运单算出来的值
+ *   并排放，一眼看出差多少。自己算自己核对毫无意义，所以平台值必须是原值，
+ *   不做任何换算/覆盖。
+ * ★ 只在【整商】维度显示 —— 平台 basicAnalysis 只有整商粒度，
+ *   硬套到商圈片/站点/骑手上会给出对不上的数字（维度错配比不显示更糟）。
+ */
+var RT_PLAT = {};   // 平台指标缓存：key → {name, value}
 
-function loadRt() {
-  var aq = ACCT ? '?acct=' + q(ACCT) : '';
-  // ★ 罗盘数据现在由 renderRt 自己向 /api/metrics 取（按当前维度），
-  //   不再依赖 /api/realtime —— 否则该接口一失败整个面板就隐藏。
-  //   /api/realtime 只用来喂「环比」兜底和更新时间状态。
+function renderRt() {
+  var box = $('rt');
+  if (S.level !== 'agency') { $('rtPanel').hidden = true; return; }
   $('rtPanel').hidden = false;
-  renderRt();
+
+  if (!Object.keys(RT_PLAT).length) {
+    box.innerHTML = '<div class="loading">正在拉取风神后台实时数据…</div>';
+    return;
+  }
+
+  // 平台指标 → 本地对应口径，用于核对
+  var MINE = {
+    complete_order_count: function (t) { return t.orders; },
+    complete_order_rate: function (t) { return t.likt; },
+    wl_complete_order_rate: function (t) { return t.likt; },
+    driver_t_ontime_rate: function (t) { return t.t8; },
+    attend_driver_count: function (t) { return t.attendRiders; },
+    rider_efficiency: function (t) { return t.efficiency; },
+    complain_order_rate: function (t) { return t.dissat; }
+  };
+  var NAME = {
+    complete_order_count: '完单量',
+    complete_order_rate: '妥投率',
+    wl_complete_order_rate: '物流妥投率',
+    driver_t_ontime_rate: '骑手准时送达率',
+    attend_driver_count: '出勤骑手数',
+    rider_efficiency: '人效',
+    complain_order_rate: '投诉率',
+    cancel_order_count: '取消单量',
+    logistics_un_complete_count: '物流责取消单量'
+  };
+  var isRate = { complete_order_rate: 1, wl_complete_order_rate: 1,
+                 driver_t_ontime_rate: 1, complain_order_rate: 1 };
+
+  var t = RT_TOTAL || {};
+  var h = '<div class="rt-note">左＝<b>风神后台</b>原值，右＝本地运单计算值，差值用于核对</div>';
+  h += Object.keys(NAME).filter(function (k) {
+    return RT_PLAT[k] && RT_PLAT[k].value != null;
+  }).map(function (k) {
+    var pv = RT_PLAT[k].value;
+    var mine = MINE[k] ? MINE[k](t) : null;
+    var fmt = function (v) {
+      if (v == null) return '—';
+      if (isRate[k]) return (v * 100).toFixed(2) + '%';
+      return num(v);
+    };
+    // 差值：率用 pp，其他用绝对差
+    var diff = '';
+    if (mine != null && pv != null) {
+      if (isRate[k]) {
+        var dpp = (pv - mine) * 100;
+        var ok = Math.abs(dpp) < 0.5;
+        diff = '<span class="rt-d ' + (ok ? 'good' : 'bad') + '">' +
+          (dpp > 0 ? '+' : '') + dpp.toFixed(2) + 'pp</span>';
+      } else if (Math.abs(pv - mine) >= 1) {
+        diff = '<span class="rt-d ' + (mine >= pv ? 'good' : 'bad') + '">' +
+          (mine - pv > 0 ? '+' : '') + Math.round(mine - pv) + '</span>';
+      } else {
+        diff = '<span class="rt-d good">一致</span>';
+      }
+    }
+    return '<div class="rt-row">' +
+      '<div class="rt-nm"><b>' + esc(NAME[k]) + '</b>' +
+        '<span class="rt-sub">' + esc(RT_PLAT[k].name || '') + '</span></div>' +
+      '<div class="rt-cells">' +
+        '<div class="rt-cell"><div class="k">平台</div><div class="v">' + fmt(pv) + '</div></div>' +
+        '<div class="rt-cell"><div class="k">我算</div><div class="v">' + fmt(mine) + '</div>' + diff + '</div>' +
+      '</div></div>';
+  }).join('');
+  box.innerHTML = h + (h.length > 60 ? '' : '<div class="empty">风神后台未返回实时指标</div>');
+}
+
+/* 拉风神后台实时数据（平台原值，不做任何加工）+ 当前对象 total 供核对 */
+function loadRt() {
+  if (S.level !== 'agency') { $('rtPanel').hidden = true; return; }
+  var aq = ACCT ? '?acct=' + q(ACCT) : '';
+  loadCards(undefined, undefined, false).then(function () {
+    RT_TOTAL = LAST_TOTAL || {};
+  }).catch(function () {});
   api('/api/realtime' + aq).then(function (j) {
-    if (j.ok && j.indicators) MOM = j.indicators;
-  }).catch(function () { /* 状态拿不到不影响罗盘主体 */ });
+    if (j.ok && j.indicators) {
+      RT_PLAT = j.indicators;
+      MOM = j.indicators;
+      renderRt();
+    } else {
+      $('rtPanel').hidden = true;
+    }
+  }).catch(function () { $('rtPanel').hidden = true; });
 }
 
 function loadState() {
