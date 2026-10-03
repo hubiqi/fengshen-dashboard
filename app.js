@@ -586,6 +586,8 @@ function mark(el, expand) {
       //   上面那排数据卡片始终是整段日期的总量，看着像"点了没反应"。
       //   不能用 loadAll() —— 本函数就是在它的 then() 里跑的，会递归。
       loadCards();
+      // ★ 罗盘是【该维度的横向对比清单】，列出这一层全部对象 ——
+      //   所以不随选中变化，点某行不用重取它（要变的是卡片和得分）。
       // ★ 点开某一行 → 在列表下方渲染【该对象】的考核得分
       loadObjScore(el);
     };
@@ -620,9 +622,12 @@ function renderRt() {
   box.innerHTML = '<div class="loading">加载中…</div>';
   // 环比基准 = 前一天
   var prev = shift(-1);
-  api('/api/metrics?' + aq + 'level=site&from=' + d + '&to=' + d)
+  // ★ 必须跟随当前维度：原来硬编码 level=site，导致点整商/商圈片/骑手时
+  //   罗盘永远显示站点，四个维度切换它却不动。
+  var lv = S.level;
+  api('/api/metrics?' + aq + 'level=' + q(lv) + '&from=' + d + '&to=' + d)
     .then(function (cur) {
-      return api('/api/metrics?' + aq + 'level=site&from=' + prev + '&to=' + prev)
+      return api('/api/metrics?' + aq + 'level=' + q(lv) + '&from=' + prev + '&to=' + prev)
         .then(function (pv) {
           var cm = {}, pm = {};
           (cur.rows || []).forEach(function (x) { cm[x.id] = x; });
@@ -630,6 +635,7 @@ function renderRt() {
           var rows = (cur.rows || []).slice().sort(function (a, b) {
             return (b.orders || 0) - (a.orders || 0);
           });
+
           if (!rows.length) { box.innerHTML = '<div class="empty">今日暂无站点数据</div>'; return; }
           function cell(name, val, cmp, fmt) {
             var d = '';
@@ -646,8 +652,9 @@ function renderRt() {
             return '<div class="rt-cell"><div class="k">' + name + '</div>' +
                    '<div class="v">' + v + '</div>' + d + '</div>';
           }
-          box.innerHTML = '<div class="rt-head">' + d + ' · 按站点（共 ' + rows.length +
-            '）<span class="hint">环比昨日</span></div>' +
+          box.innerHTML = '<div class="rt-head">' + d + ' · ' +
+            ({ agency: '整商', district: '商圈片', site: '站点', rider: '骑手' })[lv] +
+            '（共 ' + rows.length + '）<span class="hint">环比昨日</span></div>' +
             rows.map(function (x) {
               var p = pm[x.id] || {};
               return '<div class="rt-row">' +
@@ -791,14 +798,14 @@ function loadCards(dfrom, dto, withList) {
 
 function loadRt() {
   var aq = ACCT ? '?acct=' + q(ACCT) : '';
+  // ★ 罗盘数据现在由 renderRt 自己向 /api/metrics 取（按当前维度），
+  //   不再依赖 /api/realtime —— 否则该接口一失败整个面板就隐藏。
+  //   /api/realtime 只用来喂「环比」兜底和更新时间状态。
+  $('rtPanel').hidden = false;
+  renderRt();
   api('/api/realtime' + aq).then(function (j) {
-    if (j.ok && j.indicators) {
-      // ★ 顺带把环比喂给顶部指标卡（一次请求，两个用途）
-      MOM = j.indicators;
-      $('rtPanel').hidden = false;
-      renderRt();
-    }
-  }).catch(function () { $('rtPanel').hidden = true; });
+    if (j.ok && j.indicators) MOM = j.indicators;
+  }).catch(function () { /* 状态拿不到不影响罗盘主体 */ });
 }
 
 function loadState() {
