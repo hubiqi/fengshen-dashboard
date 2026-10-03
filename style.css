@@ -106,24 +106,32 @@ td.sc{font-size:11px;color:var(--sub)}
 .item.open{background:#fff;border-color:var(--blue);box-shadow:0 1px 4px rgba(31,111,235,.12)}
 .item.open .row3{display:block}
 /* 核心指标：两列 */
+/* ★ 明细区统一用 grid。原来 .deep 用 column-count 多栏、里面 .deepGrid 又是
+   2 列 grid —— 两套列布局嵌套，排版必然错乱。现在只有一套 grid。 */
 .item.open .row3 .deep{display:block}
 .item.open .row3 .kv{display:flex;justify-content:space-between;gap:6px;
-  font-size:10.5px;color:var(--sub);padding:1.5px 0}
-/* 12 个核心字段排成 2 列 */
-.item.open .row3 .deep{column-count:2;column-gap:10px}
-.item.open .row3 .deep .kv{break-inside:avoid}
-.item.open .row3 .deep summary{column-span:all;display:block;cursor:pointer;
+  font-size:10.5px;color:var(--sub);padding:1.5px 0;
+  background:#fff;border-radius:5px;padding:3px 6px}
+.item.open .row3 .deepGrid{display:grid;gap:0 10px;margin-top:4px;
+  padding-top:4px;border-top:1px dashed var(--line)}
+.item.open .row3 .deepGrid:first-of-type{border-top:0;margin-top:0;padding-top:0}
+.item.open .row3 .kv b{color:var(--fg);font-weight:600;white-space:nowrap}
+.item.open .row3 .deep summary{display:block;cursor:pointer;
   font-size:10.5px;color:var(--blue);margin-bottom:4px;list-style:none}
 .item.open .row3 .deep summary::-webkit-details-marker{display:none}
-.item.open .row3 .deepGrid{display:grid;grid-template-columns:repeat(2,1fr);
-  gap:0 10px;margin-top:4px;padding-top:4px;border-top:1px dashed var(--line)}
-.item.open .row3 .kv b{color:var(--fg);font-weight:600;white-space:nowrap}
-/* 极窄屏下核心指标退回单列，避免 key/value 被挤断 */
-@media (max-width:340px){ .item.open .row3 .deep{column-count:1} }
-/* 宽屏列表很宽（实测 1440 下 1380px），2 列会把右侧留出大片空白。
-   按容器宽度自适应列数，省得在小屏挤、大屏空。 */
-@media (min-width:760px){ .item.open .row3 .deep{column-count:3} }
-@media (min-width:1100px){ .item.open .row3 .deep{column-count:4} }
+/* 本月（考核定稿）单独一组，红色区分 —— 与「所选日期」的实时数据不同源 */
+.item.open .row3 .kv.red{background:#fff5f5}
+.item.open .row3 .kv.red span{color:#b03030}
+.item.open .row3 .kv.red b{color:#c62828}
+.item.open .row3 .kv.score{background:#f2f7ff}
+.item.open .row3 .kv.score b{color:var(--blue);font-weight:700}
+.item.open .row3 .kv.score.red{background:#fff5f5}
+.item.open .row3 .kv.score.red b{color:#c62828}
+/* 列数随宽度自适应：小屏 2 列，大屏 4 列 */
+.item.open .row3 .deepGrid{grid-template-columns:repeat(2,1fr)}
+@media (max-width:340px){ .item.open .row3 .deepGrid{grid-template-columns:1fr} }
+@media (min-width:760px){ .item.open .row3 .deepGrid{grid-template-columns:repeat(3,1fr)} }
+@media (min-width:1100px){ .item.open .row3 .deepGrid{grid-template-columns:repeat(4,1fr)} }
 
 /* 旧选中态（点击高亮）保留 */
 .item.on{background:#fff}
