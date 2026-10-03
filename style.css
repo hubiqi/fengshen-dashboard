@@ -350,3 +350,25 @@ td.sc{font-size:11px;color:var(--sub)}
 .tcard .dl.good{color:#1a8a4a}
 .tcard .dl.bad{color:#c0392b}
 .tcard .d{font-size:10px;color:var(--sub);margin-top:2px;line-height:1.35}
+
+/* ── 今日实时罗盘：平台值 vs 本地计算值 核对 ───────────────────────── */
+#rt .rt-note{font-size:11px;color:var(--sub);padding:6px 2px 8px;line-height:1.5}
+#rt .rt-note b{color:var(--fg)}
+#rt .rt-row{border-top:1px solid var(--line);padding:7px 2px;
+  display:flex;justify-content:space-between;align-items:center;gap:10px}
+#rt .rt-nm{min-width:0}
+#rt .rt-nm b{font-size:12.5px;display:block}
+#rt .rt-sub{font-size:10px;color:var(--sub)}
+#rt .rt-cells{display:flex;gap:8px;flex-shrink:0}
+#rt .rt-cell{background:#fafbfc;border-radius:6px;padding:4px 9px;min-width:86px;
+  text-align:right}
+#rt .rt-cell .k{font-size:9.5px;color:var(--sub)}
+#rt .rt-cell .v{font-size:14px;font-weight:650;white-space:nowrap}
+#rt .rt-d{font-size:10px;margin-left:5px}
+#rt .rt-d.good{color:#1a8a4a}
+#rt .rt-d.bad{color:#c0392b}
+@media (max-width:420px){
+  #rt .rt-row{flex-direction:column;align-items:stretch}
+  #rt .rt-cells{gap:6px}
+  #rt .rt-cell{flex:1;min-width:0}
+}
