@@ -192,7 +192,8 @@ function renderCards(t) {
   }
 
   var c = [
-    cell('大网质量得分', t.bigNet, t.monthBigNet, null, 'num'),
+    cell('大网质量得分', t.bigNet != null ? t.bigNet : CUR_SCORE.cur,
+      t.monthBigNet != null ? t.monthBigNet : CUR_SCORE.month, null, 'num'),
     cell('完单量', t.orders, mp.orders, pv.orders, 'num'),
     cell('出勤骑手数', t.attendRiders, mp.attendRiders, pv.attendRiders, 'num'),
     cell('人效', t.efficiency, mp.efficiency, pv.efficiency, 'num', '完单 ÷ 出勤'),
@@ -212,6 +213,7 @@ function renderCards(t) {
 /* ── 得分（按商圈片）──────────────────────────────────────────────── */
 var SB = { districts: [], sel: null };
 var LIST_ROWS = {};   // 行 id → 行数据（objScore 回写分数时要用）
+var CUR_SCORE = { cur: null, month: null };   // 当前对象的得分（scoreboard 才有）
 function fmt1(v) { return v == null ? '—' : Number(v).toFixed(1); }
 
 function renderScoreBoard(j) {
@@ -354,13 +356,24 @@ function loadObjScore(el) {
     .then(function (j) {
       var d = (j.districts || [])[0];
       if (!d) return;
-      // ★ 得分写回行数据并重绘这一行：分数与数据同处一张卡片，
-      //   不必滚到别处去对照（原来的 objScore 面板已并入 detailGrid）。
+      var big = (d.month || {}).bigNet;
+      CUR_SCORE.cur = big; CUR_SCORE.month = big;
+      // ★ 得分写回行数据并重绘这一行
       var row = LIST_ROWS[key];
       if (row) {
-        row.score = { cur: (d.month || {}).bigNet, month: (d.month || {}).bigNet };
+        row.score = { cur: big, month: big };
         var box = $('list').querySelector('.item[data-id="' + key + '"] .row3');
         if (box) box.innerHTML = detailGrid(row);
+      }
+      // ★ 同时【原地更新顶部卡片的「大网质量得分」格】。
+      //   得分只来自 /api/scoreboard，/api/metrics 的 total 里没有这个字段，
+      //   所以 loadCards 渲染时只能显示「—」，必须等得分回来再补。
+      //   用原地改 textContent 而不是 renderCards() 重渲，避免整排卡片闪烁 + 重复请求。
+      var hi = $('cards').querySelector('.tcard.hi');
+      if (hi && big != null) {
+        var v = hi.querySelector('.v'), cm = hi.querySelector('.cmp');
+        if (v) v.textContent = Number(big).toFixed(2);
+        if (cm) cm.innerHTML = '<span>全月 ' + Number(big).toFixed(2) + '</span>';
       }
     })
     .catch(function () { /* 得分取不到就只显示数据，不打断 */ });
@@ -558,6 +571,8 @@ function mark(el, expand) {
       //   是为了掩盖"agency 被降级成 district"造成的口径错位。
       S.key = el.getAttribute('data-id'); S.keyName = el.getAttribute('data-nm');
       mark(el, true);
+      // ★ 换了对象就清掉上一个的得分，否则新得分还没回来时会短暂显示别人的分。
+      CUR_SCORE.cur = null; CUR_SCORE.month = null;
       // ★ 卡片也要跟着切到该站点：只调 loadScore() 的话，
       //   上面那排数据卡片始终是整段日期的总量，看着像"点了没反应"。
       //   不能用 loadAll() —— 本函数就是在它的 then() 里跑的，会递归。
