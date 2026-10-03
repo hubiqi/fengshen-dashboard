@@ -152,6 +152,7 @@ function renderCards(t) {
 
 /* ── 得分（按商圈片）──────────────────────────────────────────────── */
 var SB = { districts: [], sel: null };
+var LIST_ROWS = {};   // 行 id → 行数据（objScore 回写分数时要用）
 function fmt1(v) { return v == null ? '—' : Number(v).toFixed(1); }
 
 function renderScoreBoard(j) {
@@ -300,6 +301,15 @@ function loadObjScore(el) {
       var d = (j.districts || [])[0];
       if (!d) { box.innerHTML = '<div class="empty">该对象本月暂无考核数据</div>'; return; }
       box.innerHTML = objScoreHtml(d, j);
+      // ★ 分数写回行数据，并只重绘这一行的明细区 —— 分数与数据同处一张卡片，
+      //   不必滚到下面的 objScore 面板去对照。
+      var row = LIST_ROWS[key];
+      if (row) {
+        row.bigNet = (d.month || {}).bigNet;
+        row.monthBigNet = (d.month || {}).bigNet;
+        var el = $('list').querySelector('.item[data-id="' + key + '"] .row3');
+        if (el) el.innerHTML = detailGrid(row);
+      }
     })
     .catch(function (e) { box.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
 }
@@ -421,21 +431,48 @@ function openAbn(flag) {
    分子分母只在需要核数时才翻出来。全铺开会让展开行高到 300px。 */
 function detailGrid(r) {
   var p = r.parts || {}, mi = r.mealImpact || {}, sci = r.secondcallImpact || {};
+  var mp = r.monthParts || {};                     // 本月（考核）口径，红色
   function kv(k, v) { return '<div class="kv"><span>' + k + '</span><b>' + v + '</b></div>'; }
+  function kvR(k, v) { return '<div class="kv red"><span>' + k + '</span><b>' + v + '</b></div>'; }
   function sgn(v) { return v == null ? '—' : (v > 0 ? '+' : '') + v + '%'; }
+
+  // ★ 分数并入卡片：原来分数在独立的 objScore 面板里，与这些数据分属两块、
+  //   滚动才能对照。现在直接排在同一张卡片内。
+  var W = { likt: 0.20, ontime: 0.30, dissat: 0.20, dur: 0.15 };
+  function scoreLine(v, tag, red) {
+    if (v == null) return '';
+    return '<div class="kv score' + (red ? ' red' : '') + '"><span>' + tag + '</span><b>' +
+      Number(v).toFixed(2) + '</b></div>';
+  }
+
   var core = [
     kv('完单量', num(r.orders)), kv('接单量', num(r.ordersTotal)),
     kv('出勤骑手', num(r.attendRiders)), kv('人效', r.efficiency == null ? '—' : r.efficiency),
     kv('物流妥投', pct(r.likt)), kv('考核准时', pct(r.t8)),
     kv('不满意率', pct(r.dissat, 3)),
-    kv('单均复合', r.duration == null ? '—' : r.duration + ' 秒'),
+    kv('单均复合', sec(r.duration)),
     kv('电联率', pct(r.callRate)), kv('IM及时率', pct(r.imRate)),
     kv('卡餐单量', num(mi.orders)),
     kv('卡餐影响·准时', sgn(mi.t8_delta_pct)),
     kv('二呼单量', num(sci.orders)),
     kv('二呼占比', sci.share == null ? '—' : sci.share + '%')
   ];
+  // ★ 后端 dur 若哪天忘了截断，这里兜底 —— 否则会显示出 14.99061767005473 这种。
+  function sec(v) { return v == null ? '—' : Number(Number(v).toFixed(2)) + ' 秒'; }
+  // ★ 本月（考核口径）单独一组，红色标注 —— 与上面的「所选日期」区分开。
+  var mon = [
+    kvR('本月·完单量', num(mp.orders)),
+    kvR('本月·物流妥投', pct(mp.likt)),
+    kvR('本月·考核准时', pct(mp.ontime)),
+    kvR('本月·不满意率', pct(mp.dissat, 3)),
+    kvR('本月·单均复合', sec(mp.dur)),
+    kvR('本月·出勤骑手', num(mp.attendRiders)),
+    kvR('本月·人效', mp.efficiency == null ? '—' : mp.efficiency)
+  ];
+  // ★ 只保留【分数】和【分子分母】：其余指标与上面的卡片重复，不再重复展示。
   var deep = [
+    scoreLine(r.bigNet, '所选日期·大网得分', false),
+    scoreLine(mp.bigNet, '本月·大网得分', true),
     kv('妥投 分子/分母', num(p.likt_n) + ' / ' + num(p.likt_d)),
     kv('准时 分子/分母', num(p.ont_n) + ' / ' + num(p.ont_d)),
     kv('不满意 分子/分母', num(p.dis_n) + ' / ' + num(p.dis_d)),
@@ -445,8 +482,26 @@ function detailGrid(r) {
     kv('二呼·复合合计', num(sci.composite_excl) + '（不计）'),
     kv('二呼影响·复合', sgn(sci.duration_delta_pct))
   ];
+  var monHtml = mon.length ? '<div class="deepGrid mon">' + mon.join('') + '</div>' : '';
   return '<details class="deep"><summary>考核口径明细 ▾</summary>' +
-    core.join('') + '<div class="deepGrid">' + deep.join('') + '</div></details>';
+    '<div class="deepGrid">' + core.join('') + '</div>' + monHtml +
+    '<div class="deepGrid">' + deep.join('') + '</div></details>';
+}
+
+function itemHtml(r) {
+  return '<div class="item" data-id="' + esc(r.id) + '" data-nm="' + esc(r.name || '') + '">' +
+    '<div class="row1">' +
+      '<div class="nm"><b>' + esc(r.name || r.id) + '</b></div>' +
+      '<div class="sc">' + num(r.orders) + '</div>' +
+    '</div>' +
+    '<div class="row2">' +
+      '<span>人效 <b>' + (r.efficiency == null ? '—' : r.efficiency) + '</b></span>' +
+      '<span>妥投 <b>' + pct(r.likt) + '</b></span>' +
+      '<span>准时 <b>' + pct(r.t8) + '</b></span>' +
+      '<span>不满意 <b>' + pct(r.dissat, 3) + '</b></span>' +
+    '</div>' +
+    '<div class="row3">' + detailGrid(r) + '</div>' +
+  '</div>';
 }
 
 function renderList(rows) {
@@ -459,22 +514,13 @@ function renderList(rows) {
     agency: '整商明细', district: '商圈片明细', site: '站点明细', rider: '骑手明细'
   })[S.level] || '明细';
   if (!rows.length) { $('list').innerHTML = '<div class="empty">该区间暂无数据</div>'; return; }
+  // ★ 行数据存全局：objScore 拿到分数后要写回对应行，卡片内的分数才能显示。
+  LIST_ROWS = {};
   $('list').innerHTML = rows.slice(0, 200).map(function (r) {
+    LIST_ROWS[r.id] = r;
     // ★ 紧凑行：默认只一行摘要；点开的那个才展开完整指标（master-detail）。
     //   原来每行都铺开 4 个指标 + 大字号单量，4 个站点就占满一屏。
-    return '<div class="item" data-id="' + esc(r.id) + '" data-nm="' + esc(r.name || '') + '">' +
-      '<div class="row1">' +
-        '<div class="nm"><b>' + esc(r.name || r.id) + '</b></div>' +
-        '<div class="sc">' + num(r.orders) + '</div>' +
-      '</div>' +
-      '<div class="row2">' +
-        '<span>人效 <b>' + (r.efficiency == null ? '—' : r.efficiency) + '</b></span>' +
-        '<span>妥投 <b>' + pct(r.likt) + '</b></span>' +
-        '<span>准时 <b>' + pct(r.t8) + '</b></span>' +
-        '<span>不满意 <b>' + pct(r.dissat, 3) + '</b></span>' +
-      '</div>' +
-      '<div class="row3">' + detailGrid(r) + '</div>' +
-    '</div>';
+    return itemHtml(r);
   }).join('');
   var items = $('list').querySelectorAll('.item');
   // 手风琴：只展开当前选中的那一个，其他全部收起
