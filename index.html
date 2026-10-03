@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1f6feb">
 <title>风神考核看板</title>
-<link rel="stylesheet" href="style.css?v=670cda73">
-<link rel="stylesheet" href="todo.css?v=670cda73">
+<link rel="stylesheet" href="style.css?v=2873894f">
+<link rel="stylesheet" href="todo.css?v=2873894f">
 </head>
 <body>
 
@@ -46,38 +46,8 @@
   <div id="heroSub" class="hero-sub">加载中…</div>
   <div id="heroState" class="hero-state"></div>
 </header>
-
-<!-- ═══ 今日数据同步（拉取任务明细 + 百分比）═══ -->
-<div id="syncBar" class="syncbar" hidden>
-  <div class="sb-top">
-    <span class="sb-dot" id="sbDot"></span>
-    <span class="sb-stage" id="sbStage">准备中…</span>
-    <span class="sb-pct" id="sbPct">0%</span>
-  </div>
-  <div class="sb-track"><div class="sb-fill" id="sbFill"></div></div>
-  <div class="sb-foot">
-    <span class="sb-meta" id="sbMeta"></span>
-    <button id="sbNow" class="sb-btn" title="立即增量刷新">立即刷新</button>
-  </div>
 </div>
 
-<!-- ═══ 待办任务（甘特图）═══ -->
-<section class="panel todo" id="todoPanel">
-  <div class="todo-head">
-    <h2>待办任务 <span class="hint">点条目标签可直接跳到风神后台处理</span></h2>
-    <div class="todo-btns">
-      <span id="todoStat" class="todo-stat"></span>
-      <button id="todoRefresh" class="mini" title="重新拉取待办">↻</button>
-      <button id="todoFold" class="mini" title="展开待办">▸</button>
-    </div>
-  </div>
-  <!-- ★ 默认折叠：待办是每天都要看的东西，但一进来就占掉半屏，
-       指标卡和明细才是主内容。点 ▸ 展开，状态由 app.js 记住。 -->
-  <div id="todoBody" class="todo-body" hidden>
-    <div id="todoChart" class="gantt"></div>
-    <div id="todoTip" class="hint"></div>
-  </div>
-</section>
 
 <nav class="tabs" id="lvlTabs">
   <button data-lvl="agency" class="on">整商</button>
@@ -133,9 +103,51 @@
   </section>
 
   <section class="panel" id="rtPanel" hidden>
-    <h2>今日实时（风神实时运营罗盘）</h2>
-    <div class="list" id="rt"></div>
+    <div class="todo-head">
+      <h2>今日实时（风神实时运营罗盘）</h2>
+      <div class="todo-btns">
+        <button id="rtFold" class="mini" title="展开罗盘">▸</button>
+      </div>
+    </div>
+    <!-- ★ 默认折叠：罗盘是辅助信息，考核数据才是主内容，先把首屏让出来。 -->
+    <div id="rtBody" hidden>
+      <div class="list" id="rt"></div>
+    </div>
   </section>
+
+<!-- ═══ 辅助信息：待办与同步状态 ═══
+<!-- ★ 按决策优先级排版：得分/四指标 → 明细列表 → 待办与同步（最底、默认折叠）。
+     原来待办和同步条挤在首屏，真正的考核数据要滚很久才看到。 -->
+<div id="syncBar" class="syncbar" hidden>
+  <div class="sb-top">
+    <span class="sb-dot" id="sbDot"></span>
+    <span class="sb-stage" id="sbStage">准备中…</span>
+    <span class="sb-pct" id="sbPct">0%</span>
+  </div>
+  <div class="sb-track"><div class="sb-fill" id="sbFill"></div></div>
+  <div class="sb-foot">
+    <span class="sb-meta" id="sbMeta"></span>
+    <button id="sbNow" class="sb-btn" title="立即增量刷新">立即刷新</button>
+  </div>
+</div>
+
+<section class="panel todo" id="todoPanel">
+  <div class="todo-head">
+    <h2>待办任务 <span class="hint">点条目标签可直接跳到风神后台处理</span></h2>
+    <div class="todo-btns">
+      <span id="todoStat" class="todo-stat"></span>
+      <button id="todoRefresh" class="mini" title="重新拉取待办">↻</button>
+      <button id="todoFold" class="mini" title="展开待办">▸</button>
+    </div>
+  </div>
+  <!-- ★ 默认折叠：待办是每天都要看的东西，但一进来就占掉半屏，
+       指标卡和明细才是主内容。点 ▸ 展开，状态由 app.js 记住。 -->
+  <div id="todoBody" class="todo-body" hidden>
+    <div id="todoChart" class="gantt"></div>
+    <div id="todoTip" class="hint"></div>
+  </div>
+</section>
+
 </main>
 </div>
 
@@ -205,6 +217,6 @@
   </div>
 </div>
 
-<script src="app.js?v=670cda73"></script>
+<script src="app.js?v=2873894f"></script>
 </body>
 </html>
