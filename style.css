@@ -306,4 +306,34 @@ td.sc{font-size:11px;color:var(--sub)}
 .mono{font-variant-numeric:tabular-nums;font-size:11px}
 #abnTbl td,#abnTbl th{white-space:nowrap}
 #abnTbl{min-width:640px}
-[CONTEXT OFFLOADED] Content (~272 tokens, 664 bytes) saved to: /var/minis/offloads/tools/file_write_g90d4d36p5i2.txt
+[CONTEXT OFFLOADED] Content (~272 tokens, 664 bytes) saved to: /var/minis/offloads/tools/file_write_g90d4d36p5i2.txt/* ── 数据卡片：所选日期 / 全月 / 环比 三行合一 ──────────────────── */
+.tris{display:grid;gap:6px;grid-template-columns:repeat(2,1fr);margin-top:6px}
+.tri{background:#fafbfc;border-radius:7px;padding:6px 8px;min-width:0}
+.tri.score{background:#eef4ff}
+.tri .k{font-size:10.5px;color:var(--sub);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.tri .cur{font-size:15px;font-weight:650;color:var(--fg);margin-top:1px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tri.score .cur{font-size:17px;color:var(--blue);font-weight:700}
+.tri .sub{display:flex;justify-content:space-between;gap:6px;font-size:10px;
+  color:var(--sub);margin-top:2px;white-space:nowrap}
+.tri .dl.up{color:#c0392b}
+.tri .dl.dn{color:#1a8a4a}
+@media (max-width:400px){ .tris{grid-template-columns:1fr} }
+@media (min-width:900px){ .tris{grid-template-columns:repeat(4,1fr)} }
+
+/* ── 今日实时罗盘：站点维度 ────────────────────────────────────────── */
+#rt .rt-head{font-size:11px;color:var(--sub);padding:6px 2px 8px;
+  display:flex;justify-content:space-between}
+#rt .rt-row{border-top:1px solid var(--line);padding:7px 2px}
+#rt .rt-nm{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+#rt .rt-nm b{font-size:12.5px}
+#rt .rt-sub{font-size:10.5px;color:var(--sub);white-space:nowrap}
+#rt .rt-cells{display:grid;gap:6px;grid-template-columns:repeat(4,1fr);margin-top:5px}
+#rt .rt-cell{background:#fafbfc;border-radius:6px;padding:4px 7px}
+#rt .rt-cell .k{font-size:10px;color:var(--sub)}
+#rt .rt-cell .v{font-size:13.5px;font-weight:650;white-space:nowrap}
+#rt .rt-d{font-size:9.5px;margin-left:4px}
+#rt .rt-d.up{color:#c0392b}
+#rt .rt-d.dn{color:#1a8a4a}
+@media (max-width:420px){ #rt .rt-cells{grid-template-columns:repeat(2,1fr)} }
