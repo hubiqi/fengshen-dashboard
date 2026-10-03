@@ -176,7 +176,7 @@ function renderScoreBoard(j) {
       var m = (obj.metrics || {})[k] || {};
       h += '<div class="sb-cell"><div class="k">' + esc(m.label || k) + '</div>' +
         '<div class="row2"><span class="val">' + pctOrNum(k, m.value) + '</span>' +
-        '<span class="sc ' + scoreCls(m.score) + '">' + (m.score == null ? '—' : Number(m.score).toFixed(1)) + '</span></div></div>';
+        '<span class="sc ' + scoreCls(m.score) + '">' + (m.score == null ? '—' : Number(m.score).toFixed(2)) + '</span></div></div>';
     });
     return h + '</div>';
   }
@@ -188,11 +188,11 @@ function renderScoreBoard(j) {
       '<div class="sb-head">' +
         '<div class="sb-h"><div class="k">今日得分 <span class="wtag">未判责·仅供参考</span></div>' +
         '<div class="v ' + scoreCls(t && t.dayNet) + '">' +
-          ((t && t.dayNet != null) ? Number(t.dayNet).toFixed(1) : '—') + '</div>' +
+          ((t && t.dayNet != null) ? Number(t.dayNet).toFixed(2) : '—') + '</div>' +
           '<div class="k2">' + (t ? ('完单 ' + num(t.orders) + ' · 出勤 ' + num(t.attend) +
             ' · 人效 ' + (t.efficiency == null ? '—' : t.efficiency)) : '当日无数据') + '</div></div>' +
         '<div class="sb-h"><div class="k">全月得分</div><div class="v ' + scoreCls(m.bigNet) + '">' +
-          (m.bigNet != null ? Number(m.bigNet).toFixed(1) : '—') + '</div>' +
+          (m.bigNet != null ? Number(m.bigNet).toFixed(2) : '—') + '</div>' +
           '<div class="k2">' + (j.from + ' ~ ' + j.to) + '</div></div>' +
       '</div>' +
       block('今日（' + (t ? t.date.slice(5) : '—') + '）', t) +
@@ -330,7 +330,9 @@ function objScoreHtml(d, j) {
       h += '<div class="os-cell"><div class="k">' + esc(mm.label || k) + '</div>' +
         '<div class="r2"><span class="val">' + fmt(k, mm.value) + '</span>' +
         '<span class="sc ' + scoreCls(mm.score) + '">' +
-        (mm.score == null ? '—' : Number(mm.score).toFixed(1)) + '</span></div></div>';
+        // ★ 得分统一【两位小数】——原来子项 toFixed(1)、总分 toFixed(2) 不一致，
+        //   子项截断后四项相加对不上总分（用户看着别扭，也无法验算）。
+        (mm.score == null ? '—' : Number(mm.score).toFixed(2)) + '</span></div></div>';
     });
     return h + '</div>';
   }
