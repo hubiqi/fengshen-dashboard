@@ -337,3 +337,16 @@ td.sc{font-size:11px;color:var(--sub)}
 #rt .rt-d.up{color:#c0392b}
 #rt .rt-d.dn{color:#1a8a4a}
 @media (max-width:420px){ #rt .rt-cells{grid-template-columns:repeat(2,1fr)} }
+/* ── 顶部「当前对象」卡片：所选日期 / 全月 / 环比 三行合一 ───────── */
+.tcard{background:#fafbfc;border-radius:9px;padding:8px 10px;min-width:0}
+.tcard.hi{background:#eef4ff}
+.tcard .k{font-size:11px;color:var(--sub);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.tcard .v{font-size:19px;font-weight:680;color:var(--fg);margin-top:1px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.15}
+.tcard.hi .v{font-size:22px;color:var(--blue);font-weight:700}
+.tcard .cmp{display:flex;justify-content:space-between;gap:6px;font-size:10.5px;
+  color:var(--sub);margin-top:3px;white-space:nowrap}
+.tcard .dl.good{color:#1a8a4a}
+.tcard .dl.bad{color:#c0392b}
+.tcard .d{font-size:10px;color:var(--sub);margin-top:2px;line-height:1.35}
