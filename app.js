@@ -152,24 +152,61 @@ function renderCards(t) {
     t8d += ' · 二呼 ' + num(sci.delivered) + '单(' + ssh + ')';
     dud += ' · 二呼 ' + num(sci.delivered) + '单(' + ssh + '，不计复合)';
   }
-  var c = [card('完单量', num(t.orders), '单', '运单总数 ' + num(t.ordersTotal), momOf('完单'))];
-  if (S.level !== 'rider') {
-    c.push(card('出勤骑手数', num(t.attendRiders), '人', '有完单的骑手'));
-    c.push(card('人效', t.efficiency == null ? '—' : t.efficiency, '单/人', '完单量 ÷ 出勤骑手数'));
-  } else {
-    c.push(card('完单占比', pct(t.ordersTotal ? t.orders / t.ordersTotal : null), '', '该骑手 / 全部'));
+  // ★★★ 统一在一处显示：所选日期 / 全月 / 环比昨天，三行合一。
+  //   数据全部本地运单自算（全月与前一天走同一条 _range_parts 路径，只是区间不同）。
+  //   「得分 + 对比 + 环比」原本散在三个地方（明细展开区 / objScore / 罗盘），
+  //   现在合并到顶部「当前对象」卡片。
+  var mp = t.monthParts || {}, pv = t.prevParts || {};
+  function cell(label, cur, month, prev, kind, hint) {
+    var f = function (v) {
+      if (v == null) return '—';
+      if (kind === 'num') return num(v);
+      if (kind === 'sec') return Number(Number(v).toFixed(2)) + 's';
+      return pct(v, kind === 'rate3' ? 3 : 2);
+    };
+    var d = '';
+    if (cur != null && prev != null && prev !== 0) {
+      var diff, txt, upIsGood;
+      if (kind === 'num') {
+        diff = (cur - prev) / Math.abs(prev) * 100;
+        txt = (diff > 0 ? '+' : '') + diff.toFixed(1) + '%';
+        upIsGood = label.indexOf('满意') < 0;
+      } else if (kind === 'sec') {
+        diff = cur - prev;
+        txt = (diff > 0 ? '+' : '') + Number(diff.toFixed(2)) + 's';
+        upIsGood = false;
+      } else {
+        diff = (cur - prev) * 100;
+        txt = (diff > 0 ? '+' : '') + diff.toFixed(2) + 'pp';
+        upIsGood = label.indexOf('满意') < 0;
+      }
+      var good = diff >= 0 ? upIsGood : !upIsGood;
+      d = '<span class="dl ' + (good ? 'good' : 'bad') + '">' + txt + '</span>';
+    }
+    return '<div class="tcard' + (label.indexOf('大网质量得分') === 0 ? ' hi' : '') + '">' +
+      '<div class="k">' + esc(label) + '</div>' +
+      '<div class="v">' + f(cur) + '</div>' +
+      '<div class="cmp"><span>全月 ' + f(month) + '</span>' + d + '</div>' +
+      (hint ? '<div class="d">' + hint + '</div>' : '') +
+    '</div>';
   }
-  c.push(card('完全妥投率', pct(t.likt), '', '考核口径', momOf('妥投'), true));
-  c.push(card('预测T8准时率', pct(t.t8), '', t8d, momOf('准时'), true));
-  // ↓ 这两个涨了是变差，颜色要反过来
-  c.push(card('单均复合时长', t.duration == null ? '—' : t.duration, '秒', dud, momOf('复合'), false));
-  c.push(card('非时效不满意率', pct(t.dissat, 3), '', '（差评×5+投诉×5+索赔×1）/接单量', momOf('不满意'), false));
+
+  var c = [
+    cell('大网质量得分', t.bigNet, t.monthBigNet, null, 'num'),
+    cell('完单量', t.orders, mp.orders, pv.orders, 'num'),
+    cell('出勤骑手数', t.attendRiders, mp.attendRiders, pv.attendRiders, 'num'),
+    cell('人效', t.efficiency, mp.efficiency, pv.efficiency, 'num', '完单 ÷ 出勤'),
+    cell('完全妥投率', t.likt, mp.likt, pv.likt, null, '考核口径'),
+    cell('预测T8准时率', t.t8, mp.ontime, pv.ontime, null, t8d),
+    cell('单均复合时长', t.duration, mp.dur, pv.dur, 'sec', '有效完单'),
+    cell('非时效不满意率', t.dissat, mp.dissat, pv.dissat, 'rate3', '差评×5+投诉×5+索赔×1')
+  ];
   // ★ 标明这排数字是"谁"的 —— 否则点了站点，卡片数字变了却看不出在讲哪个站点。
-  //   整商维度不设 S.key，卡片固定是整商汇总（考核按商圈片结算，想看单个请切「商圈片」）。
   var scope = (S.level === 'agency') ? '整商（全部商圈片）'
             : S.key ? (S.keyName || S.key)
             : ({ district: '商圈片（UB考核单位）' })[S.level] || '全部';
-  $('cards').innerHTML = '<div class="cardScope">当前对象：<b>' + esc(scope) + '</b></div>' + c.join('');
+  $('cards').innerHTML = '<div class="cardScope">当前对象：<b>' + esc(scope) + '</b>' +
+    '<span class="hint">　每格＝所选日期 · 全月 · 环比昨天</span></div>' + c.join('');
 }
 
 /* ── 得分（按商圈片）──────────────────────────────────────────────── */
@@ -449,81 +486,19 @@ function openAbn(flag) {
  * 全部数据由【本地运单】自算：站点级能算出商圈片（按订单比例加权），
  * 环比一律用所选日期 vs 前一天，不用平台罗盘的现成字段，维度更灵活。
  */
-function triCell(opt) {
-  // opt: {label, cur, month, prev, kind}
-  var kind = opt.kind || 'rate';
-  function fmt(v) {
-    if (v == null) return '—';
-    if (kind === 'num') return num(v);
-    if (kind === 'sec') return Number(Number(v).toFixed(2)) + 's';
-    return pct(v, kind === 'rate3' ? 3 : 2);
-  }
-  function delta(cur, prev) {
-    if (cur == null || prev == null || prev === 0) return null;
-    if (kind === 'num') {
-      var d = (cur - prev) / Math.abs(prev) * 100;
-      return (d > 0 ? '+' : '') + d.toFixed(1) + '%';
-    }
-    var diff = kind === 'sec' ? (cur - prev) : (cur - prev);
-    var u = kind === 'sec' ? 's' : 'pp';
-    var s = diff > 0 ? '+' : '';
-    return s + (kind === 'sec' ? Number(diff.toFixed(2)) : Number((diff * 100).toFixed(2))) + u;
-  }
-  var d = delta(opt.cur, opt.prev);
-  // 「越大越好」的指标（率）；越小越好（复合时长）用反向配色
-  var good = d == null ? null : (kind === 'sec' ? Number(d) <= 0 : Number(d) >= 0);
-  var cls = d == null ? '' : (good ? ' up' : ' dn');
-  return '<div class="tri">' +
-    '<div class="k">' + esc(opt.label) + '</div>' +
-    '<div class="cur">' + fmt(opt.cur) + '</div>' +
-    '<div class="sub"><span>全月 ' + fmt(opt.month) + '</span>' +
-      '<span class="dl' + cls + '">' + (d == null ? '' : '环比 ' + d) + '</span>' +
-    '</div>' +
-  '</div>';
-}
-
-function scoreCell(label, cur, month) {
-  function f(v) { return v == null ? '—' : Number(v).toFixed(2); }
-  return '<div class="tri score">' +
-    '<div class="k">' + esc(label) + '</div>' +
-    '<div class="cur big">' + f(cur) + '</div>' +
-    '<div class="sub"><span>全月 ' + f(month) + '</span></div>' +
-  '</div>';
-}
-
+/* 明细展开区：只放【得分】和【分子分母】。
+ * 所选日期 / 全月 / 环比 的三行对比已移到顶部「当前对象」卡片，
+ * 这里不再重复 —— 同一个数字在两个地方出现，看着就乱。 */
 function detailGrid(r) {
-  var p = r.parts || {}, mi = r.mealImpact || {}, sci = r.secondcallImpact || {};
-  var mp = r.monthParts || {};        // 全月
-  var pv = r.prevParts || {};        // 前一天（环比基准）
-  var sc = r.score || {};            // 得分（所选日期 / 全月）
-
-  var grid = [
-    scoreCell('大网质量得分', sc.cur, sc.month),
-    triCell({ label: '完单量', cur: r.orders, month: mp.orders, prev: pv.orders, kind: 'num' }),
-    triCell({ label: '出勤骑手', cur: r.attendRiders, month: mp.attendRiders, prev: pv.attendRiders, kind: 'num' }),
-    triCell({ label: '人效', cur: r.efficiency, month: mp.efficiency, prev: pv.efficiency, kind: 'num' }),
-    triCell({ label: '物流妥投率', cur: r.likt, month: mp.likt, prev: pv.likt }),
-    triCell({ label: '考核准时率(T8)', cur: r.t8, month: mp.ontime, prev: pv.ontime }),
-    triCell({ label: '不满意率', cur: r.dissat, month: mp.dissat, prev: pv.dissat, kind: 'rate3' }),
-    triCell({ label: '单均复合时长', cur: r.duration, month: mp.dur, prev: pv.dur, kind: 'sec' }),
-    triCell({ label: '电联率', cur: r.callRate, month: mp.callRate, prev: pv.callRate }),
-    triCell({ label: 'IM及时率', cur: r.imRate, month: mp.imRate, prev: pv.imRate }),
-    triCell({ label: '卡餐单量', cur: mi.delivered, month: mp.mealOrders, prev: pv.mealOrders, kind: 'num' }),
-    triCell({ label: '二呼单量', cur: sci.delivered, month: mp.scOrders, prev: pv.scOrders, kind: 'num' })
-  ];
-  // 分子分母放最底，需要核对数字时才看
-  var parts = [
-    kvPair('妥投 分子/分母', p.likt_n, p.likt_d),
-    kvPair('准时 分子/分母', p.ont_n, p.ont_d),
-    kvPair('不满意 分子/分母', p.dis_n, p.dis_d),
-    kvPair('复合 合计/完单', p.dur_n, p.dur_d)
-  ];
-  function kvPair(k, n, d) {
-    return '<div class="kv"><span>' + k + '</span><b>' + num(n) + ' / ' + num(d) + '</b></div>';
-  }
-  return '<div class="tris">' + grid.join('') + '</div>' +
-    '<details class="deep"><summary>考核口径 · 分子分母 ▾</summary>' +
-    '<div class="deepGrid">' + parts.join('') + '</div></details>';
+  var p = r.parts || {}, sc = r.score || {};
+  function kv(k, v) { return '<div class="kv"><span>' + k + '</span><b>' + v + '</b></div>'; }
+  var g = [];
+  if (sc.cur != null) g.push(kv('大网质量得分', Number(sc.cur).toFixed(2)));
+  g.push(kv('妥投 分子/分母', num(p.likt_n) + ' / ' + num(p.likt_d)));
+  g.push(kv('准时 分子/分母', num(p.ont_n) + ' / ' + num(p.ont_d)));
+  g.push(kv('不满意 分子/分母', num(p.dis_n) + ' / ' + num(p.dis_d)));
+  g.push(kv('复合 合计/完单', num(p.dur_n) + ' / ' + num(p.dur_d)));
+  return '<div class="deepGrid">' + g.join('') + '</div>';
 }
 
 function itemHtml(r) {
@@ -561,22 +536,28 @@ function renderList(rows) {
     return itemHtml(r);
   }).join('');
   var items = $('list').querySelectorAll('.item');
-  // 手风琴：只展开当前选中的那一个，其他全部收起
-  function mark(el) {
-    Array.prototype.forEach.call(items, function (x) {
-      x.classList.remove('on');
-      x.classList.remove('open');
-    });
-    if (el) { el.classList.add('on'); el.classList.add('open'); }
+  // 选中态：只高亮，【不自动展开】。
+// ★ 之前恢复选中/自动选中首行时都顺手 add('open')，用户没点就被迫看一屏数据，
+//   手机端一个站点就占满整屏（用户反馈「我都没点击怎么默认展开了」）。
+//   现在：点哪行展开哪行；其余（含自动选中的首行）一律收起。
+function mark(el, expand) {
+  Array.prototype.forEach.call(items, function (x) {
+    x.classList.remove('on');
+    x.classList.remove('open');
+  });
+  if (el) {
+    el.classList.add('on');
+    if (expand) el.classList.add('open');
   }
+}
   Array.prototype.forEach.call(items, function (el) {
-    if (el.getAttribute('data-id') === S.key) { el.classList.add('on'); el.classList.add('open'); }
+    if (el.getAttribute('data-id') === S.key) el.classList.add('on');
     el.onclick = function () {
       // ★ 四个颗粒度行为完全一致：选中即切 key、卡片跟着走、得分同步刷新。
       //   之前给 agency 开特例（不设 S.key、卡片不刷新），
       //   是为了掩盖"agency 被降级成 district"造成的口径错位。
       S.key = el.getAttribute('data-id'); S.keyName = el.getAttribute('data-nm');
-      mark(el);
+      mark(el, true);
       // ★ 卡片也要跟着切到该站点：只调 loadScore() 的话，
       //   上面那排数据卡片始终是整段日期的总量，看着像"点了没反应"。
       //   不能用 loadAll() —— 本函数就是在它的 then() 里跑的，会递归。
@@ -598,8 +579,7 @@ function renderList(rows) {
     var first = items[0];
     S.key = first.getAttribute('data-id');
     S.keyName = first.getAttribute('data-nm');
-    mark(first);
-    // 首行也要展开 + 刷新卡片，否则自动选中后卡片还是整段总量
+    mark(first);          // ★ 不展开：只有用户点了才展开
     loadCards(); loadObjScore();
   }
 }
