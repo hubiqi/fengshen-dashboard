@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1f6feb">
 <title>风神考核看板</title>
-<link rel="stylesheet" href="style.css?v=8b6c028c3859a978">
-<link rel="stylesheet" href="todo.css?v=8b6c028c3859a978">
+<link rel="stylesheet" href="style.css?v=f4c0acef307c19d4">
+<link rel="stylesheet" href="todo.css?v=f4c0acef307c19d4">
 </head>
 <body>
 
@@ -103,18 +103,6 @@
       一致率 &lt;100% 的字段说明运单侧口径与考核侧仍有差异（判责/剔除/申诉导致）。</div>
   </section>
 
-  <section class="panel" id="rtPanel" hidden>
-    <div class="todo-head">
-      <h2>今日实时（风神实时运营罗盘）</h2>
-      <div class="todo-btns">
-        <button id="rtFold" class="mini" title="展开罗盘">▸</button>
-      </div>
-    </div>
-    <!-- ★ 默认折叠：罗盘是辅助信息，考核数据才是主内容，先把首屏让出来。 -->
-    <div id="rtBody" hidden>
-      <div class="list" id="rt"></div>
-    </div>
-  </section>
 
 <!-- ═══ 辅助信息：待办与同步状态 ═══
 <!-- ★ 按决策优先级排版：得分/四指标 → 明细列表 → 待办与同步（最底、默认折叠）。
@@ -149,6 +137,22 @@
   </div>
 </section>
 
+
+<!-- ★ 风神实时运营罗盘：整商维度的【核对用】模块，放在最底下、默认折叠。
+     它的价值在于和上面的自算指标对账（T0 运单推算 vs 平台实时值），
+     平时不需要看，所以不占首屏。只有 level=agency 时才显示。 -->
+  <section class="panel" id="rtPanel" hidden>
+    <div class="todo-head">
+      <h2>今日实时（风神实时运营罗盘）</h2>
+      <div class="todo-btns">
+        <button id="rtFold" class="mini" title="展开罗盘">▸</button>
+      </div>
+    </div>
+    <!-- ★ 默认折叠：罗盘是辅助信息，考核数据才是主内容，先把首屏让出来。 -->
+    <div id="rtBody" hidden>
+      <div class="list" id="rt"></div>
+    </div>
+  </section>
 </main>
 </div>
 
@@ -220,6 +224,6 @@
   </div>
 </div>
 
-<script src="app.js?v=8b6c028c3859a978"></script>
+<script src="app.js?v=f4c0acef307c19d4"></script>
 </body>
 </html>
