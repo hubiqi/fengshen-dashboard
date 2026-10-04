@@ -184,7 +184,8 @@ function renderCards(t) {
       var good = diff >= 0 ? upIsGood : !upIsGood;
       d = '<span class="dl ' + (good ? 'good' : 'bad') + '">' + txt + '</span>';
     }
-    return '<div class="tcard' + (label.indexOf('大网质量得分') === 0 ? ' hi' : '') + '">' +
+    return '<div class="tcard' + (label.indexOf('大网质量得分') === 0 ? ' hi' : '') +
+      '" data-trend="' + esc(label) + '" title="点击查看整月趋势">' +
       '<div class="k">' + esc(label) + '</div>' +
       '<div class="v">' + f(cur) + '</div>' +
       '<div class="cmp"><span>全月 ' + f(month) + '</span>' + d + '</div>' +
@@ -210,7 +211,11 @@ function renderCards(t) {
             : S.key ? (S.keyName || S.key)
             : ({ district: '商圈片（UB考核单位）' })[S.level] || '全部';
   $('cards').innerHTML = '<div class="cardScope">当前对象：<b>' + esc(scope) + '</b>' +
-    '<span class="hint">　每格＝所选日期 · 全月 · 环比昨天</span></div>' + c.join('');
+    '<span class="hint">　每格＝所选日期 · 全月 · 环比昨天　· 点卡片看整月趋势</span></div>' + c.join('');
+  // ★ 点任一卡片 → 展开该指标的整月趋势（四层级通用）
+  Array.prototype.forEach.call($('cards').querySelectorAll('[data-trend]'), function (el) {
+    el.onclick = function () { openTrend(el.getAttribute('data-trend')); };
+  });
 }
 
 /* ── 得分（按商圈片）──────────────────────────────────────────────── */
@@ -541,6 +546,88 @@ function itemHtml(r) {
     '<div class="row3">' + detailGrid(r) + '</div>' +
   '</div>';
 }
+/* ══ 明细列表：排序 + 骑手分位筛选 ════════════════════════════════
+ * 排序对四个层级通用（整商/商圈片/站点/骑手）；
+ * 10%/15%/20% 分位筛选按用户需求只对【骑手】开放 —— 站点/商圈片数量本来就少，
+ * 再切百分比没有意义。
+ */
+var SORT_KEYS = [
+  { k: 'orders', n: '单量',   good: 1 },
+  { k: 'efficiency', n: '人效', good: 1 },
+  { k: 'attendRiders', n: '出勤', good: 1 },
+  { k: 't8', n: '准时率',  good: 1 },
+  { k: 'likt', n: '妥投率',  good: 1 },
+  { k: 'dissat', n: '不满意', good: -1 },
+  { k: 'duration', n: '复合',  good: -1 }
+];
+var LIST_F = { sortKey: 'orders', sortDir: -1, quant: 0 };   // quant: 0 = 不筛
+var LAST_ROWS = [];
+
+function applySort(rows) {
+  var m = null;
+  for (var i = 0; i < SORT_KEYS.length; i++) if (SORT_KEYS[i].k === LIST_F.sortKey) m = SORT_KEYS[i];
+  if (!m) return rows;
+  var dir = LIST_F.sortDir;
+  return rows.slice().sort(function (a, b) {
+    var x = a[m.k], y = b[m.k];
+    if (x == null && y == null) return 0;
+    if (x == null) return 1;                 // 空值沉底
+    if (y == null) return -1;
+    return (x - y) * dir;
+  });
+}
+
+/* 骑手分位：按【当前排序指标】取前 N%（N=0 表示不筛）。
+ * 「前」跟随当前排序方向 —— 单量降序 → 完单最多的前 10%；
+ * 想看最差的，把方向点成升序即可。 */
+function applyQuantile(rows) {
+  if (S.level !== 'rider' || !LIST_F.quant) return rows;
+  var n = Math.max(1, Math.ceil(rows.length * LIST_F.quant));
+  return rows.slice(0, n);
+}
+
+function renderListBar(rows) {
+  var bar = $('listBar');
+  if (!bar) return;
+  var isRider = S.level === 'rider';
+  var h = '<div class="lb-row"><span class="lb-lab">排序</span>';
+  SORT_KEYS.forEach(function (k) {
+    var on = LIST_F.sortKey === k.k;
+    h += '<button class="lb' + (on ? ' on' : '') + '" data-sort="' + k.k + '">' + k.n +
+      (on ? (LIST_F.sortDir < 0 ? ' ↓' : ' ↑') : '') + '</button>';
+  });
+  h += '</div>';
+  if (isRider) {
+    h += '<div class="lb-row"><span class="lb-lab">只看前</span>';
+    [0, 0.10, 0.15, 0.20].forEach(function (p) {
+      var on = Math.abs(LIST_F.quant - p) < 1e-9;
+      h += '<button class="lb' + (on ? ' on' : '') + '" data-q="' + p + '">' +
+        (p ? Math.round(p * 100) + '%' : '全部') + '</button>';
+    });
+    h += '<span class="lb-hint">' + (LIST_F.quant
+      ? '显示 ' + Math.max(1, Math.ceil(rows.length * LIST_F.quant)) + ' / ' + rows.length + ' 人'
+      : '共 ' + rows.length + ' 人') + '</span></div>';
+  }
+  bar.innerHTML = h;
+  bar.hidden = false;
+  Array.prototype.forEach.call(bar.querySelectorAll('[data-sort]'), function (b) {
+    b.onclick = function () {
+      var k = b.getAttribute('data-sort');
+      if (LIST_F.sortKey === k) LIST_F.sortDir = -LIST_F.sortDir;   // 再点一次反向
+      else { LIST_F.sortKey = k; LIST_F.sortDir = -1; }             // 换指标默认从大到小
+      refreshList();
+    };
+  });
+  Array.prototype.forEach.call(bar.querySelectorAll('[data-q]'), function (b) {
+    b.onclick = function () {
+      LIST_F.quant = parseFloat(b.getAttribute('data-q')) || 0;
+      refreshList();
+    };
+  });
+}
+
+/* 排序/筛选只影响列表，不重新请求接口 —— 复用已取到的全量行 */
+function refreshList() { renderList(LAST_ROWS.slice()); }
 function renderList(rows) {
   // ★ 四个颗粒度严格分开、行为一致：整商=代理商本身(1行)、商圈片、站点、骑手。
   //   原来 agency 被降级成 district，又额外开了「不出列表」特例，
@@ -552,6 +639,12 @@ function renderList(rows) {
     district: '商圈片明细', site: '站点明细', rider: '骑手明细'
   })[S.level] || '明细';
   if (!rows.length) { $('list').innerHTML = '<div class="empty">该区间暂无数据</div>'; return; }
+
+  // ★ 排序 + 骑手分位筛选（在渲染前应用，作用于全量行）
+  LAST_ROWS = rows;
+  renderListBar(rows);
+  rows = applySort(rows);
+  rows = applyQuantile(rows);
   // ★ 行数据存全局：objScore 拿到分数后要写回对应行，卡片内的分数才能显示。
   LIST_ROWS = {};
   $('list').innerHTML = rows.slice(0, 200).map(function (r) {
@@ -613,6 +706,122 @@ function mark(el, expand) {
   }
 }
 
+/* ══ 卡片趋势图 · 整月逐日变化 ══════════════════════════════════
+ * 点任意一张数据卡片 → 展开该指标的整月趋势（SVG 折线，无需外部库）。
+ * 四个层级通用（整商/商圈片/站点/骑手），数据来自 /api/trend。
+ */
+var TREND = { key: null, points: null, metric: null, loading: false };
+
+// 每个卡片指标 → 趋势字段。kind 决定 Y 轴量纲与格式化
+var T_METRICS = {
+  '大网质量得分': { f: 'score',   label: '得分',     unit: '' },
+  '完单量':      { f: 'orders',  label: '完单量',   unit: '单' },
+  '出勤骑手数':  { f: 'attendRiders', label: '出勤人数', unit: '人' },
+  '人效':        { f: 'efficiency', label: '人效', unit: '单/人' },
+  '完全妥投率':  { f: 'likt',     label: '妥投率',   unit: '', rate: true },
+  '预测T8准时率':{ f: 't8',       label: 'T8准时率', unit: '', rate: true },
+  '单均复合时长':{ f: 'duration', label: '复合时长', unit: 's' },
+  '非时效不满意率':{ f: 'dissat', label: '不满意率', unit: '', rate: true, dp: 3 }
+};
+
+function trendBox() {
+  var b = $('trendBox');
+  if (!b) return null;
+  return b;
+}
+
+function openTrend(label) {
+  var m = T_METRICS[label];
+  if (!m) return;
+  var box = trendBox();
+  if (!box) return;
+  var lv = S.level, key = S.key || '';
+  var r = computeRange();
+  var ym = r[0].slice(0, 7);
+  // 整月趋势 = 所选日期所在月的 1 号 ~ 今天
+  var to = r[1];
+  var last = (r[0] > to ? r[0] : to);
+  var d1 = last + ' 23:59:59';
+  box.hidden = false;
+  TREND.metric = m; TREND.label = label;
+  if (!TREND.points || TREND.key !== (lv + '|' + key)) {
+    box.innerHTML = '<div class="loading">正在加载 ' + esc(label) + ' 的整月趋势…</div>';
+    var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
+    api('/api/trend?' + aq + 'level=' + q(lv) + '&key=' + q(key) +
+        '&from=' + q(ym + '-01') + '&to=' + q(to))
+      .then(function (j) {
+        TREND.points = j.points || [];
+        TREND.key = lv + '|' + key;
+        drawTrend(label);
+      })
+      .catch(function (e) { box.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
+  } else drawTrend(label);
+}
+
+function closeTrend() {
+  var b = trendBox(); if (b) b.hidden = true;
+}
+
+function drawTrend(label) {
+  var m = T_METRICS[label];
+  var pts = TREND.points || [];
+  var box = trendBox();
+  if (!pts.length) { box.innerHTML = '<div class="empty">该区间暂无数据</div>'; return; }
+  var vals = pts.map(function (p) { return p[m.f]; }).filter(function (v) { return v != null; });
+  if (!vals.length) { box.innerHTML = '<div class="empty">该指标暂无数据</div>'; return; }
+
+  var W = Math.max(320, pts.length * 40 + 96), H = 200;
+  var pad = { l: 44, r: 12, t: 14, b: 26 };
+  var iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+  var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+  if (m.rate) { lo = Math.max(0, lo - 0.02); hi = Math.min(1, hi + 0.02); }
+  else { var sp = (hi - lo) || Math.max(1, hi * 0.1); lo = Math.max(0, lo - sp * 0.2); hi = hi + sp * 0.2; }
+  var X = function (i) { return pad.l + (pts.length === 1 ? iw / 2 : iw * i / (pts.length - 1)); };
+  var Y = function (v) { return pad.t + ih * (1 - (v - lo) / ((hi - lo) || 1)); };
+  function fv(v) {
+    if (v == null) return '—';
+    if (m.rate) return (v * 100).toFixed(m.dp || 2) + '%';
+    if (m.f === 'score') return Number(v).toFixed(2);
+    return Math.abs(v - Math.round(v)) < 0.01 ? String(Math.round(v)) : Number(v).toFixed(2);
+  }
+
+  var out = ['<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" class="trendsvg">'];
+  // 5 条参考线
+  for (var g = 0; g <= 4; g++) {
+    var v = lo + (hi - lo) * g / 4, y = Y(v);
+    out.push('<line x1="' + pad.l + '" y1="' + y + '" x2="' + (W - pad.r) + '" y2="' + y +
+      '" stroke="#eef1f6" stroke-width="1"/>');
+    out.push('<text x="' + (pad.l - 5) + '" y="' + (y + 3) + '" font-size="9" fill="#9aa3af" text-anchor="end">' +
+      fv(v) + '</text>');
+  }
+  pts.forEach(function (p, i) {
+    if (pts.length > 12 && i % Math.ceil(pts.length / 10) !== 0 && i !== pts.length - 1) return;
+    out.push('<text x="' + X(i) + '" y="' + (H - 8) + '" font-size="9" fill="#9aa3af" text-anchor="middle">' +
+      p.date.slice(5) + '</text>');
+  });
+  // 折线
+  var seg = [], poly = [];
+  pts.forEach(function (p, i) {
+    var v = p[m.f];
+    if (v == null) { if (poly.length > 1) seg.push(poly); poly = []; return; }
+    poly.push(X(i) + ',' + Y(v));
+  });
+  if (poly.length > 1) seg.push(poly);
+  seg.forEach(function (s) {
+    out.push('<polyline points="' + s.join(' ') + '" fill="none" stroke="#1f6feb" stroke-width="2.2"/>');
+  });
+  // 点 + tooltip
+  pts.forEach(function (p, i) {
+    var v = p[m.f]; if (v == null) return;
+    out.push('<circle cx="' + X(i) + '" cy="' + Y(v) + '" r="2.6" fill="#1f6feb">' +
+      '<title>' + p.date + '  ' + esc(m.label) + ' ' + fv(v) + m.unit + '</title></circle>');
+  });
+  out.push('</svg>');
+  box.innerHTML = '<div class="tr-head"><b>' + esc(label) + '</b>' +
+    '<span class="hint">' + (pts.length) + ' 天 · ' + pts[0].date + ' ~ ' + pts[pts.length - 1].date + '</span>' +
+    '<button class="mini tr-close">✕</button></div>' + out.join('');
+  box.querySelector('.tr-close').onclick = function (e) { e.stopPropagation(); closeTrend(); };
+}
 /* ── 取数：卡片 + 明细列表 ────────────────────────────────────────
  * ★ 这两个函数（loadAll / loadCards）曾被我用 Python 切片替换时误删过，
  *   页面不报错、列表也不动，只是卡片永远停在「加载中…」——极难察觉。
