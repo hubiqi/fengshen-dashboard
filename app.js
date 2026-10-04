@@ -79,6 +79,13 @@ function enterApp() {
   $('pFrom').value = today(); $('pTo').value = today();
   loadAccounts().then(function () { loadState(); loadAll(); requestRefresh(); loadTodo(); })
     .catch(function (e) { $('heroState').textContent = '后端不可用：' + e.message; });
+  // ★ 进入看板就要显示同步条。
+  //   原来 syncTick 只在【手动拉取】时才被调用，正常打开页面从不调用 ——
+  //   于是 syncBar 一直带着 HTML 里的 hidden，同步条从来没出现过
+  //   （用户反馈"看不到同步条"，而拉取后又能看到，才更迷惑）。
+  // 顺带把「正在拉取的任务」也拉起来，用户能随时看到并取消。
+  syncTick();
+  pollPulling();
 }
 
 $('lgBtn').onclick = function () {
