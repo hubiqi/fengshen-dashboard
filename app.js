@@ -1455,7 +1455,11 @@ function renderPulling(tasks) {
 }
 
 function pollPulling() {
-  api('/api/pulling' + (ACCT ? '?acct=' + q(ACCT) : '')).then(function (j) {
+  // ★ 必须用 POST：这两个接口注册在 do_POST 里（与 /api/pull 同分支），
+  //   用 GET 会落到 do_GET 直接 404。
+  api('/api/pulling', { method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ acct: ACCT }) }).then(function (j) {
     renderPulling(j.tasks || []);
     if ((j.tasks || []).length) setTimeout(pollPulling, 3000);
   }).catch(function () {});
