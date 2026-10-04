@@ -140,6 +140,10 @@ td.sc{font-size:11px;color:var(--sub)}
 
 /* 旧选中态（点击高亮）保留 */
 .item.on{background:#fff}
+/* ★ 选中行：整行标色（左侧色条 + 淡蓝底），列表保持全量以便横向对比，
+   不再做成「点进去只剩一行 + 点返回」那种绕路交互。 */
+.item.on{box-shadow:inset 3px 0 0 var(--blue);background:#f2f7ff}
+.item.on .nm b{color:var(--blue)}
 
 /* ★ 明细下方的「该对象考核得分」块 */
 .objscore{margin-top:12px;padding-top:12px;border-top:2px solid var(--line)}
