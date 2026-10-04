@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1f6feb">
 <title>风神考核看板</title>
-<link rel="stylesheet" href="style.css?v=f4c0acef307c19d4">
-<link rel="stylesheet" href="todo.css?v=f4c0acef307c19d4">
+<link rel="stylesheet" href="style.css?v=c9dc4990fd3fc068">
+<link rel="stylesheet" href="todo.css?v=c9dc4990fd3fc068">
 </head>
 <body>
 
@@ -182,6 +182,8 @@
     </div>
     <span class="sub">默认<b>不覆盖</b>：已完整拉取的日期直接跳过，连请求都不发。今天永远重拉。</span>
     <div class="hint" id="progText"></div>
+    <!-- 正在跑的拉取任务：显示是哪些日期、跑了多久，并可取消 -->
+    <div class="pulling" id="pullingBox" hidden></div>
 
     <details class="adv">
       <summary>高级</summary>
@@ -224,6 +226,6 @@
   </div>
 </div>
 
-<script src="app.js?v=f4c0acef307c19d4"></script>
+<script src="app.js?v=c9dc4990fd3fc068"></script>
 </body>
 </html>
