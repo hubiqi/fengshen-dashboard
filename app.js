@@ -41,7 +41,14 @@ function api(path, opt) {
   opt.headers = h;
   return fetch(url, opt).then(function (r) {
     return r.json().catch(function () { return {}; }).then(function (j) {
-      if (r.status === 401) { logoutLocal(); throw new Error(j.error || '未登录'); }
+      if (r.status === 401) {
+        // ★ 区分两种 401：
+        //   · 看板自己的会话过期（NO_SESSION / BAD_KEY）→ 必须清本地登录态
+        //   · 后端探测到【风神账号】登录态失效（needRelogin，如「账户下线」）
+        //     → 那是风神那边的问题，跟看板账号无关，登出会把用户白踢出看板。
+        if (!j || !j.needRelogin) logoutLocal();
+        throw new Error((j && j.error) || '未登录');
+      }
       if (!r.ok) throw new Error(j.error || j.detail || ('HTTP ' + r.status));
       return j;
     });
@@ -60,6 +67,7 @@ function showLogin(needSetup) {
   $('lgMsg').textContent = '';
   $('apiHint').textContent = '接口：' + (API || location.origin);
 }
+function gotoLogin() { logoutLocal(); location.reload(); }
 function logoutLocal() {
   TOKEN = ''; APIKEY = ''; USER = '';
   localStorage.removeItem(LS_TOKEN); localStorage.removeItem(LS_KEY); localStorage.removeItem(LS_USER);
@@ -589,7 +597,9 @@ function applyQuantile(rows) {
 function renderListBar(rows) {
   var bar = $('listBar');
   if (!bar) return;
-  var isRider = S.level === 'rider';
+  // ★ 排序与分位筛选【只在骑手模块】提供（用户要求）。
+  //   整商/商圈片/站点 数量都很少，按指标排序意义不大，保持默认按单量降序。
+  if (S.level !== 'rider') { bar.hidden = true; bar.innerHTML = ''; return; }
   var h = '<div class="lb-row"><span class="lb-lab">排序</span>';
   SORT_KEYS.forEach(function (k) {
     var on = LIST_F.sortKey === k.k;
@@ -597,7 +607,7 @@ function renderListBar(rows) {
       (on ? (LIST_F.sortDir < 0 ? ' ↓' : ' ↑') : '') + '</button>';
   });
   h += '</div>';
-  if (isRider) {
+  {
     h += '<div class="lb-row"><span class="lb-lab">只看前</span>';
     [0, 0.10, 0.15, 0.20].forEach(function (p) {
       var on = Math.abs(LIST_F.quant - p) < 1e-9;
@@ -1085,6 +1095,12 @@ function renderTodo() {
     var n = s[g] || 0;
     return '<span class="tchip' + (n ? ' on' : ' off') + '">' + g + ' <b>' + n + '</b></span>';
   }).join('') + (errs.length ? '<span class="tchip err" title="' + esc(TODO.errors[errs[0]]) + '">⚠ ' + errs.length + '源失败</span>' : '')
+    // ★ 需要人工处理时（风神账号失效/账户下线）：把原因和动作直接显示出来。
+    //   原来只把原始 JSON 塞进 title，用户看到「账户下线 AeolusAccountSerivce...」
+    //   完全不知道该干嘛。现在给一句人话 + 一个「去登录」按钮。
+    + (TODO.needRelogin && TODO.errMsg
+        ? '<span class="tchip err auth" title="' + esc(TODO.errMsg) + '">⚠ ' + esc(TODO.errMsg) +
+          '<button class="mini tfix" onclick="gotoLogin()">去登录</button></span>' : '')
     // ★ 数据是缓存、正在后台刷新时，给个不抢眼的提示（数据本身照常显示）
     + (TODO.stale ? '<span class="tchip stale" title="显示的是缓存数据，后台正在刷新">'
         + '⟳ ' + (TODO.ageSec >= 60 ? Math.floor(TODO.ageSec / 60) + '分钟前' : TODO.ageSec + '秒前')
@@ -1199,9 +1215,11 @@ function loadTodo(force) {
     TODO.items = j.items || []; TODO.errors = j.errors || {};
     TODO.summary = j.summary || {}; TODO.fetchedAt = j.fetchedAt || 0; TODO.loaded = true;
     TODO.stale = !!j.stale; TODO.ageSec = j.ageSec || 0; TODO.loading = false;
+    TODO.needRelogin = !!j.needRelogin; if (j.ok) TODO.errMsg = '';
     renderTodo();
   }).catch(function (e) {
     // ★ 已有旧数据时不要清空 —— 后端抖动不该让看板变空
+    TODO.errMsg = e.message;
     if (!TODO.items.length) {
       TODO.items = []; TODO.errors = { '接口': e.message };
     }
