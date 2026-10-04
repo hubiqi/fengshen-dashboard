@@ -1113,6 +1113,10 @@ function renderSync(p) {
   $('sbPct').textContent = (p.error && !running ? '失败' : Math.max(0, Math.min(100, pct)).toFixed(0) + '%');
   $('sbFill').style.width = Math.max(0, Math.min(100, pct)) + '%';
 
+  function hhmm(ts) {
+    return ts ? new Date(ts * 1000).toLocaleTimeString('zh-CN',
+      { hour: '2-digit', minute: '2-digit' }) : '';
+  }
   var stage = p.stage || (running ? '同步中…' : (p.error ? '同步失败' : '已完成'));
   if (!running && !p.error && p.finished) {
     stage = '已是最新 · ' + new Date(p.finished * 1000).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
@@ -1120,6 +1124,9 @@ function renderSync(p) {
   $('sbStage').textContent = stage;
 
   var b = [];
+  // ★ 运单更新条要显示【最近一次更新开始时间】（用户要求）——
+  //   之前只有「已是最新 · 结束时间」，看不出这轮是什么时候开始的。
+  if (p.started) b.push('开始 ' + hhmm(p.started));
   if (p.date) b.push(p.date);
   if (p.watermark) b.push('水位 ' + p.watermark);
   if (p.pages) b.push('页 ' + (p.page || 0) + '/' + p.pages);
@@ -1484,7 +1491,21 @@ $('btnLogout').onclick = function () {
     .catch(function () {}).then(function () { logoutLocal(); showLogin(false); });
 };
 $('btnPull2').onclick = function () { startPull($('pFrom').value || today(), $('pTo').value || today()); };
-$('btnPull').onclick = function () { var r = computeRange(); startPull(r[0], r[1]); };
+/* ★ 顶部「立即刷新」= 刷新【今日运单增量】，不是补历史日期。
+ *   原来 btnPull 调的是 startPull() → /api/pull，那是"拉取页面"用的全量接口，
+ *   点它不会触发今日增量同步（用户反馈"点击立即刷新目前不会更新"）。
+ *   btnPull2 保留给拉取页面（那个确实是补指定日期区间）。 */
+$('btnPull').onclick = function () {
+  var r = computeRange();
+  if (r[0] !== today()) {
+    // 不是看今天 → 提示去拉取页面补该区间，避免"点了没反应"
+    $('progText').textContent = '当前区间是 ' + r[0] +
+      (r[0] === r[1] ? '' : ' ~ ' + r[1]) + '，今日增量刷新只针对今天；' +
+      '补历史日期请用「拉取数据」';
+    return;
+  }
+  requestRefresh(true);
+};
 
 $('capOk').onclick = function () {
   var code = $('capCode').value.trim();
