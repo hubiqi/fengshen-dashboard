@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1f6feb">
 <title>风神考核看板</title>
-<link rel="stylesheet" href="style.css?v=f5c28a6b39e8d234">
-<link rel="stylesheet" href="todo.css?v=f5c28a6b39e8d234">
+<link rel="stylesheet" href="style.css?v=8b6c028c3859a978">
+<link rel="stylesheet" href="todo.css?v=8b6c028c3859a978">
 </head>
 <body>
 
@@ -215,9 +215,11 @@
       <button id="capCancel" class="ghost">取消</button>
     </div>
     <div class="hint" id="capMsg"></div>
+    <!-- 没更新成功的日期：T-1 重试 3 次仍失败才标记，下一轮自动补更新 -->
+    <div class="pending" id="pendingTip" hidden></div>
   </div>
 </div>
 
-<script src="app.js?v=f5c28a6b39e8d234"></script>
+<script src="app.js?v=8b6c028c3859a978"></script>
 </body>
 </html>
