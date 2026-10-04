@@ -196,6 +196,8 @@ function renderCards(t) {
     cell('大网质量得分', t.bigNet != null ? t.bigNet : CUR_SCORE.cur,
       t.monthBigNet != null ? t.monthBigNet : CUR_SCORE.month, null, 'score'),
     cell('完单量', t.orders, mp.orders, pv.orders, 'num'),
+    // ★ 多天区间显示【日均】出勤（累计 ÷ 有数据天数），单日区间等于当天人数。
+    //   人效仍用累计出勤做分母，两者等价：总订单/累计出勤 = (订单/天)/(出勤/天)。
     cell('出勤骑手数', t.attendRiders, mp.attendRiders, pv.attendRiders, 'num'),
     cell('人效', t.efficiency, mp.efficiency, pv.efficiency, 'num', '完单 ÷ 出勤'),
     cell('完全妥投率', t.likt, mp.likt, pv.likt, null, '考核口径'),
