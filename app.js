@@ -195,9 +195,15 @@ function loadKpi(from, to) {
 }
 
 function kpiOf() {
-  if (S.key && KPI[S.level + '|' + S.key]) return KPI[S.level + '|' + S.key];
-  // 未选中：整商取 agency 行；商圈片维度未选中则不给数（避免各片合计与平台口径混淆）
-  if (!S.key && S.level === 'agency' && KPI['agency|']) return KPI['agency|'];
+  // 选中具体对象 → 取该对象那一行
+  if (S.key) return KPI[S.level + '|' + S.key] || null;
+  // 未选中：整商取 agency 行（它的 key 是 agencyId，不能用 'agency|' 精确匹配）
+  if (S.level === 'agency') {
+    var ks = Object.keys(KPI);
+    for (var i = 0; i < ks.length; i++) {
+      if (ks[i].indexOf('agency|') === 0) return KPI[ks[i]];
+    }
+  }
   return null;
 }
 
@@ -1126,11 +1132,29 @@ function renderSync(p) {
   $('sbMeta').textContent = b.join(' · ');
 }
 
+/* 没更新成功的日期：标出来，并说明会自动补 */
+function renderPending(list) {
+  var el = $('pendingTip');
+  if (!el) return;
+  if (!list || !list.length) { el.hidden = true; el.textContent = ''; return; }
+  var t1 = list.filter(function (x) { return x.isToday; }).map(function (x) { return x.date; });
+  var t2 = list.filter(function (x) { return !x.isToday; }).map(function (x) { return x.date; });
+  var parts = [];
+  if (t2.length) parts.push('待补：' + t2.join('、'));
+  if (t1.length) parts.push('今日同步未完成：' + t1.join('、'));
+  el.hidden = false;
+  el.innerHTML = '⚠ ' + esc(parts.join('　')) +
+    '<span class="hint">（重试 3 次仍失败才标记，下一轮有条件会自动补更新）</span>';
+}
+
 function syncTick() {
   if (_syncPoll) { clearTimeout(_syncPoll); _syncPoll = null; }
   api('/api/progress').then(function (j) {
     var p = (j && j.progress) || {};
     renderSync(p);
+    // ★ 显示「没拉成功的日期」—— 用户要求能看见哪几天缺了。
+    //   后端会在下一轮定时任务里自动补更新（连续 3 次失败才标记）。
+    renderPending((j && j.pending) || []);
     if (p.running) {
       _wasRunning = true;
       _syncPoll = setTimeout(syncTick, 1200);
