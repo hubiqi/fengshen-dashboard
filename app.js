@@ -178,6 +178,29 @@ function prefetchScore(from, to) {
     }).catch(function () {});
 }
 
+/* KPI 奖励 / 订单 / 单均奖励（整商 + 商圈片；站点与骑手层级平台不下发） */
+var KPI = {};
+function loadKpi(from, to) {
+  var lv = S.level;
+  if (lv !== 'agency' && lv !== 'district') { KPI = {}; return; }
+  var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
+  api('/api/kpi_reward?' + aq + 'level=' + q(lv) + '&key=' + q(S.key || ''))
+    .then(function (j) {
+      KPI = {};
+      (j.items || []).forEach(function (x) {
+        KPI[x.level + '|' + x.key] = x;
+      });
+      renderCards(LAST_TOTAL || {});
+    }).catch(function () {});
+}
+
+function kpiOf() {
+  if (S.key && KPI[S.level + '|' + S.key]) return KPI[S.level + '|' + S.key];
+  // 未选中：整商取 agency 行；商圈片维度未选中则不给数（避免各片合计与平台口径混淆）
+  if (!S.key && S.level === 'agency' && KPI['agency|']) return KPI['agency|'];
+  return null;
+}
+
 function renderCards(t) {
   var mi = t.mealImpact || {}, sci = t.secondcallImpact || {};
   var t8d = '考核口径', dud = '复合超时时长 ÷ 有效完单';
@@ -205,6 +228,8 @@ function renderCards(t) {
       if (v == null) return '—';
       if (kind === 'num') return num(v);
       if (kind === 'score') return v == null ? '—' : Number(v).toFixed(2);
+      if (kind === 'money') return v == null ? '—' : Number(v).toLocaleString('zh-CN',
+        { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       if (kind === 'sec') return Number(Number(v).toFixed(2)) + 's';
       return pct(v, kind === 'rate3' ? 3 : 2);
     };
@@ -253,8 +278,24 @@ function renderCards(t) {
   var scope = (S.level === 'agency') ? '整商（全部商圈片）'
             : S.key ? (S.keyName || S.key)
             : ({ district: '商圈片（UB考核单位）' })[S.level] || '全部';
+  // KPI 奖励三行（仅整商/商圈片）
+  var kk = kpiOf();
+  var kpiCells = '';
+  if (kk) {
+    function money(v) {
+      return v == null ? '—' : Number(v).toLocaleString('zh-CN',
+        { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    kpiCells =
+      cell('KPI奖励(元)', kk.reward, null, null, 'money',
+           '考核方案结算 · ' + (S.level === 'agency' ? '整商' : '商圈片')) +
+      cell('订单(大网接单)', kk.orders, null, null, 'money', '单均奖励的分母') +
+      cell('单均奖励(元/单)', kk.perOrder, null, null, 'money',
+           'KPI奖励 ÷ 订单');
+  }
   $('cards').innerHTML = '<div class="cardScope">当前对象：<b>' + esc(scope) + '</b>' +
-    '<span class="hint">　每格＝所选日期 · 全月 · 环比昨天　· 点卡片看整月趋势</span></div>' + c.join('');
+    '<span class="hint">　每格＝所选日期 · 全月 · 环比昨天　· 点卡片看整月趋势</span></div>' +
+    c.join('') + kpiCells;
   // ★ 点任一卡片 → 展开该指标的整月趋势（四层级通用）
   Array.prototype.forEach.call($('cards').querySelectorAll('[data-trend]'), function (el) {
     el.onclick = function () { openTrend(el.getAttribute('data-trend')); };
@@ -901,6 +942,7 @@ function loadAll() {
   // ★ 预取得分：/api/trend 顺带返回「当日 + 月度」得分（约 60ms），
   //   比等 /api/scoreboard 快一个数量级，卡片上的大网得分不用再空着。
   prefetchScore(r[0], r[1]);
+  loadKpi(r[0], r[1]);
 }
 
 /* withList=false 时不重渲列表 —— 点对象时列表内容没变，重复渲会把选中态闪掉。 */
