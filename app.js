@@ -1461,16 +1461,35 @@ function renderPulling(tasks) {
   if (!tasks || !tasks.length) { box.hidden = true; box.innerHTML = ''; return; }
   var SRC = { waybill: '运单（生成时间）', assess: '考核明细' };
   box.hidden = false;
-  box.innerHTML = '<div class="pl-head">正在拉取的任务（新的拉取需等这些结束或取消）</div>' +
+  box.innerHTML = '<div class="pl-head">正在拉取的任务（新的拉取需等这些结束、暂停或取消）</div>' +
     tasks.map(function (t) {
       var src = SRC[t.source] || t.source || '';
+      var st = t.cancelling ? '取消中…' : (t.pausing ? '暂停中…' : '运行中');
       return '<div class="pl-row" data-d="' + esc(t.date) + '">' +
         '<span class="pl-d">' + esc(t.date) + '</span>' +
-        '<span class="pl-s">' + esc(src) + '</span>' +
+        '<span class="pl-s">' + esc(src) + ' · ' + st + '</span>' +
         '<span class="pl-t">已跑 ' + (t.elapsed != null ? Math.round(t.elapsed) + 's' : '—') + '</span>' +
+        '<button class="pl-p" data-pause="' + esc(t.date) + '">' +
+          (t.pausing ? '恢复' : '暂停') + '</button>' +
         '<button class="pl-x" data-cancel="' + esc(t.date) + '">取消</button>' +
       '</div>';
     }).join('');
+  // 暂停 / 恢复
+  Array.prototype.forEach.call(box.querySelectorAll('[data-pause]'), function (b) {
+    b.onclick = function () {
+      var d = b.getAttribute('data-pause');
+      var act = b.textContent === '暂停' ? 'pause' : 'resume';
+      b.disabled = true;
+      api('/api/pull_pause', { method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: d, action: act, acct: ACCT }) })
+        .then(function (j) {
+          $('progText').textContent = j.ok ? (j.msg || '已处理')
+            : '✗ ' + (j.error || '操作失败');
+          pollPulling();
+        }).catch(function () { b.disabled = false; });
+    };
+  });
   Array.prototype.forEach.call(box.querySelectorAll('[data-cancel]'), function (b) {
     b.onclick = function () {
       var d = b.getAttribute('data-cancel');
@@ -1494,7 +1513,7 @@ function pollPulling() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ acct: ACCT }) }).then(function (j) {
     renderPulling(j.tasks || []);
-    if ((j.tasks || []).length) setTimeout(pollPulling, 3000);
+    if ((j.tasks || []).length) setTimeout(pollPulling, 2500);
   }).catch(function () {});
 }
 
