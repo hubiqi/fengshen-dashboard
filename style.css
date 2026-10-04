@@ -372,3 +372,23 @@ td.sc{font-size:11px;color:var(--sub)}
   #rt .rt-cells{gap:6px}
   #rt .rt-cell{flex:1;min-width:0}
 }
+
+/* ── 明细列表：排序 + 分位筛选工具条 ─────────────────────────────── */
+.listbar{padding:2px 0 8px}
+.listbar .lb-row{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-bottom:5px}
+.listbar .lb-lab{font-size:11px;color:var(--sub);margin-right:2px}
+.listbar .lb{font-size:11px;padding:3px 9px;border:1px solid var(--line);
+  border-radius:12px;background:#fff;color:var(--sub);cursor:pointer;white-space:nowrap}
+.listbar .lb:hover{border-color:var(--blue);color:var(--blue)}
+.listbar .lb.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
+.listbar .lb-hint{font-size:10.5px;color:var(--sub);margin-left:4px}
+
+/* ── 卡片点击 → 整月趋势图 ───────────────────────────────────────── */
+.tcard{cursor:pointer}
+.tcard:hover{box-shadow:0 1px 6px rgba(31,111,235,.14)}
+#trendBox{padding:10px 12px}
+.tr-head{display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:4px}
+.tr-head .hint{font-size:10.5px}
+.tr-close{margin-left:auto}
+.trendsvg{max-width:100%;height:auto;display:block}
+.trendsvg circle:hover{r:4.5}
