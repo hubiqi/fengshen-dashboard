@@ -423,3 +423,18 @@ td.sc{font-size:11px;color:var(--sub)}
 @media (min-width:900px){
   #rt .rt-cells{display:grid;grid-template-columns:repeat(4,1fr)}
 }
+
+/* ── 正在拉取的任务（可取消）──────────────────────────────────────── */
+.pulling{margin-top:8px;border:1px solid #ffe2a8;background:#fffaf0;
+  border-radius:8px;padding:7px 9px}
+.pl-head{font-size:11.5px;color:#8a6d3b;margin-bottom:5px}
+.pl-row{display:flex;align-items:center;gap:8px;font-size:12px;
+  padding:4px 0;border-top:1px solid #f5e4c0}
+.pl-row:first-of-type{border-top:0}
+.pl-d{font-weight:650;color:var(--fg);min-width:88px}
+.pl-s{color:var(--sub);font-size:11px;flex:1}
+.pl-t{color:var(--sub);font-size:11px;white-space:nowrap}
+.pl-x{font-size:11px;padding:2px 9px;border:1px solid #c9362b;color:#c9362b;
+  background:#fff;border-radius:10px;cursor:pointer;white-space:nowrap}
+.pl-x:hover:not(:disabled){background:#c9362b;color:#fff}
+.pl-x:disabled{opacity:.5;cursor:default}
