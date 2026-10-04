@@ -155,6 +155,9 @@ function fillRowScore(key) {
 }
 
 function prefetchScore(from, to) {
+  // ★ from/to 可省略（点某行时只关心【当前对象】的得分，日期沿用当前区间）
+  var r0 = computeRange();
+  from = from || r0[0]; to = to || r0[1];
   var lv = S.level, key = S.key || '';
   var ym = from.slice(0, 7);
   var m0 = ym + '-01';
@@ -263,7 +266,7 @@ var SB = { districts: [], sel: null };
 var LIST_ROWS = {};   // 行 id → 行数据（objScore 回写分数时要用）
 var CUR_SCORE = { cur: null, month: null };
 var LAST_TOTAL = {};
-var SUPPRESS_AUTO = false;  // 用户点了「返回全量」，本轮不要自动选中首行      // 最近一次 /api/metrics 的 total（罗盘核对用）   // 当前对象的得分（scoreboard 才有）
+var SUPPRESS_AUTO = false;  // 保留字段（已无「返回全量」交互）
 function fmt1(v) { return v == null ? '—' : Number(v).toFixed(1); }
 
 function renderScoreBoard(j) {
@@ -687,28 +690,6 @@ function renderList(rows) {
 
   // ★ 排序 + 骑手分位筛选（在渲染前应用，作用于全量行）
   LAST_ROWS = rows;
-  // ★ 选中某个对象后列表只剩它一行，给一个「← 返回全量」的出口，
-  //   否则点进去就出不来了。
-  if (S.key && rows.length === 1) {
-    $('listBar').innerHTML =
-      '<div class="lb-row"><button class="lb on" id="lbBack">← 返回' +
-      ({ agency: '整商', district: '商圈片', site: '站点', rider: '骑手' })[S.level] +
-      '全量（' + rows.length + '）</button></div>';
-    $('listBar').hidden = false;
-    $('lbBack').onclick = function () {
-      S.key = ''; S.keyName = '';
-      // ★ 必须抑制自动选中：loadAll() 渲染完会自动选中首行，
-      //   那样 key 又被设回去，用户永远退不出全量视图。
-      SUPPRESS_AUTO = true;
-      loadAll();
-    };
-    // ★ 顺手清掉上一次的列表 —— 这里提前 return 了，
-    //   不清的话屏幕上还挂着 152 行旧数据（卡片 81 单 vs 列表 152 个骑手）。
-    $('list').innerHTML = '<div class="empty">已选中 <b>' + esc(S.keyName || '') +
-      '</b>，上面是它的完整指标。<br>要看全量请点上面的「返回' +
-      ({ agency: '整商', district: '商圈片', site: '站点', rider: '骑手' })[S.level] + '全量」。</div>';
-    return;
-  }
   renderListBar(rows);
   rows = applySort(rows);
   rows = applyQuantile(rows);
@@ -748,9 +729,13 @@ function mark(el, expand) {
       // ★ 卡片也要跟着切到该站点：只调 loadScore() 的话，
       //   上面那排数据卡片始终是整段日期的总量，看着像"点了没反应"。
       //   不能用 loadAll() —— 本函数就是在它的 then() 里跑的，会递归。
-      // ★ 后端已把 rows 按 key 收窄（只返回选中的那一个），所以必须重渲列表，
-      //   否则卡片是「楚浩然 81 单」、列表还挂着 152 个骑手，两个模块对不上。
-      loadCards(undefined, undefined, true);
+      // ★ 只刷新卡片（切到该对象），列表保持【该维度全量】并把该行标色。
+      //   列表是横向对比用的，收窄成一行就没法看了 —— 用户也明确要求取消
+      //   「点进去只剩一个 + 再点返回」这种绕路交互。
+      loadCards(undefined, undefined, false);
+      // ★ 得分跟着选中对象走：prefetchScore 会重新拉该对象的当日+月得分。
+      //   不调它的话，上一对象的得分会一直留在卡片上（或者干脆是「—」）。
+      prefetchScore();
       // ★ 罗盘是【该维度的横向对比清单】，列出这一层全部对象 ——
       //   所以不随选中变化，点某行不用重取它（要变的是卡片和得分）。
       // ★ 点开某一行 → 在列表下方渲染【该对象】的考核得分
