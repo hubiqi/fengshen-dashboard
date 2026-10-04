@@ -97,12 +97,12 @@ td.sc{font-size:11px;color:var(--sub)}
    ★ 极窄屏（320px，容器仅 300px）放不下 4 项共 281px + 间隙 → 用横向滚动
      而不是换行：换行会让每行从 57px 涨到 89px，4 个站点就滚半天。
      flex-wrap 保持 nowrap，靠 overflow-x:auto 处理溢出。 */
-.item .row2{display:flex;flex-wrap:nowrap;gap:8px;margin-top:2px;
+.item .row2{display:flex;flex-wrap:wrap;gap:4px 8px;margin-top:2px;
   font-size:10.5px;color:var(--sub);justify-content:space-between;
   overflow-x:auto;-webkit-overflow-scrolling:touch;
   scrollbar-width:none}
 .item .row2::-webkit-scrollbar{display:none}
-.item .row2 span{white-space:nowrap;flex:0 0 auto}
+.item .row2 span{white-space:nowrap;flex:0 1 auto}
 .item .row2 b{color:var(--fg);font-weight:600;font-size:11.5px}
 
 /* 展开区：默认收起 */
@@ -438,3 +438,15 @@ td.sc{font-size:11px;color:var(--sub)}
   background:#fff;border-radius:10px;cursor:pointer;white-space:nowrap}
 .pl-x:hover:not(:disabled){background:#c9362b;color:#fff}
 .pl-x:disabled{opacity:.5;cursor:default}
+
+/* ── 明细行：手机端 4 个指标挤在一行会被裁掉首字（"人效"→"效"）──
+   原来 row2 是 nowrap + flex:0 0 auto，放不下就直接溢出裁切。
+   现在允许换行，并让每个标签占满一格（2×2 网格），文字永远完整。 */
+@media (max-width:520px){
+  .item .row2{display:grid;grid-template-columns:1fr 1fr;gap:3px 8px}
+  .item .row2 span{white-space:normal;overflow-wrap:anywhere;
+    display:flex;align-items:baseline;gap:3px;min-width:0}
+  .item .row1{gap:6px}
+  .item .row1 .sc{font-size:16px}
+  .item .row1 .nm{font-size:13px;line-height:1.35}
+}
