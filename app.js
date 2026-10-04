@@ -1178,3 +1178,88 @@ $('capCancel').onclick = function () {
     $('lgMsg').textContent = '无法连接接口：' + e.message;
   });
 })();
+
+/* ── 账号 ─────────────────────────────────────────────────────────── */
+function loadAccounts() {
+  return api('/api/accounts').then(function (j) {
+    ACC = j;
+    var sel = $('acctSel');
+    if (!j.list.length) {
+      sel.innerHTML = '<option value="">未配置风神账号</option>';
+      $('acctState').textContent = '';
+    } else {
+      sel.innerHTML = j.list.map(function (a) {
+        return '<option value="' + esc(a.id) + '"' + (a.id === j.active ? ' selected' : '') + '>' +
+          esc(a.accountMask || a.account) + (a.agencyName ? ' · ' + esc(a.agencyName.slice(0, 8)) : '') + '</option>';
+      }).join('');
+      var act = j.list.filter(function (a) { return a.id === j.active; })[0];
+      $('acctState').textContent = act ? (act.status === 'ok' ? '登录态 ✓' : '登录态 ✗') : '';
+    }
+    if (j.active && ACCT !== j.active) { ACCT = j.active; localStorage.setItem(LS_ACCT, ACCT); }
+    renderAcctList();
+    return j;
+  });
+}
+
+function doLogin(account, password) {
+  if (!TOKEN || $('appView').hidden) { showLogin(false); return; }
+  $('cfgStatus').textContent = '正在启动无头浏览器登录 ' + account + ' …（约 20-40 秒）';
+  api('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ account: account, password: password }) })
+    .then(function (j) {
+      if (j.status === 'captcha') {
+        // ★ 验证码只可能在「已登录看板 + 添加风神账号」时出现
+        if (!TOKEN || document.getElementById('appView').hidden) {
+          $('cfgStatus').textContent = '✗ 需要先登录看板';
+          return;
+        }
+        LOGIN.sid = j.sid; LOGIN.account = account;
+        // 只用内嵌 base64（图片 URL 需要额外放行，不安全）
+        var mime = j.captchaMime || 'image/png';
+        $('capImg').src = 'data:' + mime + ';base64,' + j.captcha;
+        $('capMsg').textContent = j.tip || '';
+        $('capModal').hidden = false;
+        $('cfgStatus').textContent = '需要图形验证码';
+        return;
+      }
+      if (j.status === 'ok') {
+        $('cfgStatus').textContent = '✓ 登录成功 · ' + (j.agencyName || '') + ' · ' + (j.user || '');
+        return loadAccounts().then(function () { loadAll(); });
+      }
+      $('cfgStatus').textContent = '✗ ' + (j.error || '登录失败');
+    })
+    .catch(function (e) { $('cfgStatus').textContent = '✗ ' + e.message; });
+}
+
+function renderAcctList() {
+  if (!ACC.list.length) { $('acctList').innerHTML = '<div class="empty">还没有风神账号，下面添加一个</div>'; return; }
+  $('acctList').innerHTML = ACC.list.map(function (a) {
+    var on = a.id === ACC.active;
+    return '<div class="acct-row' + (on ? ' on' : '') + '">' +
+      '<div class="nm"><b>' + esc(a.accountMask) + '</b>' +
+      '<div class="sub">' + (a.agencyName ? esc(a.agencyName) : '未取到代理商') +
+      (a.user ? ' · ' + esc(a.user) : '') + ' · ' +
+      (a.status === 'ok' ? '<span class="g">登录态✓</span>' : '<span class="r">未登录</span>') + '</div></div>' +
+      '<button class="mini" data-act="use" data-id="' + esc(a.id) + '">' + (on ? '当前' : '切换') + '</button>' +
+      '<button class="mini" data-act="login" data-id="' + esc(a.id) + '">登录</button>' +
+      '<button class="mini danger" data-act="del" data-id="' + esc(a.id) + '">删</button>' +
+      '</div>';
+  }).join('');
+  Array.prototype.forEach.call($('acctList').querySelectorAll('button'), function (b) {
+    b.onclick = function () {
+      var act = b.getAttribute('data-act'), id = b.getAttribute('data-id');
+      if (act === 'use') {
+        api('/api/accounts/active', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id }) })
+          .then(function () { ACCT = id; localStorage.setItem(LS_ACCT, id); return loadAccounts(); })
+          .then(function () { S.key = ''; loadAll(); });
+      } else if (act === 'login') {
+        var a = ACC.list.filter(function (x) { return x.id === id; })[0];
+        doLogin(a.account, null);
+      } else if (act === 'del') {
+        if (!confirm('删除该风神账号？')) return;
+        api('/api/accounts/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id }) })
+          .then(function () { return loadAccounts(); }).then(function () { loadAll(); });
+      }
+    };
+  });
+}
