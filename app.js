@@ -1100,7 +1100,7 @@ function renderTodo() {
     //   完全不知道该干嘛。现在给一句人话 + 一个「去登录」按钮。
     + (TODO.needRelogin && TODO.errMsg
         ? '<span class="tchip err auth" title="' + esc(TODO.errMsg) + '">⚠ ' + esc(TODO.errMsg) +
-          '<button class="mini tfix" onclick="gotoLogin()">去登录</button></span>' : '')
+          '<button class="mini tfix" onclick="loadTodo(true)">重试</button></span>' : '')
     // ★ 数据是缓存、正在后台刷新时，给个不抢眼的提示（数据本身照常显示）
     + (TODO.stale ? '<span class="tchip stale" title="显示的是缓存数据，后台正在刷新">'
         + '⟳ ' + (TODO.ageSec >= 60 ? Math.floor(TODO.ageSec / 60) + '分钟前' : TODO.ageSec + '秒前')
