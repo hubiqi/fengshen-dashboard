@@ -392,3 +392,10 @@ td.sc{font-size:11px;color:var(--sub)}
 .tr-close{margin-left:auto}
 .trendsvg{max-width:100%;height:auto;display:block}
 .trendsvg circle:hover{r:4.5}
+
+/* 待办：需要人工处理的风神登录态失效 */
+.tchip.auth{display:inline-flex;align-items:center;gap:6px;max-width:100%;
+  white-space:normal;line-height:1.4;padding:3px 8px}
+.tchip.auth .tfix{flex-shrink:0;padding:1px 8px;font-size:10.5px;
+  border:1px solid #c9362b;color:#c9362b;background:#fff;border-radius:10px;cursor:pointer}
+.tchip.auth .tfix:hover{background:#c9362b;color:#fff}
