@@ -432,7 +432,7 @@ td.sc{font-size:11px;color:var(--sub)}
   padding:4px 0;border-top:1px solid #f5e4c0}
 .pl-row:first-of-type{border-top:0}
 .pl-d{font-weight:650;color:var(--fg);min-width:88px}
-.pl-s{color:var(--sub);font-size:11px;flex:1}
+.pl-s{color:var(--sub);font-size:11px;flex:1;min-width:96px}
 .pl-t{color:var(--sub);font-size:11px;white-space:nowrap}
 .pl-x{font-size:11px;padding:2px 9px;border:1px solid #c9362b;color:#c9362b;
   background:#fff;border-radius:10px;cursor:pointer;white-space:nowrap}
@@ -450,3 +450,10 @@ td.sc{font-size:11px;color:var(--sub)}
   .item .row1 .sc{font-size:16px}
   .item .row1 .nm{font-size:13px;line-height:1.35}
 }
+
+/* 暂停按钮（与取消区分：暂停可恢复，取消是彻底停） */
+.pl-p{font-size:11px;padding:2px 9px;border:1px solid var(--blue);color:var(--blue);
+  background:#fff;border-radius:10px;cursor:pointer;white-space:nowrap}
+.pl-p:hover:not(:disabled){background:var(--blue);color:#fff}
+.pl-p:disabled{opacity:.5;cursor:default}
+.pl-s{min-width:96px}
