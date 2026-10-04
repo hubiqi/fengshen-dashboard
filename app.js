@@ -143,6 +143,38 @@ function momOf(name) {
   }
   return null;
 }
+/* 预取得分：用 /api/trend 的 dayNet 序列，顺带填卡片与趋势缓存。
+ * /api/scoreboard 只在用户点开某行时才用（那时才需要该对象的完整月得分）。 */
+/** 用 trend 缓存把得分填进行内明细（不再单独请求） */
+function fillRowScore(key) {
+  var row = LIST_ROWS[key];
+  if (!row) return;
+  row.score = { cur: CUR_SCORE.cur, month: CUR_SCORE.month };
+  var box = $('list').querySelector('.item[data-id="' + key + '"] .row3');
+  if (box) box.innerHTML = detailGrid(row);
+}
+
+function prefetchScore(from, to) {
+  var lv = S.level, key = S.key || '';
+  var ym = from.slice(0, 7);
+  var m0 = ym + '-01';
+  var m1 = new Date(+ym.slice(0,4), +ym.slice(5,7), 0).toISOString().slice(0,10);
+  var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
+  api('/api/trend?' + aq + 'level=' + q(lv) + '&key=' + q(key) + '&from=' + q(m0) + '&to=' + q(to))
+    .then(function (j) {
+      TREND.points = j.points || [];
+      TREND.key = lv + '|' + key;
+      CUR_SCORE.cur = j.todayBigNet;
+      CUR_SCORE.month = j.monthBigNet;
+      var hi = $('cards').querySelector('.tcard.hi');
+      if (hi) {
+        var v = hi.querySelector('.v'), cm = hi.querySelector('.cmp');
+        if (v) v.textContent = j.todayBigNet == null ? '—' : Number(j.todayBigNet).toFixed(2);
+        if (cm) cm.innerHTML = '<span>全月 ' + (j.monthBigNet == null ? '—' : Number(j.monthBigNet).toFixed(2)) + '</span>';
+      }
+    }).catch(function () {});
+}
+
 function renderCards(t) {
   var mi = t.mealImpact || {}, sci = t.secondcallImpact || {};
   var t8d = '考核口径', dud = '复合超时时长 ÷ 有效完单';
@@ -355,7 +387,9 @@ var LVL_NAME = { agency: '整商', district: '商圈片（UB考核单位）', si
    保留这个函数名给 loadAll 调用，内部转给 loadObjScore。 */
 function loadScore() {
   $('scorePanel').hidden = true;
-  loadObjScore();
+  // ★ 得分已由 prefetchScore（/api/trend，~60ms）负责，不再在这里跑
+  //   /api/scoreboard —— 它要逐日按场景算，慢一个数量级，
+  //   而且会和 prefetchScore 抢同一格，造成闪烁/来回覆盖。
 }
 
 /* ── 点开某一行：在列表下方显示该对象的考核得分 ─────────────────────
@@ -720,7 +754,8 @@ function mark(el, expand) {
       // ★ 罗盘是【该维度的横向对比清单】，列出这一层全部对象 ——
       //   所以不随选中变化，点某行不用重取它（要变的是卡片和得分）。
       // ★ 点开某一行 → 在列表下方渲染【该对象】的考核得分
-      loadObjScore(el);
+      // ★ 得分已由 prefetchScore 填好，这里不再跑 /api/scoreboard（慢）。
+      fillRowScore(key);
     };
   });
   // 「考核口径明细」的展开/收起不应触发整行选中（否则每点一下就重新拉数据）
@@ -743,7 +778,7 @@ var TREND = { key: null, points: null, metric: null, loading: false };
 
 // 每个卡片指标 → 趋势字段。kind 决定 Y 轴量纲与格式化
 var T_METRICS = {
-  '大网质量得分': { f: 'score',   label: '得分',     unit: '' },
+  '大网质量得分': { f: 'dayNet',  label: '每日得分', unit: '' },
   '完单量':      { f: 'orders',  label: '完单量',   unit: '单' },
   '出勤骑手数':  { f: 'attendRiders', label: '出勤人数', unit: '人' },
   '人效':        { f: 'efficiency', label: '人效', unit: '单/人' },
@@ -781,6 +816,20 @@ function openTrend(label) {
       .then(function (j) {
         TREND.points = j.points || [];
         TREND.key = lv + '|' + key;
+        // ★ 顺带把得分回填到卡片：/api/trend 已经算了「当日得分 + 月得分」，
+        //   不必再等 /api/scoreboard —— 那是得分出不来 + 首屏慢的根源。
+        if (label === '大网质量得分') {
+          CUR_SCORE.cur = j.todayBigNet;
+          CUR_SCORE.month = j.monthBigNet;
+          var hi = $('cards').querySelector('.tcard.hi');
+          if (hi) {
+            var v = hi.querySelector('.v'), cm = hi.querySelector('.cmp');
+            if (v) v.textContent = j.todayBigNet == null ? '—' : Number(j.todayBigNet).toFixed(2);
+            if (cm) cm.innerHTML = '<span>全月 ' + (j.monthBigNet == null ? '—' : Number(j.monthBigNet).toFixed(2)) + '</span>';
+          }
+          drawTrend(label);
+          return;
+        }
         drawTrend(label);
       })
       .catch(function (e) { box.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
@@ -864,6 +913,9 @@ function loadAll() {
   loadCards(r[0], r[1], true);
   loadScore();
   loadRt();
+  // ★ 预取得分：/api/trend 顺带返回「当日 + 月度」得分（约 60ms），
+  //   比等 /api/scoreboard 快一个数量级，卡片上的大网得分不用再空着。
+  prefetchScore(r[0], r[1]);
 }
 
 /* withList=false 时不重渲列表 —— 点对象时列表内容没变，重复渲会把选中态闪掉。 */
