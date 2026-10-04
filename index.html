@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1f6feb">
 <title>风神考核看板</title>
-<link rel="stylesheet" href="style.css?v=182fc07d3eb530bf">
-<link rel="stylesheet" href="todo.css?v=182fc07d3eb530bf">
+<link rel="stylesheet" href="style.css?v=44f5688f403300b2">
+<link rel="stylesheet" href="todo.css?v=44f5688f403300b2">
 </head>
 <body>
 
@@ -141,6 +141,9 @@
 <!-- ★ 风神实时运营罗盘：整商维度的【核对用】模块，放在最底下、默认折叠。
      它的价值在于和上面的自算指标对账（T0 运单推算 vs 平台实时值），
      平时不需要看，所以不占首屏。只有 level=agency 时才显示。 -->
+  <!-- 正在拉取的任务：放最上面（与同步条同区），带暂停 / 取消 -->
+  <div class="pulling" id="pullingBox" hidden></div>
+
   <!-- 没更新成功的日期：常驻页面顶部，不藏在设置弹窗里 -->
   <div class="pending" id="pendingTip" hidden></div>
 
@@ -186,7 +189,6 @@
     <span class="sub">默认<b>不覆盖</b>：已完整拉取的日期直接跳过，连请求都不发。今天永远重拉。</span>
     <div class="hint" id="progText"></div>
     <!-- 正在跑的拉取任务：显示是哪些日期、跑了多久，并可取消 -->
-    <div class="pulling" id="pullingBox" hidden></div>
 
     <details class="adv">
       <summary>高级</summary>
@@ -228,6 +230,6 @@
   </div>
 </div>
 
-<script src="app.js?v=182fc07d3eb530bf"></script>
+<script src="app.js?v=44f5688f403300b2"></script>
 </body>
 </html>
