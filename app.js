@@ -979,6 +979,7 @@ function loadCards(dfrom, dto, withList) {
  *   硬套到商圈片/站点/骑手上会给出对不上的数字（维度错配比不显示更糟）。
  */
 var RT_PLAT = {};   // 平台指标缓存：key → {name, value}
+var RT_ERR = '';
 
 function renderRt() {
   var box = $('rt');
@@ -986,7 +987,9 @@ function renderRt() {
   $('rtPanel').hidden = false;
 
   if (!Object.keys(RT_PLAT).length) {
-    box.innerHTML = '<div class="loading">正在拉取风神后台实时数据…</div>';
+    box.innerHTML = '<div class="empty">暂时取不到风神后台实时数据'
+      + (RT_ERR ? '（' + esc(RT_ERR) + '）' : '')
+      + '。平台实时接口时常超时，稍后会自动重试；本地指标不受影响。</div>';
     return;
   }
 
@@ -1058,20 +1061,28 @@ function renderRt() {
 
 /* 拉风神后台实时数据（平台原值，不做任何加工）+ 当前对象 total 供核对 */
 function loadRt() {
+  // ★ 罗盘只保留在【整商】维度（平台 basicAnalysis 只有整商粒度），
+  //   而且放在页面最底部、默认折叠 —— 它是用来核对数据的，不是主内容。
   if (S.level !== 'agency') { $('rtPanel').hidden = true; return; }
+  $('rtPanel').hidden = false;          // ★ 先显示面板，取不到数据也保留（并说明原因）
+  RT_TOTAL = LAST_TOTAL || {};
   var aq = ACCT ? '?acct=' + q(ACCT) : '';
-  loadCards(undefined, undefined, false).then(function () {
-    RT_TOTAL = LAST_TOTAL || {};
-  }).catch(function () {});
   api('/api/realtime' + aq).then(function (j) {
-    if (j.ok && j.indicators) {
+    if (j.ok && j.indicators && Object.keys(j.indicators).length) {
       RT_PLAT = j.indicators;
       MOM = j.indicators;
       renderRt();
     } else {
-      $('rtPanel').hidden = true;
+      // ★ 不再把面板藏掉：之前一失败就 hidden=true，用户完全看不到这个模块，
+      //   也不知道它存在。改成显示"暂时取不到"。
+      RT_PLAT = {};
+      renderRt();
     }
-  }).catch(function () { $('rtPanel').hidden = true; });
+  }).catch(function (e) {
+    RT_PLAT = {};
+    RT_ERR = e && e.message ? e.message : '接口不可用';
+    renderRt();
+  });
 }
 
 function loadState() {
@@ -1126,8 +1137,9 @@ function renderSync(p) {
   var b = [];
   // ★ 运单更新条要显示【最近一次更新开始时间】（用户要求）——
   //   之前只有「已是最新 · 结束时间」，看不出这轮是什么时候开始的。
+  // ★ 只要时间，不要日期（用户要求）—— 开始时间 + 用时够了
   if (p.started) b.push('开始 ' + hhmm(p.started));
-  if (p.date) b.push(p.date);
+  else if (p.lastSync) b.push('上次 ' + hhmm(p.lastSync));
   if (p.watermark) b.push('水位 ' + p.watermark);
   if (p.pages) b.push('页 ' + (p.page || 0) + '/' + p.pages);
   if (p.total) b.push('接口 ' + p.total + ' 单');
@@ -1408,6 +1420,47 @@ if ($('sbNow')) {
   };
 }
 
+/* 正在跑的拉取任务列表（含取消）—— 用户要求：
+   原来只显示一句「已有拉取任务在跑」，不知道卡在哪天、也没法中断。 */
+function renderPulling(tasks) {
+  var box = $('pullingBox');
+  if (!box) return;
+  if (!tasks || !tasks.length) { box.hidden = true; box.innerHTML = ''; return; }
+  var SRC = { waybill: '运单（生成时间）', assess: '考核明细' };
+  box.hidden = false;
+  box.innerHTML = '<div class="pl-head">正在拉取的任务（新的拉取需等这些结束或取消）</div>' +
+    tasks.map(function (t) {
+      var src = SRC[t.source] || t.source || '';
+      return '<div class="pl-row" data-d="' + esc(t.date) + '">' +
+        '<span class="pl-d">' + esc(t.date) + '</span>' +
+        '<span class="pl-s">' + esc(src) + '</span>' +
+        '<span class="pl-t">已跑 ' + (t.elapsed != null ? Math.round(t.elapsed) + 's' : '—') + '</span>' +
+        '<button class="pl-x" data-cancel="' + esc(t.date) + '">取消</button>' +
+      '</div>';
+    }).join('');
+  Array.prototype.forEach.call(box.querySelectorAll('[data-cancel]'), function (b) {
+    b.onclick = function () {
+      var d = b.getAttribute('data-cancel');
+      b.textContent = '取消中…'; b.disabled = true;
+      api('/api/pull_cancel', { method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: d, acct: ACCT }) })
+        .then(function (j) {
+          $('progText').textContent = j.ok ? (j.msg || '已取消')
+            : '✗ ' + (j.error || '取消失败');
+          pollPulling();
+        }).catch(function (e) { b.textContent = '✗ 失败'; });
+    };
+  });
+}
+
+function pollPulling() {
+  api('/api/pulling' + (ACCT ? '?acct=' + q(ACCT) : '')).then(function (j) {
+    renderPulling(j.tasks || []);
+    if ((j.tasks || []).length) setTimeout(pollPulling, 3000);
+  }).catch(function () {});
+}
+
 function startPull(f, t) {
   var fc = !!($('forcePull') && $('forcePull').checked);
   $('progText').textContent = '已提交拉取任务 ' + f + ' ~ ' + t + (fc ? '（覆盖模式）' : '（跳过已完整拉取的日期）') + ' …';
@@ -1416,6 +1469,7 @@ function startPull(f, t) {
     .then(function (j) {
       if (!j.ok && j.error) { $('progText').textContent = '✗ ' + j.error; return; }
       pollProgress();
+      pollPulling();          // ★ 展示在跑的任务并允许取消
     })
     .catch(function (e) { $('progText').textContent = '✗ ' + e.message; });
 }
