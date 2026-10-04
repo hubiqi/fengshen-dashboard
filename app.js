@@ -230,7 +230,8 @@ function renderCards(t) {
 var SB = { districts: [], sel: null };
 var LIST_ROWS = {};   // 行 id → 行数据（objScore 回写分数时要用）
 var CUR_SCORE = { cur: null, month: null };
-var LAST_TOTAL = {};      // 最近一次 /api/metrics 的 total（罗盘核对用）   // 当前对象的得分（scoreboard 才有）
+var LAST_TOTAL = {};
+var SUPPRESS_AUTO = false;  // 用户点了「返回全量」，本轮不要自动选中首行      // 最近一次 /api/metrics 的 total（罗盘核对用）   // 当前对象的得分（scoreboard 才有）
 function fmt1(v) { return v == null ? '—' : Number(v).toFixed(1); }
 
 function renderScoreBoard(j) {
@@ -652,6 +653,28 @@ function renderList(rows) {
 
   // ★ 排序 + 骑手分位筛选（在渲染前应用，作用于全量行）
   LAST_ROWS = rows;
+  // ★ 选中某个对象后列表只剩它一行，给一个「← 返回全量」的出口，
+  //   否则点进去就出不来了。
+  if (S.key && rows.length === 1) {
+    $('listBar').innerHTML =
+      '<div class="lb-row"><button class="lb on" id="lbBack">← 返回' +
+      ({ agency: '整商', district: '商圈片', site: '站点', rider: '骑手' })[S.level] +
+      '全量（' + rows.length + '）</button></div>';
+    $('listBar').hidden = false;
+    $('lbBack').onclick = function () {
+      S.key = ''; S.keyName = '';
+      // ★ 必须抑制自动选中：loadAll() 渲染完会自动选中首行，
+      //   那样 key 又被设回去，用户永远退不出全量视图。
+      SUPPRESS_AUTO = true;
+      loadAll();
+    };
+    // ★ 顺手清掉上一次的列表 —— 这里提前 return 了，
+    //   不清的话屏幕上还挂着 152 行旧数据（卡片 81 单 vs 列表 152 个骑手）。
+    $('list').innerHTML = '<div class="empty">已选中 <b>' + esc(S.keyName || '') +
+      '</b>，上面是它的完整指标。<br>要看全量请点上面的「返回' +
+      ({ agency: '整商', district: '商圈片', site: '站点', rider: '骑手' })[S.level] + '全量」。</div>';
+    return;
+  }
   renderListBar(rows);
   rows = applySort(rows);
   rows = applyQuantile(rows);
@@ -691,7 +714,9 @@ function mark(el, expand) {
       // ★ 卡片也要跟着切到该站点：只调 loadScore() 的话，
       //   上面那排数据卡片始终是整段日期的总量，看着像"点了没反应"。
       //   不能用 loadAll() —— 本函数就是在它的 then() 里跑的，会递归。
-      loadCards();
+      // ★ 后端已把 rows 按 key 收窄（只返回选中的那一个），所以必须重渲列表，
+      //   否则卡片是「楚浩然 81 单」、列表还挂着 152 个骑手，两个模块对不上。
+      loadCards(undefined, undefined, true);
       // ★ 罗盘是【该维度的横向对比清单】，列出这一层全部对象 ——
       //   所以不随选中变化，点某行不用重取它（要变的是卡片和得分）。
       // ★ 点开某一行 → 在列表下方渲染【该对象】的考核得分
@@ -702,18 +727,12 @@ function mark(el, expand) {
   Array.prototype.forEach.call($('list').querySelectorAll('.deep summary'), function (s) {
     s.addEventListener('click', function (e) { e.stopPropagation(); });
   });
-  // ★ 四个颗粒度统一：列表渲完自动选中第一行，并直接带上它的考核得分。
-  //   不自动选中的话「点站点/骑手维度」只会看到一句提示语，永远出不来分。
-  if (items.length &&
-      !Array.prototype.some.call(items, function (x) {
-        return x.getAttribute('data-id') === S.key;
-      })) {
-    var first = items[0];
-    S.key = first.getAttribute('data-id');
-    S.keyName = first.getAttribute('data-nm');
-    mark(first);          // ★ 不展开：只有用户点了才展开
-    loadCards(); loadObjScore();
-  }
+  // ★ 不自动选中首行。
+  //   原来会自动选中 → 于是请求带上 key → 后端 rows 按 key 过滤只剩 1 行 →
+  //   列表刚渲染出来就只剩一个人，用户既看不到全量、也没法比较。
+  //   现在：切维度只看全量列表，卡片显示该层级合计；点某一行才收窄到它。
+  //   （之前"切维度看不到卡片"是因为 agency 特例清空了列表，那已单独修好。）
+
 }
 
 /* ══ 卡片趋势图 · 整月逐日变化 ══════════════════════════════════
@@ -1296,7 +1315,8 @@ $('lvlTabs').onclick = function (e) {
   var b = e.target.closest('button'); if (!b) return;
   Array.prototype.forEach.call(this.querySelectorAll('button'), function (x) { x.classList.remove('on'); });
   b.classList.add('on');
-  S.level = b.getAttribute('data-lvl'); S.key = ''; S.keyName = ''; loadAll();
+  S.level = b.getAttribute('data-lvl'); S.key = ''; S.keyName = '';
+  SUPPRESS_AUTO = false; loadAll();
 };
 $('quick').onclick = function (e) {
   var b = e.target.closest('button'); if (!b) return;
