@@ -985,6 +985,18 @@ function renderRt() {
   var box = $('rt');
   if (S.level !== 'agency') { $('rtPanel').hidden = true; return; }
   $('rtPanel').hidden = false;
+  // ★ 折叠时在标题上给个提示（"有 N 项 · 点开核对"），
+  //   否则默认折叠 = 用户看不到有数据，以为模块坏了。
+  var fc = $('rtFold'), rb = $('rtBody');
+  var n = Object.keys(RT_PLAT).length;
+  if (fc) fc.title = rb && rb.hidden
+    ? (n ? '展开核对（平台 ' + n + ' 项）' : '展开')
+    : '折叠';
+  if (n && rb && rb.hidden) {
+    fc.textContent = '▸ ' + n;
+  } else if (fc) {
+    fc.textContent = '▾';
+  }
 
   if (!Object.keys(RT_PLAT).length) {
     box.innerHTML = '<div class="empty">暂时取不到风神后台实时数据'
@@ -999,20 +1011,31 @@ function renderRt() {
     complete_order_rate: function (t) { return t.likt; },
     wl_complete_order_rate: function (t) { return t.likt; },
     driver_t_ontime_rate: function (t) { return t.t8; },
+    predict_t8_ontime_rate: function (t) { return t.t8; },
     attend_driver_count: function (t) { return t.attendRiders; },
-    rider_efficiency: function (t) { return t.efficiency; },
     complain_order_rate: function (t) { return t.dissat; }
   };
+  // ★ 按平台实际返回的 21 个指标来选，不要凭空猜字段名
+  //   （原来写了 rider_efficiency，平台根本没有 → 可展示项少一半，看起来"没有数据"）。
   var NAME = {
+    push_order_count: '推单量',
     complete_order_count: '完单量',
-    complete_order_rate: '妥投率',
-    wl_complete_order_rate: '物流妥投率',
-    driver_t_ontime_rate: '骑手准时送达率',
-    attend_driver_count: '出勤骑手数',
-    rider_efficiency: '人效',
-    complain_order_rate: '投诉率',
+    delivering_order_count: '配送中运单',
     cancel_order_count: '取消单量',
-    logistics_un_complete_count: '物流责取消单量'
+    complete_order_rate: '完单率',
+    wl_complete_order_rate: '物流妥投率',
+    logistics_un_complete_count: '物流责取消',
+    driver_t_ontime_rate: '骑手准时送达率',
+    predict_t8_ontime_rate: '预测T8准时率',
+    attend_driver_count: '出勤骑手数',
+    online_driver_count: '在线骑手',
+    delivering_driver_count: '配送中骑手',
+    avg_delivery_time: '平均时长',
+    complain_order_rate: '投诉率',
+    bad_rating_order_rate: '差评率',
+    illegal_operation_order_rate: '违规操作率',
+    overtime_claim_count: '超时申诉',
+    bad_weather_final_order_rate: '恶劣天气占比'
   };
   var isRate = { complete_order_rate: 1, wl_complete_order_rate: 1,
                  driver_t_ontime_rate: 1, complain_order_rate: 1 };
@@ -1113,7 +1136,10 @@ function renderSync(p) {
   var bar = $('syncBar'); if (!bar) return;
   p = p || {};
   var running = !!p.running;
-  if (!running && !p.finished && !p.error) { bar.hidden = true; return; }
+  // ★ 同步条【常驻可见】，不再因「当前没有任务」就整条隐藏 ——
+  //   用户反馈"看不到同步条"：非运行时只有 finished/error 才显示，
+  //   而 finished 是服务启动后才有，页面首屏经常什么都不显示。
+  //   现在无论状态如何都显示，至少能告诉用户上次同步到什么时候。
   bar.hidden = false;
   bar.classList.toggle('on', running);
   bar.classList.toggle('done', !running && !p.error && (p.percent >= 100 || p.finished));
