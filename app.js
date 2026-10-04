@@ -697,21 +697,25 @@ function renderRt() {
     var pv = RT_PLAT[k].value;
     var mine = MINE[k] ? MINE[k](t) : null;
     var fmt = function (v) {
-      if (v == null) return '—';
-      if (isRate[k]) return (v * 100).toFixed(2) + '%';
-      return num(v);
+      if (v == null || v === '') return '—';
+      var n = typeof v === 'number' ? v : parseFloat(v);
+      if (isNaN(n)) return String(v);      // ★ 平台偶尔返字符串，原样显示别强行算
+      if (isRate[k]) return (n * 100).toFixed(2) + '%';
+      return num(n);
     };
-    // 差值：率用 pp，其他用绝对差
+    // 差值：率用 pp，其他用绝对差。平台值可能是字符串，先转数字
+    var pvN = typeof pv === 'number' ? pv : parseFloat(pv);
+    var mineN = typeof mine === 'number' ? mine : parseFloat(mine);
     var diff = '';
-    if (mine != null && pv != null) {
+    if (!isNaN(pvN) && mineN != null && !isNaN(mineN)) {
       if (isRate[k]) {
-        var dpp = (pv - mine) * 100;
+        var dpp = (pvN - mineN) * 100;
         var ok = Math.abs(dpp) < 0.5;
         diff = '<span class="rt-d ' + (ok ? 'good' : 'bad') + '">' +
           (dpp > 0 ? '+' : '') + dpp.toFixed(2) + 'pp</span>';
-      } else if (Math.abs(pv - mine) >= 1) {
-        diff = '<span class="rt-d ' + (mine >= pv ? 'good' : 'bad') + '">' +
-          (mine - pv > 0 ? '+' : '') + Math.round(mine - pv) + '</span>';
+      } else if (Math.abs(pvN - mineN) >= 1) {
+        diff = '<span class="rt-d ' + (mineN >= pvN ? 'good' : 'bad') + '">' +
+          (mineN - pvN > 0 ? '+' : '') + Math.round(mineN - pvN) + '</span>';
       } else {
         diff = '<span class="rt-d good">一致</span>';
       }
