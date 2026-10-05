@@ -660,13 +660,19 @@ function secVal(v) {
 }
 
 function itemHtml(r) {
+  // ★ 骑手行：站点与名字【同一行并排】（用户 2026-10-05）。
+  //   站点是骑手的归属信息，比名字次要，所以用小字灰色跟在名字后面。
+  //   siteCount>1 说明该骑手区间内跨站点，不静默挑一个冒充，显式提示。
+  var nm = '<b>' + esc(r.name || r.id) + '</b>' +
+    (r.siteName ? '<span class="site">' + esc(r.siteName) +
+      (r.siteCount > 1 ? '<i class="multi">多</i>' : '') + '</span>' : '');
   return '<div class="item" data-id="' + esc(r.id) + '" data-nm="' + esc(r.name || '') + '">' +
     '<div class="row1">' +
-      '<div class="nm"><b>' + esc(r.name || r.id) + '</b></div>' +
+      '<div class="nm">' + nm + '</div>' +
       '<div class="sc">' + num(r.orders) + '</div>' +
     '</div>' +
     '<div class="row2 g6">' +
-      '<span>人效 <b>' + (r.efficiency == null ? '—' : r.efficiency) + '</b></span>' +
+      '<span>完单 <b>' + num(r.orders) + '</b></span>' +
       '<span>出勤 <b>' + num(r.attendRiders) + '</b></span>' +
       '<span>妥投 <b>' + pct(r.likt) + '</b></span>' +
       '<span>准时 <b>' + pct(r.t8) + '</b></span>' +
@@ -690,7 +696,8 @@ var SORT_KEYS = [
   { k: 'dissat', n: '不满意', good: -1 },
   { k: 'duration', n: '复合',  good: -1 }
 ];
-var LIST_F = { sortKey: 'orders', sortDir: -1, quant: 0 };   // quant: 0 = 不筛
+var LIST_F = { sortKey: 'orders', sortDir: -1, quant: 0.10,   // ★ 默认只看前 10%
+              sites: null };   // sites: null = 全选（不过滤），否则为站点名数组
 var LAST_ROWS = [];
 
 function applySort(rows) {
@@ -710,6 +717,14 @@ function applySort(rows) {
 /* 骑手分位：按【当前排序指标】取前 N%（N=0 表示不筛）。
  * 「前」跟随当前排序方向 —— 单量降序 → 完单最多的前 10%；
  * 想看最差的，把方向点成升序即可。 */
+/* 站点筛选：LIST_F.sites 为 null 表示全选（不过滤）。
+ * 放在【排序与分位之前】—— 否则「只看前 10%」会先在全站骑手里取前 10%，
+ * 再过滤站点，结果某站点可能只剩 0 人，看起来像坏了。 */
+function applySites(rows) {
+  if (S.level !== 'rider' || !LIST_F.sites || !LIST_F.sites.length) return rows;
+  return rows.filter(function (r) { return r.siteName && LIST_F.sites.indexOf(r.siteName) >= 0; });
+}
+
 function applyQuantile(rows) {
   if (S.level !== 'rider' || !LIST_F.quant) return rows;
   var n = Math.max(1, Math.ceil(rows.length * LIST_F.quant));
@@ -731,14 +746,36 @@ function renderListBar(rows) {
   h += '</div>';
   {
     h += '<div class="lb-row"><span class="lb-lab">只看前</span>';
-    [0, 0.10, 0.15, 0.20].forEach(function (p) {
+    [0, 0.10, 0.15].forEach(function (p) {
       var on = Math.abs(LIST_F.quant - p) < 1e-9;
       h += '<button class="lb' + (on ? ' on' : '') + '" data-q="' + p + '">' +
         (p ? Math.round(p * 100) + '%' : '全部') + '</button>';
     });
+    // ★ 20% 改为【自定义】（用户 2026-10-05）：写任意百分比，1~100。
+    var custom = (LIST_F.quant !== 0 && Math.abs(LIST_F.quant - 0.10) > 1e-9
+                  && Math.abs(LIST_F.quant - 0.15) > 1e-9)
+      ? '<input class="lb-in" type="number" min="1" max="100" step="1" ' +
+        'value="' + Math.round(LIST_F.quant * 100) + '" data-qin>' +
+        '<span class="lb-pct">%</span>'
+      : '<button class="lb' + (LIST_F.customOpen ? ' on' : '') + '" data-qopen>自定义</button>';
+    h += custom;
     h += '<span class="lb-hint">' + (LIST_F.quant
       ? '显示 ' + Math.max(1, Math.ceil(rows.length * LIST_F.quant)) + ' / ' + rows.length + ' 人'
       : '共 ' + rows.length + ' 人') + '</span></div>';
+  }
+  // ★ 站点筛选：默认全选（sites=null），可单选（点一个）或多选（点多个）。
+  var siteNames = [];
+  rows.forEach(function (r) { if (r.siteName && siteNames.indexOf(r.siteName) < 0) siteNames.push(r.siteName); });
+  if (siteNames.length) {
+    var sel = LIST_F.sites;
+    var allOn = !sel;
+    h += '<div class="lb-row"><span class="lb-lab">站点</span>' +
+      '<button class="lb' + (allOn ? ' on' : '') + '" data-site="__all__">全部(' + siteNames.length + ')</button>';
+    siteNames.forEach(function (nm) {
+      var on = allOn || sel.indexOf(nm) >= 0;
+      h += '<button class="lb' + (on ? ' on' : '') + '" data-site="' + esc(nm) + '">' + esc(nm) + '</button>';
+    });
+    h += '</div>';
   }
   bar.innerHTML = h;
   bar.hidden = false;
@@ -753,6 +790,39 @@ function renderListBar(rows) {
   Array.prototype.forEach.call(bar.querySelectorAll('[data-q]'), function (b) {
     b.onclick = function () {
       LIST_F.quant = parseFloat(b.getAttribute('data-q')) || 0;
+      LIST_F.customOpen = false;
+      refreshList();
+    };
+  });
+  // 自定义百分比：点「自定义」展开输入框，回车/失焦生效
+  var qopen = bar.querySelector('[data-qopen]');
+  if (qopen) qopen.onclick = function () {
+    LIST_F.customOpen = true;
+    refreshList();
+    var inp = $('listBar').querySelector('[data-qin]');
+    if (inp) { inp.focus(); inp.select(); }
+  };
+  var qin = bar.querySelector('[data-qin]');
+  if (qin) {
+    var applyQin = function () {
+      var v = Math.max(1, Math.min(100, Math.round(Number(qin.value) || 0)));
+      if (v >= 1 && v <= 100) { LIST_F.quant = v / 100; LIST_F.customOpen = false; refreshList(); }
+    };
+    qin.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); applyQin(); } };
+    qin.onblur = applyQin;
+  }
+  // 站点筛选：默认全选；点具体站点 = 单选该站，再点其他 = 追加多选；点已选的 = 取消
+  Array.prototype.forEach.call(bar.querySelectorAll('[data-site]'), function (b) {
+    b.onclick = function () {
+      var v = b.getAttribute('data-site');
+      if (v === '__all__') { LIST_F.sites = null; }
+      else {
+        var cur = LIST_F.sites ? LIST_F.sites.slice() : [];
+        var i = cur.indexOf(v);
+        if (i >= 0) cur.splice(i, 1); else cur.push(v);
+        // 全选/全不选都回到 null，避免出现「一个都没选」的空白列表
+        LIST_F.sites = cur.length ? cur : null;
+      }
       refreshList();
     };
   });
@@ -775,6 +845,7 @@ function renderList(rows) {
   // ★ 排序 + 骑手分位筛选（在渲染前应用，作用于全量行）
   LAST_ROWS = rows;
   renderListBar(rows);
+  rows = applySites(rows);
   rows = applySort(rows);
   rows = applyQuantile(rows);
   // ★ 行数据存全局：objScore 拿到分数后要写回对应行，卡片内的分数才能显示。
