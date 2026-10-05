@@ -499,8 +499,16 @@ CUR_SCORE.cur = dayS; CUR_SCORE.month = monS;
       var row = LIST_ROWS[key];
       if (row) {
         row.score = { cur: dayS, month: monS };
-        var box = $('list').querySelector('.item[data-id="' + key + '"] .row3');
-        if (box) box.innerHTML = detailGrid(row);
+        var itemEl = $('list').querySelector('.item[data-id="' + key + '"]');
+        if (itemEl) {
+          var box = itemEl.querySelector('.row3');
+          if (box) box.innerHTML = detailGrid(row);
+          // ★ 六格里的「得分」也要跟着更新！
+          //   只改 row3 的话，.row2 里的得分格永远是渲染时的旧值（多半是 —），
+          //   因为得分是异步回来的（objScore），列表早画完了。
+          var sc = itemEl.querySelector('.row2 .sc-cell b');
+          if (sc) sc.textContent = dayS == null ? '\u2014' : Number(dayS).toFixed(2);
+        }
       }
       // ★ 同时【原地更新顶部卡片的「大网质量得分」格】。
       //   得分只来自 /api/scoreboard，/api/metrics 的 total 里没有这个字段，
@@ -673,7 +681,7 @@ function itemHtml(r) {
     '</div>' +
     '<div class="row2 g6">' +
       '<span>完单 <b>' + num(r.orders) + '</b></span>' +
-      '<span>得分 <b>' + (r.score && r.score.cur != null
+      '<span class="sc-cell">得分 <b>' + (r.score && r.score.cur != null
         ? Number(r.score.cur).toFixed(2) : '—') + '</b></span>' +
       '<span>妥投 <b>' + pct(r.likt) + '</b></span>' +
       '<span>准时 <b>' + pct(r.t8) + '</b></span>' +
@@ -775,6 +783,7 @@ function renderListBar(rows) {
         '<input class="lb-in" type="number" inputmode="numeric" min="1" max="100" step="1" ' +
         'value="' + Math.round(LIST_F.quant * 100) + '" data-qin>' +
         '<span class="lb-pct">%</span>' +
+        '<button class="lb-ok" data-qok>确定</button>' +
         '<button class="lb-x" data-qclose title="收起">✕</button></span>'
       : '<button class="lb" data-qopen>自定义</button>';
     h += custom;
@@ -846,10 +855,19 @@ function renderListBar(rows) {
   if (qin) {
     var applyQin = function () {
       var v = Math.max(1, Math.min(100, Math.round(Number(qin.value) || 0)));
-      if (v >= 1 && v <= 100) { LIST_F.quant = v / 100; LIST_F.customOpen = false; refreshList(); }
+      LIST_F.quant = v / 100;
+      LIST_F.customOpen = false;      // 确定后收起
+      refreshList();
     };
-    qin.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); applyQin(); } };
-    qin.onblur = applyQin;
+    // ★ 必须有【确定按钮】（用户 2026-10-05 明确要求）。
+    //   原来只靠 blur 生效：手机上点完数字想去点别的，input 先失焦、
+    //   renderList 重建工具条 → 正在点的按钮被抽走，点不到，非常难用。
+    //   取消 blur 自动生效，改为回车或点「确定」。
+    qin.onkeydown = function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); applyQin(); }
+    };
+    var qok = bar.querySelector('[data-qok]');
+    if (qok) qok.onclick = applyQin;
   }
   // ★ 下拉开关：点外面关闭，点内部不关
   var msel = bar.querySelector('.msel');
@@ -897,6 +915,40 @@ function renderListBar(rows) {
 
 /* 排序/筛选只影响列表，不重新请求接口 —— 复用已取到的全量行 */
 function refreshList() { renderList(LAST_ROWS.slice()); }
+
+/* ★ 批量拉取骑手得分。
+   原来得分只在【点开某一行】时请求（loadObjScore），于是列表里每行的
+   「得分」格永远是「—」—— 用户明确指出「明明有数据，明细却没有」。
+   现在进入骑手维度时一次取回（后端带 ids 白名单，只算当前列表里出现的那些），
+   回来后只改 .row2 的得分格，不整表重绘（避免闪烁与重复请求）。 */
+var SCORE_BUSY = false;
+function loadRiderScores() {
+  if (S.level !== 'rider' || SCORE_BUSY) return;
+  var rows = LAST_ROWS || [];
+  if (!rows.length) return;
+  var ids = rows.slice(0, 200).map(function (r) { return r.id; });
+  var missing = ids.filter(function (id) {
+    var r = LIST_ROWS[id]; return !(r && r.score && r.score.cur != null); });
+  if (!missing.length) return;
+  SCORE_BUSY = true;
+  var r0 = computeRange();
+  var day = r0[0] || today();
+  var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
+  api('/api/scoreboard?' + aq + 'month=' + q(day.slice(0, 7)) + '&day=' + q(day) +
+      '&level=rider&ids=' + q(missing.join(',')))
+    .then(function (j) {
+      (j.districts || []).forEach(function (d) {
+        var row = LIST_ROWS[d.id];
+        if (!row) return;
+        row.score = { cur: (d.today || {}).dayNet, month: (d.month || {}).bigNet };
+        var cell = $('list').querySelector('.item[data-id="' + d.id + '"] .row2 .sc-cell b');
+        if (cell) cell.textContent = row.score.cur == null ? '—' : Number(row.score.cur).toFixed(2);
+        var box = $('list').querySelector('.item[data-id="' + d.id + '"] .row3');
+        if (box) box.innerHTML = detailGrid(row);
+      });
+    }).catch(function () {})
+    .then(function () { SCORE_BUSY = false; });
+}
 /* 站点下拉多选专用：勾选后要重画列表，但下拉必须【保持展开】，
  * 否则用户连点两个站点，第二次勾选时下拉已经合上了 —— 没法连续勾。
  * renderList 会走 renderListBar 重建工具条，所以这里把 open 状态清掉再还回去。 */
@@ -930,6 +982,7 @@ function renderList(rows) {
     //   原来每行都铺开 4 个指标 + 大字号单量，4 个站点就占满一屏。
     return itemHtml(r);
   }).join('');
+  loadRiderScores();          // ★ 骑手得分异步补齐（只改得分格，不重绘整表）
   var items = $('list').querySelectorAll('.item');
   // 选中态：只高亮，【不自动展开】。
 // ★ 之前恢复选中/自动选中首行时都顺手 add('open')，用户没点就被迫看一屏数据，
