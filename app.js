@@ -654,16 +654,23 @@ function detailGrid(r) {
   return '<div class="deepGrid">' + g.join('') + '</div>';
 }
 
+/* 秒值格式化（fv('sec') 不处理 null，这里补一个安全版） */
+function secVal(v) {
+  return v == null ? '—' : Number(Number(v).toFixed(2)) + 's';
+}
+
 function itemHtml(r) {
   return '<div class="item" data-id="' + esc(r.id) + '" data-nm="' + esc(r.name || '') + '">' +
     '<div class="row1">' +
       '<div class="nm"><b>' + esc(r.name || r.id) + '</b></div>' +
       '<div class="sc">' + num(r.orders) + '</div>' +
     '</div>' +
-    '<div class="row2">' +
+    '<div class="row2 g6">' +
       '<span>人效 <b>' + (r.efficiency == null ? '—' : r.efficiency) + '</b></span>' +
+      '<span>出勤 <b>' + num(r.attendRiders) + '</b></span>' +
       '<span>妥投 <b>' + pct(r.likt) + '</b></span>' +
       '<span>准时 <b>' + pct(r.t8) + '</b></span>' +
+      '<span>单均复合 <b>' + secVal(r.duration) + '</b></span>' +
       '<span>不满意 <b>' + pct(r.dissat, 3) + '</b></span>' +
     '</div>' +
     '<div class="row3">' + detailGrid(r) + '</div>' +
