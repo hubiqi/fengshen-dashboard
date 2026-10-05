@@ -990,7 +990,6 @@ function loadCards(dfrom, dto, withList) {
       // ★ 本地指标到达后同步给罗盘，让「平台 / 我算」两列都能显示 ——
       //   罗盘接口要 2.4 秒，比 metrics 慢，两者到达时间不同。
       if (S.level === 'agency' && Object.keys(RT_PLAT).length) {
-        RT_TOTAL = LAST_TOTAL;
         renderRt();
       }
       if (withList) renderList(j.rows || []);
@@ -1011,10 +1010,6 @@ function loadCards(dfrom, dto, withList) {
  */
 var RT_PLAT = {};   // 平台指标缓存：key → {name, value}
 var RT_ERR = '';
-// ★ RT_TOTAL = 当前对象（整商）的本地运单指标，用于与平台值【并排核对】。
-//   ★★ 之前漏了 var 声明：renderRt 里直接读 RT_TOTAL，在 'use strict' 下抛
-//   ReferenceError "RT_TOTAL is not defined"，整个 renderRt 中断 → 罗盘永远空白。
-var RT_TOTAL = {};
 
 function renderRt(state) {
   var box = $('rt');
@@ -1079,7 +1074,13 @@ function renderRt(state) {
   var isRate = { complete_order_rate: 1, wl_complete_order_rate: 1,
                  driver_t_ontime_rate: 1, complain_order_rate: 1 };
 
-  var t = RT_TOTAL || {};
+  // ★ 直接读 LAST_TOTAL —— 它由 loadCards 写入，而请求本身带了当前 level+key，
+  //   所以它【天然就是当前对象】的指标。
+  //   之前绕道 RT_TOTAL 中间变量，而它只在两个时机赋值：
+  //     ① loadRt 开头（此时 LAST_TOTAL 可能还是空的）
+  //     ② loadCards 完成 且 罗盘已有数据（如果 metrics 先回来就被跳过）
+  //   两个接口谁先返回不确定 → 经常两边都错过，「我算」那列永远是 —。
+  var t = LAST_TOTAL || {};
   var h = '<div class="rt-note">左＝<b>风神后台</b>原值，右＝本地运单计算值，差值用于核对</div>';
   h += Object.keys(NAME).filter(function (k) {
     return RT_PLAT[k] && RT_PLAT[k].value != null;
@@ -1127,7 +1128,6 @@ function loadRt() {
   //   而且放在页面最底部、默认折叠 —— 它是用来核对数据的，不是主内容。
   if (S.level !== 'agency') { $('rtPanel').hidden = true; return; }
   $('rtPanel').hidden = false;          // ★ 先显示面板，取不到数据也保留（并说明原因）
-  RT_TOTAL = LAST_TOTAL || {};
   var aq = ACCT ? '?acct=' + q(ACCT) : '';
   // ★ 该接口要 2 秒以上，而 loadAll 是并发的：首次进来时它必然还没回来，
   //   之后没有任何机制再取一次 —— 于是罗盘永远停在「暂时取不到」。
@@ -1144,6 +1144,8 @@ function fetchRt() {
     if (j.ok && j.indicators && Object.keys(j.indicators).length) {
       RT_PLAT = j.indicators;
       MOM = j.indicators;
+      // 两个接口谁先返回不确定：平台值到了就画一次，
+      // 之后 metrics 到达时 loadCards 里还会再刷一次 —— 两边都到齐。
       renderRt();
     } else {
       // ★ 不再把面板藏掉：之前一失败就 hidden=true，用户完全看不到这个模块，
