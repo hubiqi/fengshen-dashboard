@@ -453,8 +453,12 @@ td.sc{font-size:11px;color:var(--sub)}
    现在允许换行，并让每个标签占满一格（2×2 网格），文字永远完整。 */
 @media (max-width:520px){
   .item .row2{display:grid;grid-template-columns:1fr 1fr;gap:3px 8px}
-  /* 手机端 2 列 × 3 行，窄屏也能完整显示 6 个指标 */
-  .item .row2.g6{grid-template-columns:1fr 1fr;gap:3px 8px}
+  /* ★ 手机端同样是【3 列 × 2 行】（用户口径 3*2）。
+     之前误做成 2 列 3 行，虽然不截断，但行数多、每行只放 2 个指标，
+     视觉上比 2×2 更松散，也和"3*2"的预期不符。 */
+  .item .row2.g6{grid-template-columns:repeat(3,1fr);gap:3px 6px}
+  .item .row2.g6 span{gap:2px;font-size:10px}
+  .item .row2.g6 b{font-size:11px}
   .item .row2 span{white-space:normal;overflow-wrap:anywhere;
     display:flex;align-items:baseline;gap:3px;min-width:0}
   .item .row1{gap:6px}
