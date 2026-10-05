@@ -486,3 +486,30 @@ td.sc{font-size:11px;color:var(--sub)}
   border-radius:6px;background:#fff;color:var(--fg);text-align:center}
 .lb-in:focus{outline:none;border-color:var(--blue)}
 .lb-pct{font-size:11px;color:var(--sub);margin-left:2px}
+
+
+/* 站点下拉多选 */
+.msel{position:relative;display:inline-block;vertical-align:middle}
+.msel-btn{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;
+  font-size:12px;color:var(--fg);background:#fff;border:1px solid var(--line);
+  border-radius:14px;cursor:pointer;max-width:15em}
+.msel-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.msel-ar{flex:0 0 auto;color:var(--sub);transition:transform .15s}
+.msel.open .msel-ar{transform:rotate(180deg)}
+.msel-pop{position:absolute;z-index:60;left:0;top:calc(100% + 4px);min-width:100%;
+  max-width:16em;max-height:52vh;overflow-y:auto;padding:4px;
+  background:#fff;border:1px solid var(--line);border-radius:8px;
+  box-shadow:0 6px 20px rgba(0,0,0,.14)}
+.msel-all,.msel-it{display:flex;align-items:center;gap:7px;padding:6px 8px;
+  font-size:12.5px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.msel-all{font-weight:600;border-bottom:1px solid var(--line);border-radius:0;
+  margin-bottom:2px;padding-bottom:7px}
+.msel-all:hover,.msel-it:hover{background:var(--bg)}
+.msel-it input,.msel-all input{width:15px;height:15px;flex:0 0 auto;
+  accent-color:var(--blue);cursor:pointer}
+.msel-it span{overflow:hidden;text-overflow:ellipsis}
+
+/* 自定义分位输入（补 ✕ 按钮） */
+.lb-inwrap{display:inline-flex;align-items:center;gap:3px}
+.lb-x{padding:2px 6px;font-size:12px;line-height:1;color:var(--sub);
+  background:#fff;border:1px solid var(--line);border-radius:6px;cursor:pointer}
