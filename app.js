@@ -225,19 +225,23 @@ function kpiOf() {
 function renderCards(t) {
   var mi = t.mealImpact || {}, sci = t.secondcallImpact || {};
   var t8d = '考核口径', dud = '复合超时时长 ÷ 有效完单';
+  // ★ 只报【超时单数 + 占完单比例】，不再显示"若剔除后指标变动多少"——
+  //   那个是推导值，含义绕而且看不出到底有多少单受影响。
+  function lateTxt(imp) {
+    if (!imp.orders) return '';
+    var late = imp.late != null ? imp.late : 0;
+    var sh = imp.lateShare != null ? imp.lateShare + '%'
+            : (imp.share != null ? imp.share + '%' : '—');
+    return '超时 ' + num(late) + '单(' + sh + ')';
+  }
   if (mi.orders) {
-    var sh = (mi.share == null ? '—' : mi.share + '%');
-    t8d += ' · 卡餐 ' + num(mi.delivered) + '单(' + sh + ')';
-    if (mi.t8_delta_pct) t8d += '，若剔除 ' + (mi.t8_delta_pct > 0 ? '+' : '') + mi.t8_delta_pct + '%';
-    dud += ' · 卡餐 ' + num(mi.delivered) + '单(' + sh + ')';
-    if (mi.duration_delta_pct) dud += '，若剔除 ' + (mi.duration_delta_pct > 0 ? '+' : '') + mi.duration_delta_pct + '%';
+    t8d += ' · 卡餐' + lateTxt(mi);
+    dud += ' · 卡餐' + lateTxt(mi);
   }
   // ★ 二呼单：考核口径下【不记复合时长】，准时判定用骑手T（无 8 分钟缓冲）。
-  //   标注它的占比与非准时数，便于判断 T0 预估里有多少是二呼贡献的。
   if (sci.orders) {
-    var ssh = (sci.share == null ? '—' : sci.share + '%');
-    t8d += ' · 二呼 ' + num(sci.delivered) + '单(' + ssh + ')';
-    dud += ' · 二呼 ' + num(sci.delivered) + '单(' + ssh + '，不计复合)';
+    t8d += ' · 二呼' + lateTxt(sci);
+    dud += ' · 二呼' + lateTxt(sci) + '（不计复合）';
   }
   // ★★★ 统一在一处显示：所选日期 / 全月 / 环比昨天，三行合一。
   //   数据全部本地运单自算（全月与前一天走同一条 _range_parts 路径，只是区间不同）。
@@ -251,6 +255,7 @@ function renderCards(t) {
       if (kind === 'score') return v == null ? '—' : Number(v).toFixed(2);
       if (kind === 'money') return v == null ? '—' : Number(v).toLocaleString('zh-CN',
         { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      if (kind === 'int') return v == null ? '—' : num(Math.round(v));
       if (kind === 'sec') return Number(Number(v).toFixed(2)) + 's';
       return pct(v, kind === 'rate3' ? 3 : 2);
     };
@@ -310,7 +315,7 @@ function renderCards(t) {
     kpiCells =
       cell('KPI奖励(元)', kk.reward, null, null, 'money',
            '考核方案结算 · ' + (S.level === 'agency' ? '整商' : '商圈片')) +
-      cell('订单(大网接单)', kk.orders, null, null, 'money', '单均奖励的分母') +
+      cell('订单(大网接单)', kk.orders, null, null, 'int', '单均奖励的分母') +
       cell('单均奖励(元/单)', kk.perOrder, null, null, 'money',
            'KPI奖励 ÷ 订单');
   }
@@ -945,11 +950,18 @@ function drawTrend(label) {
   seg.forEach(function (s) {
     out.push('<polyline points="' + s.join(' ') + '" fill="none" stroke="#1f6feb" stroke-width="2.2"/>');
   });
-  // 点 + tooltip
+  // ★ 点 + tooltip + 【每点数值标签】
+  //   点少时全标；点多时隔点标，避免挤成一团互相遮挡。
+  //   标签画在点的【正上方】，折线不会压住文字；且用白描边保证叠在网格线上也清晰。
+  var stepLbl = pts.length <= 12 ? 1 : Math.ceil(pts.length / 10);
   pts.forEach(function (p, i) {
     var v = p[m.f]; if (v == null) return;
     out.push('<circle cx="' + X(i) + '" cy="' + Y(v) + '" r="2.6" fill="#1f6feb">' +
       '<title>' + p.date + '  ' + esc(m.label) + ' ' + fv(v) + m.unit + '</title></circle>');
+    if (i % stepLbl !== 0 && i !== pts.length - 1) return;
+    out.push('<text x="' + X(i) + '" y="' + (Y(v) - 8) + '" font-size="10" font-weight="600"' +
+      ' fill="#1f6feb" text-anchor="middle" stroke="#fff" stroke-width="2.6"' +
+      ' paint-order="stroke">' + fv(v) + '</text>');
   });
   out.push('</svg>');
   box.innerHTML = '<div class="tr-head"><b>' + esc(label) + '</b>' +
