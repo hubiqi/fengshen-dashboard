@@ -156,7 +156,7 @@ function momOf(name) {
 function fillRowScore(key) {
   var row = LIST_ROWS[key];
   if (!row) return;
-  row.score = { cur: CUR_SCORE.cur, month: CUR_SCORE.month };
+  row.score = { cur: curScoreFor(), month: monScoreFor() };
   var box = $('list').querySelector('.item[data-id="' + key + '"] .row3');
   if (box) box.innerHTML = detailGrid(row);
 }
@@ -166,6 +166,13 @@ function prefetchScore(from, to) {
   var r0 = computeRange();
   from = from || r0[0]; to = to || r0[1];
   var lv = S.level, key = S.key || '';
+  // ★ 缓存只服务于【当前层级 + 当前对象】。切维度/切对象后旧的立刻作废，
+  //   否则新维度还没算出来时会拿【上一个层级】的分数顶上，
+  //   表现为「还没点明细就显示别的层级的数据」。
+  if (CUR_SCORE.scope !== (lv + '|' + key)) {
+    CUR_SCORE.cur = null; CUR_SCORE.month = null; CUR_SCORE.scope = '';
+    if (TREND && TREND.key !== (lv + '|' + key)) TREND.points = null;
+  }
   var ym = from.slice(0, 7);
   var m0 = ym + '-01';
   var m1 = new Date(+ym.slice(0,4), +ym.slice(5,7), 0).toISOString().slice(0,10);
@@ -176,6 +183,7 @@ function prefetchScore(from, to) {
       TREND.key = lv + '|' + key;
       CUR_SCORE.cur = j.todayBigNet;
       CUR_SCORE.month = j.monthBigNet;
+      CUR_SCORE.scope = lv + '|' + key;
       var hi = $('cards').querySelector('.tcard.hi');
       if (hi) {
         var v = hi.querySelector('.v'), cm = hi.querySelector('.cmp');
@@ -275,8 +283,8 @@ function renderCards(t) {
   }
 
   var c = [
-    cell('大网质量得分', t.bigNet != null ? t.bigNet : CUR_SCORE.cur,
-      t.monthBigNet != null ? t.monthBigNet : CUR_SCORE.month, null, 'score'),
+    cell('大网质量得分', t.bigNet != null ? t.bigNet : curScoreFor(),
+      t.monthBigNet != null ? t.monthBigNet : monScoreFor(), null, 'score'),
     cell('完单量', t.orders, mp.orders, pv.orders, 'num'),
     // ★ 多天区间显示【日均】出勤（累计 ÷ 有数据天数），单日区间等于当天人数。
     //   人效仍用累计出勤做分母，两者等价：总订单/累计出勤 = (订单/天)/(出勤/天)。
@@ -318,7 +326,17 @@ function renderCards(t) {
 /* ── 得分（按商圈片）──────────────────────────────────────────────── */
 var SB = { districts: [], sel: null };
 var LIST_ROWS = {};   // 行 id → 行数据（objScore 回写分数时要用）
-var CUR_SCORE = { cur: null, month: null };
+// ★ 必须带 scope：记录这份得分属于【哪个层级 + 哪个对象】。
+//   否则切到商圈片/站点时，该维度得分还没回来，就会拿【整商的缓存】顶上，
+//   看起来像"数据出来了"，实际是别的层级的数字（用户反馈「没点明细就显示整商缓存」）。
+var CUR_SCORE = { cur: null, month: null, scope: '' };
+function scoreScope() { return S.level + '|' + (S.key || ''); }
+function curScoreFor() {
+  return CUR_SCORE.scope === scoreScope() ? CUR_SCORE.cur : null;
+}
+function monScoreFor() {
+  return CUR_SCORE.scope === scoreScope() ? CUR_SCORE.month : null;
+}
 var LAST_TOTAL = {};
 var SUPPRESS_AUTO = false;  // 保留字段（已无「返回全量」交互）
 function fmt1(v) { return v == null ? '—' : Number(v).toFixed(1); }
@@ -779,7 +797,7 @@ function mark(el, expand) {
       S.key = el.getAttribute('data-id'); S.keyName = el.getAttribute('data-nm');
       mark(el, true);
       // ★ 换了对象就清掉上一个的得分，否则新得分还没回来时会短暂显示别人的分。
-      CUR_SCORE.cur = null; CUR_SCORE.month = null;
+      CUR_SCORE.cur = null; CUR_SCORE.month = null; CUR_SCORE.scope = '';
       // ★ 卡片也要跟着切到该站点：只调 loadScore() 的话，
       //   上面那排数据卡片始终是整段日期的总量，看着像"点了没反应"。
       //   不能用 loadAll() —— 本函数就是在它的 then() 里跑的，会递归。
