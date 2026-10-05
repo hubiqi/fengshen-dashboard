@@ -673,7 +673,8 @@ function itemHtml(r) {
     '</div>' +
     '<div class="row2 g6">' +
       '<span>完单 <b>' + num(r.orders) + '</b></span>' +
-      '<span>出勤 <b>' + num(r.attendRiders) + '</b></span>' +
+      '<span>得分 <b>' + (r.score && r.score.cur != null
+        ? Number(r.score.cur).toFixed(2) : '—') + '</b></span>' +
       '<span>妥投 <b>' + pct(r.likt) + '</b></span>' +
       '<span>准时 <b>' + pct(r.t8) + '</b></span>' +
       '<span>单均复合 <b>' + secVal(r.duration) + '</b></span>' +
@@ -690,7 +691,9 @@ function itemHtml(r) {
 var SORT_KEYS = [
   { k: 'orders', n: '单量',   good: 1 },
   { k: 'efficiency', n: '人效', good: 1 },
-  { k: 'attendRiders', n: '出勤', good: 1 },
+  // ★ 得分放在 score.cur 上，不能用 r.score 直接排（那是对象），
+  //   也不能用 score.month —— 排序要和明细显示的是同一个数。
+  { k: 'score.cur', n: '得分', good: 1 },
   { k: 't8', n: '准时率',  good: 1 },
   { k: 'likt', n: '妥投率',  good: 1 },
   { k: 'dissat', n: '不满意', good: -1 },
@@ -706,7 +709,16 @@ function applySort(rows) {
   if (!m) return rows;
   var dir = LIST_F.sortDir;
   return rows.slice().sort(function (a, b) {
-    var x = a[m.k], y = b[m.k];
+    // 支持 'score.cur' 这种点号路径（SORT_KEYS 里得分用的是 score.cur）
+    var x = a, y = b;
+    if (m.k.indexOf('.') > 0) {
+      var path = m.k.split('.');
+      x = a; y = b;
+      for (var pi = 0; pi < path.length; pi++) {
+        x = x ? x[path[pi]] : null;
+        y = y ? y[path[pi]] : null;
+      }
+    } else { x = a[m.k]; y = b[m.k]; }
     if (x == null && y == null) return 0;
     if (x == null) return 1;                 // 空值沉底
     if (y == null) return -1;
@@ -752,12 +764,19 @@ function renderListBar(rows) {
         (p ? Math.round(p * 100) + '%' : '全部') + '</button>';
     });
     // ★ 20% 改为【自定义】（用户 2026-10-05）：写任意百分比，1~100。
-    var custom = (LIST_F.quant !== 0 && Math.abs(LIST_F.quant - 0.10) > 1e-9
-                  && Math.abs(LIST_F.quant - 0.15) > 1e-9)
-      ? '<input class="lb-in" type="number" min="1" max="100" step="1" ' +
+    //   条件必须同时看 customOpen —— 原来只看 quant 是不是"自定义值"，
+    //   而点开输入框时 quant 仍停在 0.10（默认值），于是输入框永远不出现，
+    //   点「自定义」毫无反应。
+    var isCustomVal = LIST_F.quant !== 0
+      && Math.abs(LIST_F.quant - 0.10) > 1e-9
+      && Math.abs(LIST_F.quant - 0.15) > 1e-9;
+    var custom = (LIST_F.customOpen || isCustomVal)
+      ? '<span class="lb-inwrap">' +
+        '<input class="lb-in" type="number" inputmode="numeric" min="1" max="100" step="1" ' +
         'value="' + Math.round(LIST_F.quant * 100) + '" data-qin>' +
-        '<span class="lb-pct">%</span>'
-      : '<button class="lb' + (LIST_F.customOpen ? ' on' : '') + '" data-qopen>自定义</button>';
+        '<span class="lb-pct">%</span>' +
+        '<button class="lb-x" data-qclose title="收起">✕</button></span>'
+      : '<button class="lb" data-qopen>自定义</button>';
     h += custom;
     h += '<span class="lb-hint">' + (LIST_F.quant
       ? '显示 ' + Math.max(1, Math.ceil(rows.length * LIST_F.quant)) + ' / ' + rows.length + ' 人'
@@ -769,13 +788,29 @@ function renderListBar(rows) {
   if (siteNames.length) {
     var sel = LIST_F.sites;
     var allOn = !sel;
+    // ★ 下拉多选（用户 2026-10-05 要求）。
+    //   原来是一排按钮，4 个站点还行，10+ 就会把整行撑爆、挤掉排序按钮。
+    //   不用原生 <select multiple>：手机上要长按才能多选，实际不可用。
+    var selCount = allOn ? siteNames.length : (sel ? sel.length : 0);
+    var label = allOn ? '全部 ' + siteNames.length + ' 个站点'
+            : (selCount ? '已选 ' + selCount + ' 个' : '未选择');
     h += '<div class="lb-row"><span class="lb-lab">站点</span>' +
-      '<button class="lb' + (allOn ? ' on' : '') + '" data-site="__all__">全部(' + siteNames.length + ')</button>';
-    siteNames.forEach(function (nm) {
-      var on = allOn || sel.indexOf(nm) >= 0;
-      h += '<button class="lb' + (on ? ' on' : '') + '" data-site="' + esc(nm) + '">' + esc(nm) + '</button>';
-    });
-    h += '</div>';
+      '<div class="msel' + (LIST_F.siteOpen ? ' open' : '') + '">' +
+      '<button class="msel-btn" data-sitetoggle>' +
+        '<span>' + label + '</span>' +
+        '<svg class="msel-ar" viewBox="0 0 12 12" width="10" height="10">' +
+          '<path d="M2 4.5 L6 8.5 L10 4.5" fill="none" stroke="currentColor" ' +
+          'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+      '</button>' +
+      '<div class="msel-pop"' + (LIST_F.siteOpen ? '' : ' hidden') + '>' +
+      '<label class="msel-all"><input type="checkbox" data-site="__all__"' +
+        (allOn ? ' checked' : '') + '><span>全部（' + siteNames.length + '）</span></label>' +
+      siteNames.map(function (nm) {
+        return '<label class="msel-it"><input type="checkbox" data-site="' + esc(nm) + '"' +
+          ((allOn || (sel && sel.indexOf(nm) >= 0)) ? ' checked' : '') +
+          '><span>' + esc(nm) + '</span></label>';
+      }).join('') +
+      '</div></div></div>';
   }
   bar.innerHTML = h;
   bar.hidden = false;
@@ -802,6 +837,11 @@ function renderListBar(rows) {
     var inp = $('listBar').querySelector('[data-qin]');
     if (inp) { inp.focus(); inp.select(); }
   };
+  var qclose = bar.querySelector('[data-qclose]');
+  if (qclose) qclose.onclick = function () {
+    LIST_F.customOpen = false;
+    refreshList();
+  };
   var qin = bar.querySelector('[data-qin]');
   if (qin) {
     var applyQin = function () {
@@ -811,25 +851,59 @@ function renderListBar(rows) {
     qin.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); applyQin(); } };
     qin.onblur = applyQin;
   }
-  // 站点筛选：默认全选；点具体站点 = 单选该站，再点其他 = 追加多选；点已选的 = 取消
-  Array.prototype.forEach.call(bar.querySelectorAll('[data-site]'), function (b) {
-    b.onclick = function () {
-      var v = b.getAttribute('data-site');
-      if (v === '__all__') { LIST_F.sites = null; }
-      else {
-        var cur = LIST_F.sites ? LIST_F.sites.slice() : [];
+  // ★ 下拉开关：点外面关闭，点内部不关
+  var msel = bar.querySelector('.msel');
+  if (msel) {
+    var tg = msel.querySelector('[data-sitetoggle]');
+    if (tg) tg.onclick = function (e) {
+      e.stopPropagation();
+      LIST_F.siteOpen = !LIST_F.siteOpen;
+      // 只重画工具条，不重算列表 —— 展开/收起不该触发一次取数+渲染
+      renderListBar(LAST_ROWS);
+    };
+  }
+  // 站点多选：复选框。下拉保持打开，方便连续勾选。
+  Array.prototype.forEach.call(bar.querySelectorAll('input[data-site]'), function (cb) {
+    cb.onclick = function (e) { e.stopPropagation(); };
+    cb.onchange = function (e) {
+      e.stopPropagation();
+      var v = cb.getAttribute('data-site');
+      if (v === '__all__') {
+        // 勾选全部 → 取消勾选 → null(全选)；否则 → 按当前勾选集合
+        LIST_F.sites = (LIST_F.sites === null && cb.checked) ? [] : null;
+        if (LIST_F.sites === null && !cb.checked) {
+          // 点了"全部"想取消全选 → 全不选
+          LIST_F.sites = [];
+        }
+      } else {
+        var cur = LIST_F.sites === null
+          ? Array.prototype.slice.call(msel.querySelectorAll('input[data-site]'))
+              .filter(function (x) { return x.getAttribute('data-site') !== '__all__' && x.checked; })
+              .map(function (x) { return x.getAttribute('data-site'); })
+          : LIST_F.sites.slice();
         var i = cur.indexOf(v);
-        if (i >= 0) cur.splice(i, 1); else cur.push(v);
-        // 全选/全不选都回到 null，避免出现「一个都没选」的空白列表
-        LIST_F.sites = cur.length ? cur : null;
+        if (cb.checked) { if (i < 0) cur.push(v); }
+        else if (i >= 0) cur.splice(i, 1);
+        LIST_F.sites = cur;
       }
-      refreshList();
+      refreshListKeepOpen();
     };
   });
+  if (msel) {
+    msel.onclick = function (e) { e.stopPropagation(); };
+    msel.querySelector('.msel-pop').onclick = function (e) { e.stopPropagation(); };
+  }
 }
 
 /* 排序/筛选只影响列表，不重新请求接口 —— 复用已取到的全量行 */
 function refreshList() { renderList(LAST_ROWS.slice()); }
+/* 站点下拉多选专用：勾选后要重画列表，但下拉必须【保持展开】，
+ * 否则用户连点两个站点，第二次勾选时下拉已经合上了 —— 没法连续勾。
+ * renderList 会走 renderListBar 重建工具条，所以这里把 open 状态清掉再还回去。 */
+function refreshListKeepOpen() {
+  LIST_F.siteOpen = true;
+  renderList(LAST_ROWS.slice());
+}
 function renderList(rows) {
   // ★ 四个颗粒度严格分开、行为一致：整商=代理商本身(1行)、商圈片、站点、骑手。
   //   原来 agency 被降级成 district，又额外开了「不出列表」特例，
