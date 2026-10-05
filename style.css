@@ -513,3 +513,7 @@ td.sc{font-size:11px;color:var(--sub)}
 .lb-inwrap{display:inline-flex;align-items:center;gap:3px}
 .lb-x{padding:2px 6px;font-size:12px;line-height:1;color:var(--sub);
   background:#fff;border:1px solid var(--line);border-radius:6px;cursor:pointer}
+
+.lb-ok{padding:3px 10px;font-size:12px;font-weight:600;color:#fff;
+  background:var(--blue);border:1px solid var(--blue);border-radius:6px;cursor:pointer}
+.lb-ok:active{opacity:.85}
