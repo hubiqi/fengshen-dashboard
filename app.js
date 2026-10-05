@@ -988,7 +988,7 @@ function loadCards(dfrom, dto, withList) {
 var RT_PLAT = {};   // 平台指标缓存：key → {name, value}
 var RT_ERR = '';
 
-function renderRt() {
+function renderRt(state) {
   var box = $('rt');
   if (S.level !== 'agency') { $('rtPanel').hidden = true; return; }
   $('rtPanel').hidden = false;
@@ -1005,6 +1005,10 @@ function renderRt() {
     fc.textContent = '▾';
   }
 
+  if (state === 'loading' && !Object.keys(RT_PLAT).length) {
+    box.innerHTML = '<div class="empty">正在拉取风神后台实时数据…（该接口较慢，约 3 秒）</div>';
+    return;
+  }
   if (!Object.keys(RT_PLAT).length) {
     box.innerHTML = '<div class="empty">暂时取不到风神后台实时数据'
       + (RT_ERR ? '（' + esc(RT_ERR) + '）' : '')
@@ -1097,7 +1101,18 @@ function loadRt() {
   $('rtPanel').hidden = false;          // ★ 先显示面板，取不到数据也保留（并说明原因）
   RT_TOTAL = LAST_TOTAL || {};
   var aq = ACCT ? '?acct=' + q(ACCT) : '';
-  api('/api/realtime' + aq).then(function (j) {
+  // ★ 该接口要 2 秒以上，而 loadAll 是并发的：首次进来时它必然还没回来，
+  //   之后没有任何机制再取一次 —— 于是罗盘永远停在「暂时取不到」。
+  //   这里加一次延迟重取（并显示"加载中"），保证数据最终一定上屏。
+  RT_PLAT = {}; RT_ERR = '';
+  renderRt('loading');
+  setTimeout(function () { if (S.level === 'agency') fetchRt(); }, 2600);
+  fetchRt();
+}
+
+function fetchRt() {
+  var aq = ACCT ? '?acct=' + q(ACCT) : '';
+  return api('/api/realtime' + aq).then(function (j) {
     if (j.ok && j.indicators && Object.keys(j.indicators).length) {
       RT_PLAT = j.indicators;
       MOM = j.indicators;
@@ -1428,6 +1443,12 @@ function initFold(btnId, bodyId, lsKey, openTip, closeTip) {
 }
 initFold('todoFold', 'todoBody', 'fs.todoFold', '展开待办', '折叠待办');
 initFold('rtFold', 'rtBody', 'fs.rtFold', '展开罗盘', '折叠罗盘');
+// 手动重取：平台实时接口慢且偶发失败，给用户一个不用等 3 秒的手段
+$('rtReload').onclick = function () {
+  this.textContent = '…';
+  RT_PLAT = {}; RT_ERR = ''; renderRt('loading');
+  fetchRt().then(function () { setTimeout(function () { $('rtReload').textContent = '↻'; }, 400); });
+};
 
 /* 保留旧名字，拉取页面的按钮还在用 */
 function pollProgress() { syncTick(); }
