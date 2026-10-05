@@ -105,6 +105,13 @@ td.sc{font-size:11px;color:var(--sub)}
 .item .row2 span{white-space:nowrap;flex:0 1 auto}
 .item .row2 b{color:var(--fg);font-weight:600;font-size:11.5px}
 
+/* 骑手行：站点与名字并排显示（站点次要，用小字灰色） */
+.item .nm .site{display:inline-block;margin-left:6px;padding:1px 5px;
+  font-size:10px;font-weight:500;color:var(--sub);background:var(--bg);
+  border:1px solid var(--line);border-radius:4px;vertical-align:middle;
+  max-width:9em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .nm .site .multi{font-style:normal;color:#b45309;margin-left:3px;font-weight:700}
+
 /* ★ 六格（2×3）：指标从 4 个增到 6 个（加人效/出勤/妥投/准时/单均复合/不满意）。
    桌面 3 列×2 行，手机 2 列×3 行。
    —— 原来 row2 是 nowrap + overflow-x:auto，6 个指标会撑出一屏横向滚动条，
@@ -472,3 +479,10 @@ td.sc{font-size:11px;color:var(--sub)}
 .pl-p:hover:not(:disabled){background:var(--blue);color:#fff}
 .pl-p:disabled{opacity:.5;cursor:default}
 .pl-s{min-width:96px}
+
+
+/* 自定义分位输入框 */
+.lb-in{width:58px;padding:3px 5px;font-size:12px;border:1px solid var(--line);
+  border-radius:6px;background:#fff;color:var(--fg);text-align:center}
+.lb-in:focus{outline:none;border-color:var(--blue)}
+.lb-pct{font-size:11px;color:var(--sub);margin-left:2px}
