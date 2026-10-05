@@ -105,6 +105,15 @@ td.sc{font-size:11px;color:var(--sub)}
 .item .row2 span{white-space:nowrap;flex:0 1 auto}
 .item .row2 b{color:var(--fg);font-weight:600;font-size:11.5px}
 
+/* ★ 六格（2×3）：指标从 4 个增到 6 个（加人效/出勤/妥投/准时/单均复合/不满意）。
+   桌面 3 列×2 行，手机 2 列×3 行。
+   —— 原来 row2 是 nowrap + overflow-x:auto，6 个指标会撑出一屏横向滚动条，
+      右侧指标要滑才能看到，违反「不遮挡」的要求，所以这里改回 grid。 */
+.item .row2.g6{display:grid;grid-template-columns:repeat(3,1fr);
+  gap:3px 10px;overflow-x:visible}
+.item .row2.g6 span{white-space:normal;display:flex;align-items:baseline;
+  gap:3px;min-width:0;overflow-wrap:anywhere}
+
 /* 展开区：默认收起 */
 .item .row3{display:none;margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
 .item .more{display:none}
@@ -444,6 +453,8 @@ td.sc{font-size:11px;color:var(--sub)}
    现在允许换行，并让每个标签占满一格（2×2 网格），文字永远完整。 */
 @media (max-width:520px){
   .item .row2{display:grid;grid-template-columns:1fr 1fr;gap:3px 8px}
+  /* 手机端 2 列 × 3 行，窄屏也能完整显示 6 个指标 */
+  .item .row2.g6{grid-template-columns:1fr 1fr;gap:3px 8px}
   .item .row2 span{white-space:normal;overflow-wrap:anywhere;
     display:flex;align-items:baseline;gap:3px;min-width:0}
   .item .row1{gap:6px}
