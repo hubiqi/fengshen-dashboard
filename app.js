@@ -969,6 +969,12 @@ function loadCards(dfrom, dto, withList) {
     .then(function (j) {
       LAST_TOTAL = j.total || {};
       renderCards(j.total);
+      // ★ 本地指标到达后同步给罗盘，让「平台 / 我算」两列都能显示 ——
+      //   罗盘接口要 2.4 秒，比 metrics 慢，两者到达时间不同。
+      if (S.level === 'agency' && Object.keys(RT_PLAT).length) {
+        RT_TOTAL = LAST_TOTAL;
+        renderRt();
+      }
       if (withList) renderList(j.rows || []);
       return j;
     })
@@ -987,6 +993,10 @@ function loadCards(dfrom, dto, withList) {
  */
 var RT_PLAT = {};   // 平台指标缓存：key → {name, value}
 var RT_ERR = '';
+// ★ RT_TOTAL = 当前对象（整商）的本地运单指标，用于与平台值【并排核对】。
+//   ★★ 之前漏了 var 声明：renderRt 里直接读 RT_TOTAL，在 'use strict' 下抛
+//   ReferenceError "RT_TOTAL is not defined"，整个 renderRt 中断 → 罗盘永远空白。
+var RT_TOTAL = {};
 
 function renderRt(state) {
   var box = $('rt');
