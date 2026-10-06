@@ -255,7 +255,17 @@ function renderCards(t) {
   //   昨天同期数由后端按 finished_at 切到"当前时刻"算出（sameTimeOrders）。
   //   同理，环比的"基准值"显示也要用同期，否则左边显示昨天全天、右边标同期，不一致。
   var pvSame = (pv && pv.sameTime);
-  var pvOrders = pv ? (pvSame && pv.sameTimeOrders != null ? pv.sameTimeOrders : pv.orders) : null;
+  var pvSt = (pv && pv.sameTimeParts) || {};      // 昨天同一时刻的各指标
+  // ★ 选今天时，除出勤外全部改用【昨天同期】做基准（用户 2026-10-06）。
+  //   实测"截至此刻 vs 全天"的偏差：完单 -68.5% / 人效 -68.1% /
+  //   单均复合 -6.00s / T8准时率 +1.79pp / 完全妥投 0.01pp。
+  //   完单与人效偏差极大（今天才跑了一半），必须同期。
+  //   【出勤骑手数不同期】—— 骑手早在线，偏差仅 1.4%，
+  //   拿它当基准只会给一个本来稳定的数字平添误差。
+  function pvV(v, same) {
+    return (pvSame && same != null) ? same : v;
+  }
+  var pvOrders = pv ? pvV(pv.orders, pvSt.orders) : null;
   // monthLabel: 覆盖第二栏的标签文字。默认「全月」，
   //   像完单量这格显示的是【日均】时，写「全月日均」才不会让人误读成月累计。
   function cell(label, cur, month, prev, kind, hint, monthLabel) {
@@ -313,10 +323,14 @@ function renderCards(t) {
     //   人效仍用累计出勤做分母，两者等价：总订单/累计出勤 = (订单/天)/(出勤/天)。
     cell('出勤骑手数', t.attendRiders, mp.attendRiders, pv.attendRiders, 'num',
       '按天去重后跨天累加 ÷ 天数', '全月日均'),
-    cell('人效', t.efficiency, mp.efficiency, pv.efficiency, 'num', '完单 ÷ 出勤'),
-    cell('完全妥投率', t.likt, mp.likt, pv.likt, null, '考核口径'),
-    cell('预测T8准时率', t.t8, mp.ontime, pv.ontime, null, t8d),
-    cell('单均复合时长', t.duration, mp.dur, pv.dur, 'sec', '有效完单'),
+    cell('人效', t.efficiency, mp.efficiency, pvV(pv.efficiency, pvSt.efficiency),
+      'num', '完单 ÷ 出勤（当前选今天时按昨日同期）'),
+    cell('完全妥投率', t.likt, mp.likt, pvV(pv.likt, pvSt.likt), null,
+      '考核口径' + (pvSame ? ' · 环比按昨日同期' : '')),
+    cell('预测T8准时率', t.t8, mp.ontime, pvV(pv.ontime, pvSt.t8), null,
+      t8d + (pvSame ? ' · 环比按昨日同期' : '')),
+    cell('单均复合时长', t.duration, mp.dur, pvV(pv.dur, pvSt.duration), 'sec',
+      '有效完单' + (pvSame ? ' · 环比按昨日同期' : '')),
     cell('非时效不满意率', t.dissat, mp.dissat, pv.dissat, 'rate3', '差评×5+投诉×5+索赔×1')
   ];
   // ★ 标明这排数字是"谁"的 —— 否则点了站点，卡片数字变了却看不出在讲哪个站点。
@@ -345,13 +359,19 @@ function renderCards(t) {
   //   必须写明截止日，否则用户看到「全月」数字对不上今天，会以为漏算了。
   var thru = mp && mp.through === 'T-1'
     ? '<span class="wtag">全月截至 T-1（今日未完）</span>' : '';
-  // ★ 说明为什么只有「完单量」按同期比：率类指标即使切到昨天同一时刻，
-  //   两边也是【不同判责口径】（T0 运单推算 vs T-1 考核定稿），
-  //   同期化后反而制造一个"看起来可比、其实不可比"的数。
-  //   完单量是纯计数，两边口径一致，同期比才有意义。
+  // ★ 哪些格按同期比、哪些不按（依据实测"截至此刻 vs 全天"的偏差）：
+  //     完单量    -68.5%   → 同期（偏差极大，今天才跑一半）
+  //     人效      -68.1%   → 同期（同分子逻辑）
+  //     单均复合   -6.00s   → 同期（白天以短单为主）
+  //     T8准时率  +1.79pp  → 同期（下午高峰更易超时）
+  //     完全妥投率  0.01pp  → 同期（偏差极小，同期后仍一致，不引入误差）
+  //     出勤骑手数 -1.4%    → 【不同期】骑手早在线，同期化只添噪声
+  //   为什么不因"判责口径不同"而全部拒绝：口径差异是纵向的（T0 vs T-1），
+  //   同期化消除的是横向的时间窗口偏差（今天半场 vs 昨天全天），后者大得多。
   if (pvSame) {
-    thru += '<span class="wtag" title="今天还没过完，完单量与昨天同一时刻相比，'
-      + '避免把"今天进度落后"误读成"业务变差"">环比已按昨日同期</span>';
+    thru += '<span class="wtag" title="今天还没过完，完单/人效/准时率/复合时长均与昨天同一时刻相比，'
+      + '避免把今天进度落后误读成业务变差；出勤骑手数例外（骑手早在线，偏差仅约 1.4%，同期化反而添噪）">'
+      + '环比已按昨日同期（出勤除外）</span>';
   }
   $('cards').innerHTML = '<div class="cardScope">当前对象：<b>' + esc(scope) + '</b>' +
     '<span class="hint">　每格＝所选日期 · 全月 · 环比昨天　· 点卡片看整月趋势</span>' + thru + '</div>' +
