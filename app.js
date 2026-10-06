@@ -485,14 +485,17 @@ function drawChart() {
   ];
   var X = function (i) { return pad.l + (rows.length === 1 ? iw / 2 : iw * i / (rows.length - 1)); };
   var Y = function (v) { return pad.t + ih * (1 - Math.max(0, Math.min(100, v)) / 100); };
-  var out = ['<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">'];
-  // ★ 与趋势图一致：刻度文字不进 SVG，改由左侧【固定列】渲染，
-  //   横向滑动时标尺留在原地（用户 2026-10-07："其他模块的图表也要一样优化"）。
+  // ★ 与趋势图同一套结构：左（固定刻度 SVG）+ 右（绘图 SVG，用 viewBox 平移 pad.l）
+  var PW2 = W - pad.l;
+  var out = ['<svg width="' + PW2 + '" height="' + H + '" viewBox="' + pad.l +
+    ' 0 ' + (W - pad.r) + ' ' + H + '">'];
   var sby = [];
   [0, 20, 40, 60, 80, 100].forEach(function (g) {
     out.push('<line x1="' + pad.l + '" y1="' + Y(g) + '" x2="' + (W - pad.r) + '" y2="' + Y(g) +
       '" stroke="#eef1f6" stroke-width="1"/>');
-    sby.push({ y: Y(g), text: String(g) });
+    // 刻度文字进左侧固定 SVG（SVG 内才能保持和原来一致的字号/字重）
+    sby.push('<text x="' + (pad.l - 4) + '" y="' + (Y(g) + 3) + '" font-size="9" ' +
+      'fill="#9aa3af" text-anchor="end">' + g + '</text>');
   });
   rows.forEach(function (r, i) {
     out.push('<text x="' + X(i) + '" y="' + (H - 7) + '" font-size="9" fill="#9aa3af" text-anchor="middle">' +
@@ -512,13 +515,12 @@ function drawChart() {
     });
   });
   out.push('</svg>');
-  var sbyHtml = sby.map(function (t) {
-    return '<div class="try-t" style="top:' + t.y + 'px">' + t.text + '</div>';
-  }).join('');
+  var sbLeft = '<svg width="' + pad.l + '" height="' + H + '" class="yax-svg">' +
+    sby.join('') + '</svg>';
   var sbHost = $('sbChart');
   // 全屏 / 导出 两枚按钮
   sbHost.innerHTML = '<div class="sb-wrap' + (W > sbHost.clientWidth ? ' scrollx' : '') + '">' +
-      '<div class="tryax" style="height:' + H + 'px">' + sbyHtml + '</div>' +
+      '<div class="yax">' + sbLeft + '</div>' +
       '<div class="sb-scroll"><div class="trinner">' + out.join('') + '</div></div>' +
     '</div>' +
     '<div class="sb-acts">' +
@@ -1341,48 +1343,79 @@ function toggleFullTrend(box, label) {
    ★ 关键：SVG 里的样式全部是【属性】形式（fill/stroke/font-size…），
      不是 CSS class，所以脱离页面也能正确渲染。
    Y 轴刻度不在 SVG 里（是固定列的 HTML），这里按同样的 y 坐标补画到图上。 */
-function exportTrendImage(box, label, yticks, pad, H) {
+function exportTrendImage(box, label, ytext, pad, H) {
   var tip = $('progText');
   var svg = box.querySelector('.trscroll svg');
   if (!svg) { if (tip) tip.textContent = '图表尚未渲染'; return; }
   try {
-    var W = +svg.getAttribute('width');
+    var PW = +svg.getAttribute('width');
+    var pts = TREND.points || [];
+    // ★ 表头：指标名 + 日期区间 + 点数（用户 2026-10-07：导出的图没有表头，
+    //   单独一张图看不出是什么指标、哪段时间，等于废图）。
+    var HEADH = 40;
+    var TOTW = pad.l + PW;
+    var r0 = pts.length ? pts[0].date : (S.from || '');
+    var r1 = pts.length ? pts[pts.length - 1].date : (S.to || '');
+    var subtitle = pts.length + ' 天 · ' + r0 + ' ~ ' + r1;
+
     var clone = svg.cloneNode(true);
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    // 补一个白底，否则透明 PNG 在深色背景上看不清
+    clone.setAttribute('viewBox', '0 0 ' + TOTW + ' ' + (H + HEADH));
+    clone.setAttribute('width', TOTW);
+    clone.setAttribute('height', H + HEADH);
+    // 整体下移 HEADH，给表头腾位置
+    var g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    while (clone.firstChild) g.appendChild(clone.firstChild);
+    g.setAttribute('transform', 'translate(0,' + HEADH + ')');
+    clone.appendChild(g);
+    // 白底
     var bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     bg.setAttribute('x', 0); bg.setAttribute('y', 0);
-    bg.setAttribute('width', W); bg.setAttribute('height', H);
+    bg.setAttribute('width', TOTW); bg.setAttribute('height', H + HEADH);
     bg.setAttribute('fill', '#ffffff');
     clone.insertBefore(bg, clone.firstChild);
-    // 补 Y 轴刻度
-    yticks.forEach(function (t) {
-      var tx = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      tx.setAttribute('x', pad.l - 5);
-      tx.setAttribute('y', t.y + 3);
-      tx.setAttribute('font-size', 9);
-      tx.setAttribute('fill', '#9aa3af');
-      tx.setAttribute('text-anchor', 'end');
-      tx.textContent = t.text;
-      clone.appendChild(tx);
+    // 表头文字 + 分隔线
+    function addText(x, y, t, size, fill, weight, anchor) {
+      var t1 = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t1.setAttribute('x', x); t1.setAttribute('y', y);
+      t1.setAttribute('font-size', size); t1.setAttribute('fill', fill);
+      if (weight) t1.setAttribute('font-weight', weight);
+      if (anchor) t1.setAttribute('text-anchor', anchor);
+      t1.textContent = t;
+      clone.appendChild(t1);
+    }
+    addText(0, 19, label, 15, '#111827', 600);
+    addText(0, 34, subtitle, 11, '#6b7280');
+    var ln = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    ln.setAttribute('x1', 0); ln.setAttribute('y1', HEADH - 0.5);
+    ln.setAttribute('x2', TOTW); ln.setAttribute('y2', HEADH - 0.5);
+    ln.setAttribute('stroke', '#e5e7eb'); ln.setAttribute('stroke-width', 1);
+    clone.appendChild(ln);
+    // 左侧 Y 轴刻度（在左 SVG 里，这里补画进同一个画布）
+    ytext.forEach(function (t) {
+      var tmp = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      tmp.innerHTML = t.replace(/y="([\d.]+)"/, 'y="$1"');
+      var tx = tmp.firstChild;
+      if (tx) { tx.setAttribute('transform', 'translate(0,' + HEADH + ')'); clone.appendChild(tx); }
     });
-    var s = new XMLSerializer().serializeToString(clone);
-    var url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s);
+
+    var s2 = new XMLSerializer().serializeToString(clone);
+    var url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s2);
     var img = new Image();
     img.onload = function () {
       var dpr = 2;
       var cv = document.createElement('canvas');
-      cv.width = W * dpr; cv.height = H * dpr;
-      var g = cv.getContext('2d');
-      g.scale(dpr, dpr);
-      g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
-      g.drawImage(img, 0, 0);
+      cv.width = TOTW * dpr; cv.height = (H + HEADH) * dpr;
+      var gg = cv.getContext('2d');
+      gg.scale(dpr, dpr);
+      gg.fillStyle = '#fff'; gg.fillRect(0, 0, TOTW, H + HEADH);
+      gg.drawImage(img, 0, 0);
       var a = document.createElement('a');
       a.href = cv.toDataURL('image/png');
-      a.download = '趋势_' + label + '_' + (S.from || today()) + '.png';
+      a.download = '趋势_' + label + '_' + r0 + '.png';
       document.body.appendChild(a); a.click();
       setTimeout(function () { a.remove(); }, 1000);
-      if (tip) tip.textContent = '已导出趋势图 PNG';
+      if (tip) tip.textContent = '已导出趋势图 PNG（含表头）';
     };
     img.onerror = function () { if (tip) tip.textContent = '图片生成失败'; };
     img.src = url;
@@ -1439,21 +1472,28 @@ function drawTrend(label) {
     return Math.abs(v - Math.round(v)) < 0.01 ? String(Math.round(v)) : Number(v).toFixed(2);
   }
 
-  var out = ['<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" class="trendsvg">'];
+  // ★ 右（绘图）SVG：宽度只占绘图区，靠 viewBox 平移 pad.l —— 
+  //   这样下面所有绘制代码的坐标【一行都不用改】，显示效果与原来完全一致。
+  //   与左侧固定轴 SVG 拼起来总宽 = pad.l + (W-pad.l) = W。
+  var PW = W - pad.l;
+  var out = ['<svg width="' + PW + '" height="' + H + '" viewBox="' + pad.l +
+    ' 0 ' + (W - pad.r) + ' ' + H + '" class="trendsvg">'];
   // ★ 网格线：按整数档位等距，不再是任意分数
   var gdec = stepDecimals(step);
   var kMax = Math.round((hi - lo) / step);
-  var yticks = [];          // 固定 Y 轴的刻度（文字在 SVG 外，见上方说明）
+  var ytext = [];            // 左侧固定 Y 轴 SVG 的刻度文字
   for (var g = 0; g <= kMax; g++) {
     var v = lo + step * g, y = Y(v);
     out.push('<line x1="' + pad.l + '" y1="' + y + '" x2="' + (W - pad.r) + '" y2="' + y +
       '" stroke="#eef1f6" stroke-width="1"/>');
-    // ★ 刻度文字【不画在 SVG 里】—— 横向滑动时它会跟着滚走，读数就没了参照。
-    //   改由左侧【固定列】渲染（position:sticky），滑动时始终可见。
+    // ★ 刻度文字画在【左侧独立 SVG】里（sticky），横向滑动时留在原地。
+    //   用 SVG 而不是 HTML div —— div 会继承父级字号/字重，显示和原来不一样
+    //   （用户 2026-10-07：字号变大、标题换行、图表整体右移）。
     var lab = m.rate
       ? (v * 100).toFixed(Math.max(0, gdec - 2)) + '%'
       : Number(v.toFixed(gdec)).toString();
-    yticks.push({ y: y, text: lab });
+    ytext.push('<text x="' + (pad.l - 5) + '" y="' + (y + 3) + '" font-size="9" ' +
+      'fill="#9aa3af" text-anchor="end">' + lab + '</text>');
   }
   pts.forEach(function (p, i) {
     if (pts.length > 12 && i % Math.ceil(pts.length / 10) !== 0 && i !== pts.length - 1) return;
@@ -1572,10 +1612,16 @@ function drawTrend(label) {
     else if (i === 0) { anchor = 'start'; lx = Math.max(lx, pad.l - 20); }
     var bx = anchor === 'end' ? lx - tw : anchor === 'start' ? lx : lx - tw / 2;
     var offs = [-8, 15, -19, 26, -30, 37];
+    // ★ 别压到 X 轴日期行（用户 2026-10-07：数值叠在 10-02/10-06 上）。
+    //   绘图区底部 = H - pad.b，标签底边不能越过它。
+    var bottomLimit = H - pad.b - 2;
+    var topLimit = pad.t + 2;
     var put = null;
     for (var oi = 0; oi < offs.length && !put; oi++) {
-      var r = { x: bx, y: Y(v) + offs[oi] - th, w: tw, h: th };
-      if (!clash(r)) put = { y: Y(v) + offs[oi], r: r };
+      var ty = Y(v) + offs[oi];
+      if (ty - th < topLimit || ty + 2 > bottomLimit) continue;   // 越界，换一档
+      var r = { x: bx, y: ty - th, w: tw, h: th };
+      if (!clash(r)) put = { y: ty, r: r };
     }
     if (!put) { put = { y: Y(v) - 8, r: { x: bx, y: Y(v) - 8 - th, w: tw, h: th } }; }
     PLACED.push(put.r);
@@ -1588,9 +1634,8 @@ function drawTrend(label) {
   //   点数多时（如整月 30+ 天）图表宽于屏幕，必须能左右滑动；
   //   而滑动时 Y 轴刻度要【留在原地】，否则读数失去参照。
   //   实现：Y 轴列 position:sticky left:0，滑动容器在右侧 overflow-x:auto。
-  var yhtml = yticks.map(function (t) {
-    return '<div class="try-t" style="top:' + t.y + 'px">' + esc(t.text) + '</div>';
-  }).join('');
+  var leftSvg = '<svg width="' + pad.l + '" height="' + H + '" class="yax-svg">' +
+    ytext.join('') + '</svg>';
   var head = '<div class="tr-head"><b>' + esc(label) + '</b>' +
     '<span class="hint">' + pts.length + ' 天 · ' + pts[0].date + ' ~ ' + pts[pts.length - 1].date + '</span>' +
     '<button class="mini tr-act" data-trfull title="全屏">⛶</button>' +
@@ -1598,7 +1643,7 @@ function drawTrend(label) {
     '<button class="mini tr-close">✕</button></div>';
   box.innerHTML = head +
     '<div class="tr-wrap' + (W > box.clientWidth ? ' scrollable' : '') + '">' +
-      '<div class="tryax" style="height:' + H + 'px">' + yhtml + '</div>' +
+      '<div class="yax">' + leftSvg + '</div>' +
       '<div class="trscroll"><div class="trinner">' + out.join('') + '</div></div>' +
     '</div>';
   box.querySelector('.tr-close').onclick = function (e) { e.stopPropagation(); closeTrend(); };
@@ -1607,7 +1652,7 @@ function drawTrend(label) {
   var imgBtn = box.querySelector('[data-trimg]');
   if (imgBtn) imgBtn.onclick = function (e) {
     e.stopPropagation();
-    exportTrendImage(box, label, yticks, pad, H);
+    exportTrendImage(box, label, ytext, pad, H);
   };
 }
 /* ── 取数：卡片 + 明细列表 ────────────────────────────────────────
