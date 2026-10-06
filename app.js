@@ -1642,11 +1642,13 @@ function drawTrend(label) {
   //   判定：按点数算出的"不挤"宽度 > 容器宽度 ⇒ 点太多、横向放不下 ⇒ 才开滚动。
   //   实现只用 overflow-x:auto，【不动 SVG 坐标系、不拆 SVG、不改任何样式】——
   //   所以没触发滑动的场景，显示与现在【完全一致】。
-  //   阈值取「超出容器 15% 以上才算挤」—— 直接用 needW > availW 会导致
-  //   手机上 7 天（376px vs 360px）就触发滑动，可 7 天其实一点也不挤。
+  //   判定要【两个条件同时满足】（用户 2026-10-07："超过7天没触左右滑动"）：
+  //     ① 天数 > 7      —— 7 天及以内怎么都放得下，不该出现滚动条
+  //     ② 需要的宽度 > 容器宽 —— 宽屏上 30 天也可能装得下，那就不必滑
+  //   只用 needW > availW 的话，手机上 7 天（376 vs 360px）就会误触发。
   var needW = pts.length * 40 + 96;
   var availW = box.clientWidth || 360;
-  var crowded = needW > availW * 1.15;
+  var crowded = pts.length > 7 && needW > availW;
   var head = '<div class="tr-head"><b>' + esc(label) + '</b>' +
     '<span class="hint">' + pts.length + ' 天 · ' + pts[0].date + ' ~ ' + pts[pts.length - 1].date +
     (crowded ? '　·　可左右滑动' : '') + '</span>' +
