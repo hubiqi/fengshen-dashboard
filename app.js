@@ -312,11 +312,14 @@ function renderCards(t) {
       return v == null ? '—' : Number(v).toLocaleString('zh-CN',
         { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
+    // ★ KPI 是【当月结算口径】的数据，本身就是月的累计值，
+    //   所以"所选日期"和"全月"是同一个数（不存在日/月的区别）。
+    //   原来 month/prev 都传 null → 三栏永远显示「全月 —」，看起来像没数据。
     kpiCells =
-      cell('KPI奖励(元)', kk.reward, null, null, 'money',
+      cell('KPI奖励(元)', kk.reward, kk.reward, null, 'money',
            '考核方案结算 · ' + (S.level === 'agency' ? '整商' : '商圈片')) +
-      cell('订单(大网接单)', kk.orders, null, null, 'int', '单均奖励的分母') +
-      cell('单均奖励(元/单)', kk.perOrder, null, null, 'money',
+      cell('订单(大网接单)', kk.orders, kk.orders, null, 'int', '单均奖励的分母') +
+      cell('单均奖励(元/单)', kk.perOrder, kk.perOrder, null, 'money',
            'KPI奖励 ÷ 订单');
   }
   $('cards').innerHTML = '<div class="cardScope">当前对象：<b>' + esc(scope) + '</b>' +
