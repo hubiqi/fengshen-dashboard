@@ -1478,9 +1478,16 @@ function drawTrend(label) {
   }
   var TICKS = 4;
   var step = niceStep((hi - lo) / TICKS);
-  var nlo = Math.floor(lo / step) * step, nhi = Math.ceil(hi / step) * step;
-  if (nhi - nlo < step) nhi = nlo + step;              // 至少 2 条
-  if (m.rate) { nlo = Math.max(0, nlo); nhi = Math.min(1, Math.max(nhi, nlo + step)); }
+  // ★★ 刻度必须用【整数格】推算，不能各算各的：
+  //   原来 nlo=floor(lo/step)*step、nhi=ceil(hi/step)*step 各自取整，
+  //   nhi-nlo 未必是 step 的【整数倍】；再配合 kMax=round((hi-lo)/step)
+  //   就可能多画/少画一条，或最后一格间距变短
+  //   （用户 2026-10-07：最下面那条网格线与刻度文字对不上）。
+  //   现在：先取下界 nlo，再按【向上取整的整数格】算 nhi，保证整除。
+  var nlo = Math.floor(lo / step) * step;
+  var nGaps = Math.max(1, Math.ceil((hi - nlo) / step - 1e-9));
+  var nhi = nlo + nGaps * step;
+  if (m.rate) { nlo = Math.max(0, nlo); }
   lo = nlo; hi = nhi;
   var X = function (i) { return pad.l + (pts.length === 1 ? iw / 2 : iw * i / (pts.length - 1)); };
   var Y = function (v) { return pad.t + ih * (1 - (v - lo) / ((hi - lo) || 1)); };
@@ -1512,7 +1519,7 @@ function drawTrend(label) {
 
   // 网格线：按整数档位等距，不再是任意分数
   var gdec = stepDecimals(step);
-  var kMax = Math.round((hi - lo) / step);
+  var kMax = nGaps;          // 整数格数（由上面的 nGaps 直接给出，不再用浮点 round）
   var ytext = [];            // 左侧固定 Y 轴 SVG 的刻度文字
   for (var g = 0; g <= kMax; g++) {
     var v = lo + step * g, y = Y(v);
