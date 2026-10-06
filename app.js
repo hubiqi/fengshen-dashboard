@@ -487,20 +487,16 @@ function drawChart() {
   ];
   var X = function (i) { return pad.l + (rows.length === 1 ? iw / 2 : iw * i / (rows.length - 1)); };
   var Y = function (v) { return pad.t + ih * (1 - Math.max(0, Math.min(100, v)) / 100); };
-  // ★ 与趋势图同一套结构：左（固定刻度 SVG）+ 右（绘图 SVG，用 viewBox 平移 pad.l）
-  var PW2 = W - pad.l;
-  var out = ['<svg width="' + PW2 + '" height="' + H + '" viewBox="' + pad.l +
-    ' 0 ' + (W - pad.l) + ' ' + H + '">'];
+  var out = ['<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">'];
   var sby = [];
   [0, 20, 40, 60, 80, 100].forEach(function (g) {
     out.push('<line x1="' + pad.l + '" y1="' + Y(g) + '" x2="' + (W - pad.r) + '" y2="' + Y(g) +
       '" stroke="#eef1f6" stroke-width="1"/>');
     // 刻度文字进左侧固定 SVG（SVG 内才能保持和原来一致的字号/字重）
-    sby.push('<text x="' + (pad.l - 4) + '" y="' + Y(g) + '" font-size="9" ' +
+    out.push('<text x="' + (pad.l - 4) + '" y="' + Y(g) + '" font-size="9" ' +
       'dominant-baseline="middle" fill="#9aa3af" text-anchor="end">' + g + '</text>');
   });
   rows.forEach(function (r, i) {
-    // 首尾用 start/end：viewBox 平移后 X(0) 贴在 SVG 左边缘，middle 会被裁
     var da = (i === 0) ? 'start' : (i === rows.length - 1) ? 'end' : 'middle';
     out.push('<text x="' + X(i) + '" y="' + (H - 7) + '" font-size="9" fill="#9aa3af" text-anchor="' + da + '">' +
       r.date.slice(5) + '</text>');
@@ -519,22 +515,9 @@ function drawChart() {
     });
   });
   out.push('</svg>');
-  var sbLeft = '<svg width="' + pad.l + '" height="' + H + '" class="yax-svg">' +
-    sby.join('') + '</svg>';
   var sbHost = $('sbChart');
   // 全屏 / 导出 两枚按钮
-  // 与趋势图同一套结构（inline-block；flex 会拉伸左轴 SVG）
-  sbHost.innerHTML = '<div class="sb-wrap' + (W > sbHost.clientWidth ? ' scrollx' : '') + '">' +
-      '<span class="yax">' + sbLeft + '</span>' +
-      '<span class="sb-scroll">' + out.join('') + '</span>' +
-    '</div>' +
-    '<div class="sb-acts">' +
-      '<button class="mini" data-sbfull title="全屏">⛶</button>' +
-      '<button class="mini" data-sbimg title="导出图片">⬇</button></div>';
-  var sbFull = sbHost.querySelector('[data-sbfull]');
-  if (sbFull) sbFull.onclick = function () { toggleFullTrend(sbHost, '考核得分'); };
-  var sbImg = sbHost.querySelector('[data-sbimg]');
-  if (sbImg) sbImg.onclick = function () { exportTrendImage(sbHost, '考核得分', sby, pad, H); };
+  sbHost.innerHTML = out.join('');
   $('sbLegend').innerHTML = SER.map(function (sr) {
     return '<span><i style="background:' + sr.c + '"></i>' + sr.name + '</span>';
   }).join('');
@@ -1328,113 +1311,6 @@ function openTrend(label) {
   } else drawTrend(label);
 }
 
-/* ★ 全屏查看趋势图（用户 2026-10-07）。
-   用 fixed 铺满视口而不是 Fullscreen API：后者在 iOS Safari 上
-   需要用户手势、且退出后页面布局常出错，这里用一个 class 就够。 */
-function toggleFullTrend(box, label) {
-  if (box.classList.contains('full')) {
-    box.classList.remove('full');
-    document.body.classList.remove('noScroll');
-    if (window.scrollY) window.scrollTo(0, window.__trendScrollY || 0);
-    return;
-  }
-  window.__trendScrollY = window.scrollY || 0;
-  box.classList.add('full');
-  document.body.classList.add('noScroll');
-}
-
-/* ★ 导出【单张趋势图】为 PNG（用户 2026-10-07）。
-   做法：把 SVG 序列化成图片 → 画到 canvas → 导出。
-   ★ 关键：SVG 里的样式全部是【属性】形式（fill/stroke/font-size…），
-     不是 CSS class，所以脱离页面也能正确渲染。
-   Y 轴刻度不在 SVG 里（是固定列的 HTML），这里按同样的 y 坐标补画到图上。 */
-function exportTrendImage(box, label, ytext, pad, H) {
-  var tip = $('progText');
-  var svg = box.querySelector('.trscroll svg');
-  if (!svg) { if (tip) tip.textContent = '图表尚未渲染'; return; }
-  try {
-    var PW = +svg.getAttribute('width');
-    var pts = TREND.points || [];
-    // ★ 表头：指标名 + 日期区间 + 点数（用户 2026-10-07：导出的图没有表头，
-    //   单独一张图看不出是什么指标、哪段时间，等于废图）。
-    var HEADH = 40;
-    var TOTW = pad.l + PW;
-    var r0 = pts.length ? pts[0].date : (S.from || '');
-    var r1 = pts.length ? pts[pts.length - 1].date : (S.to || '');
-    var subtitle = pts.length + ' 天 · ' + r0 + ' ~ ' + r1;
-
-    var clone = svg.cloneNode(true);
-    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    clone.setAttribute('viewBox', '0 0 ' + TOTW + ' ' + (H + HEADH));
-    clone.setAttribute('width', TOTW);
-    clone.setAttribute('height', H + HEADH);
-    // 整体下移 HEADH，给表头腾位置
-    var g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    while (clone.firstChild) g.appendChild(clone.firstChild);
-    g.setAttribute('transform', 'translate(0,' + HEADH + ')');
-    clone.appendChild(g);
-    // 白底
-    var bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    bg.setAttribute('x', 0); bg.setAttribute('y', 0);
-    bg.setAttribute('width', TOTW); bg.setAttribute('height', H + HEADH);
-    bg.setAttribute('fill', '#ffffff');
-    clone.insertBefore(bg, clone.firstChild);
-    // 表头文字 + 分隔线
-    function addText(x, y, t, size, fill, weight, anchor) {
-      var t1 = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      t1.setAttribute('x', x); t1.setAttribute('y', y);
-      t1.setAttribute('font-size', size); t1.setAttribute('fill', fill);
-      if (weight) t1.setAttribute('font-weight', weight);
-      if (anchor) t1.setAttribute('text-anchor', anchor);
-      t1.textContent = t;
-      clone.appendChild(t1);
-    }
-    addText(0, 19, label, 15, '#111827', 600);
-    addText(0, 34, subtitle, 11, '#6b7280');
-    var ln = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    ln.setAttribute('x1', 0); ln.setAttribute('y1', HEADH - 0.5);
-    ln.setAttribute('x2', TOTW); ln.setAttribute('y2', HEADH - 0.5);
-    ln.setAttribute('stroke', '#e5e7eb'); ln.setAttribute('stroke-width', 1);
-    clone.appendChild(ln);
-    // 左侧 Y 轴刻度：仅【双 SVG】模式下刻度不在本 SVG 里，需要补画；
-    // 单 SVG（NEED_SLIDE=false）时刻度已经画进去了，补一遍会重影。
-    (ytext || []).forEach(function (t) {
-      var tmp = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      tmp.innerHTML = t;
-      var tx = tmp.firstChild;
-      if (tx) {
-        // 整块下移表头高度；y 用的是 dominant-baseline="middle"，所以
-        // 下移后文字仍精确居中于网格线（与屏幕上一致）
-        tx.setAttribute('transform', 'translate(0,' + HEADH + ')');
-        clone.appendChild(tx);
-      }
-    });
-
-    var s2 = new XMLSerializer().serializeToString(clone);
-    var url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s2);
-    var img = new Image();
-    img.onload = function () {
-      var dpr = 2;
-      var cv = document.createElement('canvas');
-      cv.width = TOTW * dpr; cv.height = (H + HEADH) * dpr;
-      var gg = cv.getContext('2d');
-      gg.scale(dpr, dpr);
-      gg.fillStyle = '#fff'; gg.fillRect(0, 0, TOTW, H + HEADH);
-      gg.drawImage(img, 0, 0);
-      var a = document.createElement('a');
-      a.href = cv.toDataURL('image/png');
-      a.download = '趋势_' + label + '_' + r0 + '.png';
-      document.body.appendChild(a); a.click();
-      setTimeout(function () { a.remove(); }, 1000);
-      if (tip) tip.textContent = '已导出趋势图 PNG（含表头）';
-    };
-    img.onerror = function () { if (tip) tip.textContent = '图片生成失败'; };
-    img.src = url;
-  } catch (e) {
-    if (tip) tip.textContent = '图片生成失败：' + ((e && e.message) || e);
-  }
-}
-
 function closeTrend() {
   var b = trendBox(); if (b) b.hidden = true;
 }
@@ -1498,29 +1374,12 @@ function drawTrend(label) {
     return Math.abs(v - Math.round(v)) < 0.01 ? String(Math.round(v)) : Number(v).toFixed(2);
   }
 
-  // ★ 右（绘图）SVG：宽度只占绘图区，靠 viewBox 平移 pad.l ——
-  //   这样下面所有绘制代码的坐标【一行都不用改】，显示效果与原来完全一致。
-  //   与左侧固定轴 SVG 拼起来总宽 = pad.l + (W-pad.l) = W。
-  //
-  // ★★ viewBox 的宽度必须【等于 SVG 宽度】(W-pad.l)，缩放才是 1:1：
-  //     曾误写成 (W - pad.r)，缩放比 =(W-44)/(W-12)≈0.91，
-  //     横向坐标全被压缩 9%，于是 X 轴日期与 Y 轴刻度错位、
-  //     "底部第一个日期"对不上"最下面那条刻度线"
-  //     （用户 2026-10-07 发现）。右侧 pad.r 的留白由绘图区外的空白自然形成。
-  var PW = W - pad.l;
-  var out = ['<svg width="' + PW + '" height="' + H + '" viewBox="' + pad.l +
-    ' 0 ' + (W - pad.l) + ' ' + H + '" class="trendsvg">'];
-  // ★★ 需不需要拆出「固定左轴」？—— 宽度装得下就【绝不拆】。
-  //   拆成两个 SVG 拼接（sticky 固定标尺）虽然能在滑动时留住刻度，
-  //   但接缝处必然有对齐风险（viewBox 缩放、flex 拉伸、锚点裁剪…）。
+  var out = ['<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" class="trendsvg">'];
   //   用户明确要求"没加滑动/全屏/导出之前对齐就很好"，
-  //   所以：宽度够 → 走原来的单 SVG；只有超出容器才启用双 SVG。
-  var NEED_SLIDE = W > (box.clientWidth || 360) + 1;
 
   // 网格线：按整数档位等距，不再是任意分数
   var gdec = stepDecimals(step);
   var kMax = nGaps;          // 整数格数（由上面的 nGaps 直接给出，不再用浮点 round）
-  var ytext = [];            // 左侧固定 Y 轴 SVG 的刻度文字
   for (var g = 0; g <= kMax; g++) {
     var v = lo + step * g, y = Y(v);
     out.push('<line x1="' + pad.l + '" y1="' + y + '" x2="' + (W - pad.r) + '" y2="' + y +
@@ -1530,12 +1389,8 @@ function drawTrend(label) {
       : Number(v.toFixed(gdec)).toString();
     // ★ 用 dominant-baseline="middle" 让文字【精确垂直居中】于网格线，
     //   而不是靠 y+3 这个经验值（字号/字体/浏览器不同就会偏几像素）。
-    var t1 = '<text x="' + (pad.l - 5) + '" y="' + y + '" font-size="9" ' +
-      'dominant-baseline="middle" fill="#9aa3af" text-anchor="end">' + lab + '</text>';
-    // ★★ 宽度够用时，刻度【直接画进主 SVG】—— 与加滑动功能之前一模一样。
-    //   只有真正需要横向滑动的长图才拆出左轴（否则拼接处会出现
-    //   "最小刻度没跟最低横线对齐"这类错位，用户 2026-10-07 明确指出）。
-    if (NEED_SLIDE) ytext.push(t1); else out.push(t1);
+    out.push('<text x="' + (pad.l - 5) + '" y="' + y + '" font-size="9" ' +
+      'dominant-baseline="middle" fill="#9aa3af" text-anchor="end">' + lab + '</text>');
   }
   // ★ 宽屏下点数少，X 轴别全挤在左边：按可用宽度决定标签间隔，
   //   至少保证每隔 ~46px 有一个日期（否则 7 个点只占图表左侧三分之一）。
@@ -1546,7 +1401,6 @@ function drawTrend(label) {
   }
   pts.forEach(function (p, i) {
     if (i % labelStep !== 0 && i !== pts.length - 1) return;
-    // ★ 首尾用 start/end 锚点：绘图区已通过 viewBox 平移到 SVG 左边缘，
     //   X(0) 就在 x=0 处，anchor=middle 会有一半落在画布外被裁掉（用户 2026-10-07）。
     var da = (i === 0) ? 'start' : (i === pts.length - 1) ? 'end' : 'middle';
     out.push('<text x="' + X(i) + '" y="' + (H - 8) + '" font-size="9" fill="#9aa3af" text-anchor="' + da + '">' +
@@ -1686,31 +1540,15 @@ function drawTrend(label) {
   //   点数多时（如整月 30+ 天）图表宽于屏幕，必须能左右滑动；
   //   而滑动时 Y 轴刻度要【留在原地】，否则读数失去参照。
   //   实现：Y 轴列 position:sticky left:0，滑动容器在右侧 overflow-x:auto。
-  var leftSvg = NEED_SLIDE
-    ? '<svg width="' + pad.l + '" height="' + H + '" class="yax-svg">' + ytext.join('') + '</svg>'
-    : '';
+
   var head = '<div class="tr-head"><b>' + esc(label) + '</b>' +
     '<span class="hint">' + pts.length + ' 天 · ' + pts[0].date + ' ~ ' + pts[pts.length - 1].date + '</span>' +
-    '<button class="mini tr-act" data-trfull title="全屏">⛶</button>' +
-    '<button class="mini tr-act" data-trimg title="导出图片">⬇</button>' +
     '<button class="mini tr-close">✕</button></div>';
   // ★ 两种结构按需切换：
   //   宽度够（常见：7~30 天的整月趋势）→ 【单 SVG】，就是加滑动功能之前的原样，
   //     刻度/网格/折线同在一个坐标系，对齐 100% 与从前一致。
-  //   宽度不够（更长区间）→ 拆左轴 + 横向滚动，标尺固定。
-  var bodyHtml = NEED_SLIDE
-    ? '<div class="tr-wrap scrollable"><span class="yax">' + leftSvg + '</span>' +
-      '<span class="trscroll">' + out.join('') + '</span></div>'
-    : '<div class="tr-wrap">' + out.join('') + '</div>';
-  box.innerHTML = head + bodyHtml;
+  box.innerHTML = head + out.join('');
   box.querySelector('.tr-close').onclick = function (e) { e.stopPropagation(); closeTrend(); };
-  var fullBtn = box.querySelector('[data-trfull]');
-  if (fullBtn) fullBtn.onclick = function (e) { e.stopPropagation(); toggleFullTrend(box, label); };
-  var imgBtn = box.querySelector('[data-trimg]');
-  if (imgBtn) imgBtn.onclick = function (e) {
-    e.stopPropagation();
-    exportTrendImage(box, label, ytext, pad, H);
-  };
 }
 /* ── 取数：卡片 + 明细列表 ────────────────────────────────────────
  * ★ 这两个函数（loadAll / loadCards）曾被我用 Python 切片替换时误删过，
