@@ -414,7 +414,12 @@ td.sc{font-size:11px;color:var(--sub)}
 .tcard{cursor:pointer}
 .tcard:hover{box-shadow:0 1px 6px rgba(31,111,235,.14)}
 #trendBox{padding:10px 12px}
-.tr-head{display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:4px}
+.tr-head{display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:4px;
+  flex-wrap:nowrap;overflow:hidden}
+/* ★ 标题/副标题不许换行（用户 2026-10-07：加了按钮后标题折成两行） */
+.tr-head>b{flex:0 0 auto;white-space:nowrap}
+.tr-head .hint{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
 .tr-head .hint{font-size:10.5px}
 .tr-close{margin-left:auto}
 .trendsvg{max-width:100%;height:auto;display:block}
@@ -533,10 +538,9 @@ td.sc{font-size:11px;color:var(--sub)}
 .tr-wrap.scrollable .trscroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .tr-wrap.scrollable .trscroll::-webkit-scrollbar{height:4px}
 .tr-wrap.scrollable .trscroll::-webkit-scrollbar-thumb{background:var(--line);border-radius:2px}
-.tryax{position:sticky;left:0;z-index:2;flex:0 0 auto;width:40px;
-  background:#fff;pointer-events:none}
-.try-t{position:absolute;right:4px;transform:translateY(-50%);
-  font-size:9px;color:#9aa3af;white-space:nowrap;line-height:1}
+.yax{position:sticky;left:0;z-index:2;flex:0 0 auto;background:#fff;
+  pointer-events:none;line-height:0}
+.yax-svg{display:block}
 .trscroll{flex:1 1 auto;min-width:0}
 .trinner{display:inline-block}
 .tr-head .tr-act{min-width:26px;text-align:center}
