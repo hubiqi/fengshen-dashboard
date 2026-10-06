@@ -1662,9 +1662,11 @@ function drawTrend(label) {
   //   在真实手机上必然不准 —— 平板 800px 时就会误判成"很挤"。
   var host = box.parentElement || box;
   var availW = host.clientWidth || box.clientWidth || 0;
-  if (!availW) {                                  // 布局未就绪：保守不触发滑动
-    availW = needW;
-  }
+  // ★★★ 布局未就绪（clientWidth=0）时，必须回退到【一个"不挤"的默认宽】，
+  //   而不能回退到 needW —— 那会让 crowded = needW > needW = false，
+  //   37 天的长图永远不加 .on、不滑动（用户 2026-10-07 实测：37天无滚动条）。
+  //   回退 360：此时判定为"可能挤"，再交给下方 rAF 复核用真实宽度收尾。
+  if (!availW) availW = 360;
   var crowded = pts.length > 7 && needW > availW;
   var head = '<div class="tr-head"><b>' + esc(label) + '</b>' +
     '<span class="hint">' + pts.length + ' 天 · ' + pts[0].date + ' ~ ' + pts[pts.length - 1].date +
@@ -1684,7 +1686,11 @@ function drawTrend(label) {
         var svgEl = box.querySelector('.tr-scroll svg');
         if (!wrap || !svgEl) return;
         var need = +svgEl.getAttribute('width') || needW;
-        var real = wrap.clientWidth;
+        // ★ real 必须取【盒子可见宽度】，不能取 wrap.clientWidth：
+        //   .tr-scroll 里只有那个 SVG，子元素比它宽时 clientWidth 会跟着
+        //   撑到 1576（inline 子元素撑开父级），need>real 就永远为假，
+        //   滑动条永远加不上。真正决定"要不要滑"的是【可见区域宽】。
+        var real = box.clientWidth || host.clientWidth || 0;
         var on = pts.length > 7 && need > real;
         wrap.classList.toggle('on', on);
         var hintEl = box.querySelector('.tr-head .hint');
