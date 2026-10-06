@@ -333,8 +333,12 @@ function renderCards(t) {
       cell('单均奖励(元/单)', kk.perOrder, kk.perOrder, null, 'money',
            'KPI奖励 ÷ 订单');
   }
+  // ★ 月度指标只统计 T-1 及之前（今日 T0 还在跑，数据不完整）。
+  //   必须写明截止日，否则用户看到「全月」数字对不上今天，会以为漏算了。
+  var thru = mp && mp.through === 'T-1'
+    ? '<span class="wtag">全月截至 T-1（今日未完）</span>' : '';
   $('cards').innerHTML = '<div class="cardScope">当前对象：<b>' + esc(scope) + '</b>' +
-    '<span class="hint">　每格＝所选日期 · 全月 · 环比昨天　· 点卡片看整月趋势</span></div>' +
+    '<span class="hint">　每格＝所选日期 · 全月 · 环比昨天　· 点卡片看整月趋势</span>' + thru + '</div>' +
     c.join('') + kpiCells;
   // ★ 点任一卡片 → 展开该指标的整月趋势（四层级通用）
   Array.prototype.forEach.call($('cards').querySelectorAll('[data-trend]'), function (el) {
