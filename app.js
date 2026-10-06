@@ -976,8 +976,12 @@ function refreshList() { renderList(LAST_ROWS.slice()); }
    现在进入骑手维度时一次取回（后端带 ids 白名单，只算当前列表里出现的那些），
    回来后只改 .row2 的得分格，不整表重绘（避免闪烁与重复请求）。 */
 var SCORE_BUSY = false;
-function loadRiderScores() {
-  if (S.level !== 'rider' || SCORE_BUSY) return;
+// ★ 四个层级都要取得分（原来只做骑手 → 商圈片/站点永远是「—」，用户 2026-10-06 反馈）。
+//   后端 scoreboard 对四个层级行为一致，带 ids 白名单只算列表里出现的那些。
+//   实测：district 2/2、site 4/4 都正常返回，且耗时 <5ms（day_score 缓存命中）。
+var SCORE_LEVELS = ['agency', 'district', 'site', 'rider'];
+function loadListScores() {
+  if (SCORE_LEVELS.indexOf(S.level) < 0 || SCORE_BUSY) return;
   var rows = LAST_ROWS || [];
   if (!rows.length) return;
   var ids = rows.slice(0, 200).map(function (r) { return r.id; });
@@ -989,7 +993,7 @@ function loadRiderScores() {
   var day = r0[0] || today();
   var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
   api('/api/scoreboard?' + aq + 'month=' + q(day.slice(0, 7)) + '&day=' + q(day) +
-      '&level=rider&ids=' + q(missing.join(',')))
+      '&level=' + q(S.level) + '&ids=' + q(missing.join(',')))
     .then(function (j) {
       (j.districts || []).forEach(function (d) {
         var row = LIST_ROWS[d.id];
@@ -1036,7 +1040,7 @@ function renderList(rows) {
     //   原来每行都铺开 4 个指标 + 大字号单量，4 个站点就占满一屏。
     return itemHtml(r);
   }).join('');
-  loadRiderScores();          // ★ 骑手得分异步补齐（只改得分格，不重绘整表）
+  loadListScores();           // ★ 各层级得分异步补齐（只改得分格，不重绘整表）
   var items = $('list').querySelectorAll('.item');
   // 选中态：只高亮，【不自动展开】。
 // ★ 之前恢复选中/自动选中首行时都顺手 add('open')，用户没点就被迫看一屏数据，
