@@ -498,7 +498,9 @@ function drawChart() {
       'fill="#9aa3af" text-anchor="end">' + g + '</text>');
   });
   rows.forEach(function (r, i) {
-    out.push('<text x="' + X(i) + '" y="' + (H - 7) + '" font-size="9" fill="#9aa3af" text-anchor="middle">' +
+    // 首尾用 start/end：viewBox 平移后 X(0) 贴在 SVG 左边缘，middle 会被裁
+    var da = (i === 0) ? 'start' : (i === rows.length - 1) ? 'end' : 'middle';
+    out.push('<text x="' + X(i) + '" y="' + (H - 7) + '" font-size="9" fill="#9aa3af" text-anchor="' + da + '">' +
       r.date.slice(5) + '</text>');
   });
   SER.forEach(function (sr) {
@@ -519,9 +521,10 @@ function drawChart() {
     sby.join('') + '</svg>';
   var sbHost = $('sbChart');
   // 全屏 / 导出 两枚按钮
+  // 与趋势图同一套结构（inline-block；flex 会拉伸左轴 SVG）
   sbHost.innerHTML = '<div class="sb-wrap' + (W > sbHost.clientWidth ? ' scrollx' : '') + '">' +
-      '<div class="yax">' + sbLeft + '</div>' +
-      '<div class="sb-scroll"><div class="trinner">' + out.join('') + '</div></div>' +
+      '<span class="yax">' + sbLeft + '</span>' +
+      '<span class="sb-scroll">' + out.join('') + '</span>' +
     '</div>' +
     '<div class="sb-acts">' +
       '<button class="mini" data-sbfull title="全屏">⛶</button>' +
@@ -1503,7 +1506,10 @@ function drawTrend(label) {
   }
   pts.forEach(function (p, i) {
     if (pts.length > 12 && i % Math.ceil(pts.length / 10) !== 0 && i !== pts.length - 1) return;
-    out.push('<text x="' + X(i) + '" y="' + (H - 8) + '" font-size="9" fill="#9aa3af" text-anchor="middle">' +
+    // ★ 首尾用 start/end 锚点：绘图区已通过 viewBox 平移到 SVG 左边缘，
+    //   X(0) 就在 x=0 处，anchor=middle 会有一半落在画布外被裁掉（用户 2026-10-07）。
+    var da = (i === 0) ? 'start' : (i === pts.length - 1) ? 'end' : 'middle';
+    out.push('<text x="' + X(i) + '" y="' + (H - 8) + '" font-size="9" fill="#9aa3af" text-anchor="' + da + '">' +
       p.date.slice(5) + '</text>');
   });
   // 折线
@@ -1647,10 +1653,13 @@ function drawTrend(label) {
     '<button class="mini tr-act" data-trfull title="全屏">⛶</button>' +
     '<button class="mini tr-act" data-trimg title="导出图片">⬇</button>' +
     '<button class="mini tr-close">✕</button></div>';
+  // ★ 用 inline-block 排两个 SVG，不能用 flex：
+  //   flex 会把 .yax 里的 SVG 横向拉伸（实测刻度跑到 x=78 而非 44），
+  //   导致 Y 轴与绘图区错位。inline-block 按 SVG 自身 width 精确排布。
   box.innerHTML = head +
     '<div class="tr-wrap' + (W > box.clientWidth ? ' scrollable' : '') + '">' +
-      '<div class="yax">' + leftSvg + '</div>' +
-      '<div class="trscroll"><div class="trinner">' + out.join('') + '</div></div>' +
+      '<span class="yax">' + leftSvg + '</span>' +
+      '<span class="trscroll">' + out.join('') + '</span>' +
     '</div>';
   box.querySelector('.tr-close').onclick = function (e) { e.stopPropagation(); closeTrend(); };
   var fullBtn = box.querySelector('[data-trfull]');
