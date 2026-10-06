@@ -248,6 +248,14 @@ function renderCards(t) {
   //   「得分 + 对比 + 环比」原本散在三个地方（明细展开区 / objScore / 罗盘），
   //   现在合并到顶部「当前对象」卡片。
   var mp = t.monthParts || {}, pv = t.prevParts || {};
+  // ★★ 环比「今天」时改用【昨天同一时刻】做基准（用户 2026-10-06）。
+  //   原因：今天还没过完 —— 10-06 13:07 实测
+  //       今天 1,931 vs 昨天全天 6,007 → -67.9%  ← 假的暴跌
+  //       今天 1,931 vs 昨天同期 1,809 →  +6.7%  ← 真实
+  //   昨天同期数由后端按 finished_at 切到"当前时刻"算出（sameTimeOrders）。
+  //   同理，环比的"基准值"显示也要用同期，否则左边显示昨天全天、右边标同期，不一致。
+  var pvSame = (pv && pv.sameTime);
+  var pvOrders = pv ? (pvSame && pv.sameTimeOrders != null ? pv.sameTimeOrders : pv.orders) : null;
   // monthLabel: 覆盖第二栏的标签文字。默认「全月」，
   //   像完单量这格显示的是【日均】时，写「全月日均」才不会让人误读成月累计。
   function cell(label, cur, month, prev, kind, hint, monthLabel) {
@@ -299,7 +307,7 @@ function renderCards(t) {
     //   单日区间时 ordersDailyAvg === orders，显示完全不变。
     cell('完单量', t.orders,
       mp.ordersDailyAvg != null ? mp.ordersDailyAvg : mp.orders,
-      pv.ordersDailyAvg != null ? pv.ordersDailyAvg : pv.orders,
+      pvOrders,
       'num', '全月为日均', '全月日均'),
     // ★ 多天区间显示【日均】出勤（累计 ÷ 有数据天数），单日区间等于当天人数。
     //   人效仍用累计出勤做分母，两者等价：总订单/累计出勤 = (订单/天)/(出勤/天)。
@@ -337,6 +345,14 @@ function renderCards(t) {
   //   必须写明截止日，否则用户看到「全月」数字对不上今天，会以为漏算了。
   var thru = mp && mp.through === 'T-1'
     ? '<span class="wtag">全月截至 T-1（今日未完）</span>' : '';
+  // ★ 说明为什么只有「完单量」按同期比：率类指标即使切到昨天同一时刻，
+  //   两边也是【不同判责口径】（T0 运单推算 vs T-1 考核定稿），
+  //   同期化后反而制造一个"看起来可比、其实不可比"的数。
+  //   完单量是纯计数，两边口径一致，同期比才有意义。
+  if (pvSame) {
+    thru += '<span class="wtag" title="今天还没过完，完单量与昨天同一时刻相比，'
+      + '避免把"今天进度落后"误读成"业务变差"">环比已按昨日同期</span>';
+  }
   $('cards').innerHTML = '<div class="cardScope">当前对象：<b>' + esc(scope) + '</b>' +
     '<span class="hint">　每格＝所选日期 · 全月 · 环比昨天　· 点卡片看整月趋势</span>' + thru + '</div>' +
     c.join('') + kpiCells;
