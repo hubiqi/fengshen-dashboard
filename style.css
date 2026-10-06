@@ -535,32 +535,5 @@ td.sc{font-size:11px;color:var(--sub)}
 /* ══ 趋势图 / 得分板图表：固定 Y 轴 + 横向滑动 + 全屏 ══════════════
    ★ 左侧刻度列 position:sticky，横向滑动时留在原地，
      否则刻度跟着滚走，滑动时就失去了读数参照（用户 2026-10-07）。 */
-/* ★ 两个 SVG 用 inline-block 并排。
-   不能用 flex：flex 会把 .yax 的 SVG 横向拉伸（实测刻度跑到 x=78 而非 44），
-   Y 轴与绘图区就错位了。inline-block 严格按各自 width 排布。 */
-.tr-wrap{overflow:hidden;white-space:nowrap;line-height:0}
-.tr-wrap.scrollable{overflow-x:auto;-webkit-overflow-scrolling:touch}
-.tr-wrap.scrollable::-webkit-scrollbar{height:4px}
-.tr-wrap.scrollable::-webkit-scrollbar-thumb{background:var(--line);border-radius:2px}
-.yax{position:sticky;left:0;z-index:2;background:#fff;display:inline-block;
-  vertical-align:top;line-height:0}
-.yax-svg{display:block}
-.trscroll{display:inline-block;vertical-align:top;line-height:0}
-.trscroll svg,.sb-scroll svg{display:block}
-.tr-head .tr-act{min-width:26px;text-align:center}
-
-/* 全屏：fixed 铺满，不用 Fullscreen API（iOS 上要手势、退出后布局常坏） */
-/* 全屏同时适用于趋势图(#trendBox) 与得分板(#sbChart) */
-#trendBox.full,#sbChart.full{position:fixed;inset:0;z-index:200;background:#fff;
-  margin:0;border-radius:0;overflow:auto;padding:8px 6px}
-#trendBox.full .tr-wrap,#sbChart.full .sb-wrap{height:calc(100vh - 70px)}
-#trendBox.full .trscroll,#sbChart.full .sb-scroll{overflow:auto}
-.sb-acts{margin-top:4px;text-align:right}
-body.noScroll{overflow:hidden}
-
-/* 得分板图表（商圈片/站点/骑手 的考核得分）复用同一套 */
-.sb-wrap{overflow:hidden;white-space:nowrap;line-height:0}
-.sb-wrap.scrollx{overflow-x:auto;-webkit-overflow-scrolling:touch}
-.sb-scroll{display:inline-block;vertical-align:top;line-height:0}
 
 
