@@ -865,6 +865,7 @@ function renderListBar(rows) {
     '<button class="lb' + (LIST_F.showAll ? ' on' : '') + '" data-showall>' +
       (LIST_F.showAll ? '收起明细' : '显示明细') + '</button>' +
     '<button class="lb" data-export>导出 CSV</button>' +
+    '<button class="lb" data-exportimg>导出图片</button>' +
     '</div>';
   h += '<div class="lb-row"><span class="lb-lab">排序</span>';
   SORT_KEYS.forEach(function (k) {
@@ -937,6 +938,13 @@ function renderListBar(rows) {
   if (saBtn) saBtn.onclick = function () {
     LIST_F.showAll = !LIST_F.showAll;
     renderList(LAST_ROWS.slice());
+  };
+  var exImg = bar.querySelector('[data-exportimg]');
+  if (exImg) exImg.onclick = function () {
+    var rows = applySites((LAST_ROWS || []).slice());
+    rows = applyQuantile(applySort(rows));
+    if (typeof exportImage === 'function') exportImage(rows);   // export_img.js
+    else { var t = $('progText'); if (t) t.textContent = '导出图片功能未加载'; }
   };
   var exBtn = bar.querySelector('[data-export]');
   if (exBtn) exBtn.onclick = function () {
