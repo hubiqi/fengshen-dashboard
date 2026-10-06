@@ -537,3 +537,21 @@ td.sc{font-size:11px;color:var(--sub)}
      否则刻度跟着滚走，滑动时就失去了读数参照（用户 2026-10-07）。 */
 
 
+
+
+/* ══ 趋势图：滑动（仅数据挤时）/ 全屏 ══════════════════════════════
+   ★ 只在容器上加 overflow-x，【不改 SVG、不拆坐标系、不动任何现有样式】——
+     没触发滑动的场景，显示与之前逐像素一致（用户 2026-10-07 明确要求）。 */
+.tr-scroll{overflow-x:hidden}
+.tr-scroll.on{overflow-x:auto;-webkit-overflow-scrolling:touch;
+  overscroll-behavior-x:contain}
+.tr-scroll.on::-webkit-scrollbar{height:5px}
+.tr-scroll.on::-webkit-scrollbar-thumb{background:#d7dde5;border-radius:3px}
+.tr-head .tr-act{min-width:26px;text-align:center;flex:0 0 auto}
+
+/* 全屏：fixed 铺满。不用 Fullscreen API（iOS 需手势、退出后布局易坏） */
+#trendBox.full{position:fixed;inset:0;z-index:200;background:#fff;
+  margin:0;border-radius:0;overflow:auto;padding:8px}
+#trendBox.full .tr-scroll{overflow:auto !important;max-height:calc(100vh - 60px)}
+#trendBox.full svg{max-height:calc(100vh - 110px);height:auto}
+body.noScroll{overflow:hidden}
