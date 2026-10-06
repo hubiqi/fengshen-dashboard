@@ -1,157 +1,97 @@
 /* ══ 导出图片（PNG）· 用户 2026-10-06 ══════════════════════════════════
- * 为什么不引 html2canvas 这类外部库：
- *   ① 本项目双部署（CF Pages / GH Pages），外链 CDN 挂了就整功能没了；
- *   ② 那类库对 flex/grid 布局支持不全，截出来经常错位；
- *   ③ 看板要的是【数据表】，不是像素级还原页面 —— 手绘表格反而更整齐。
- * 方案：canvas 直接画表格，行高/字号可控，手机上也能导出大图。
+ * 用户要求：导出图片【保留网页原来的排版】，包括涂色高亮 ——
+ *   纯 canvas 手绘只能还原"数据"，还原不了卡片样式、颜色、圆角、
+ *   隔行底色、选中高亮。所以改成对【真实 DOM】截图。
  *
- * 分页：手机 Safari 的 canvas 高度上限远低于桌面（可能只有 4096~8192），
- *   一张图画 143 行会直接得到空白图。所以【按页切】，每页 40 行，
- *   一次导出多个文件，文件名带 _1/_2/_3。
+ * 为什么用本地化的 html2canvas 而不是 CDN：
+ *   ① 本项目双部署（CF Pages / GH Pages），外链 CDN 挂了就整功能失效；
+ *   ② 已下载到 web/html2canvas.min.js（194KB），随项目一起部署，无网络依赖。
+ *
+ * 兼容性前置检查（已确认）：
+ *   style.css 里【没有】 oklch / oklab / lab() / color-mix 等现代颜色函数
+ *   —— 那些 html2canvas 1.4 会解析失败并丢色。布局只用 flex/grid + box-shadow，
+ *   都在支持范围内。
+ *
+ * 涂色是怎么来的：列表行有 .on（选中高亮）、.open（展开详情）、
+ *   深色底等 class，截图直接把它们一起拍下来，无需额外处理。
  */
 'use strict';
 
-var IMG_PAGE_ROWS = 40;          // 每页行数（保守值，任何设备都不会超限）
-var IMG_COLS = [
-  { k: 'rank',  n: '#',              w: 34,  align: 'r' },
-  { k: 'name',  n: '骑手',            w: 110, align: 'l' },
-  { k: 'site',  n: '站点',            w: 150, align: 'l' },
-  { k: 'orders',n: '完单',            w: 54,  align: 'r' },
-  { k: 'score', n: '今日得分',        w: 66,  align: 'r' },
-  { k: 'att',   n: '出勤',            w: 46,  align: 'r' },
-  { k: 'eff',   n: '人效',            w: 54,  align: 'r' },
-  { k: 'likt',  n: '完全妥投率',      w: 78,  align: 'r' },
-  { k: 't8',    n: 'T8准时率',        w: 76,  align: 'r' },
-  { k: 'dur',   n: '单均复合(s)',     w: 84,  align: 'r' },
-  { k: 'dis',   n: '不满意率',        w: 78,  align: 'r' }
-];
-
-function imgCellText(r, k, idx) {
-  var sc = r.score || {};
-  switch (k) {
-    case 'rank':  return idx + 1;
-    case 'name':  return r.name || r.id || '';
-    case 'site':  return r.siteName || '';
-    case 'orders':return num(r.orders);
-    case 'score': return sc.cur == null ? '—' : Number(sc.cur).toFixed(2);
-    case 'att':   return r.attendRiders == null ? '—' : String(r.attendRiders);
-    case 'eff':   return r.efficiency == null ? '—' : String(r.efficiency);
-    case 'likt':  return r.likt == null ? '—' : (r.likt * 100).toFixed(2) + '%';
-    case 't8':    return r.t8 == null ? '—' : (r.t8 * 100).toFixed(2) + '%';
-    case 'dur':   return r.duration == null ? '—' : Number(r.duration).toFixed(2);
-    case 'dis':   return r.dissat == null ? '—' : (r.dissat * 100).toFixed(3) + '%';
-    default: return '';
+/* 克隆一份节点来截图：直接截原节点会破坏当前页面（滚动条、定位都会乱）。
+   克隆后挂到一个屏幕外的容器里，并给 html/body 定死尺寸。 */
+function buildSnapshot(el) {
+  // ★ 尺寸兜底：元素若在 display:none 的容器里，offsetWidth/scrollHeight 都是 0，
+  //   html2canvas 会静默返回一张空图（toDataURL 出来只有几个字节）。
+  //   所以尺寸优先取【渲染出来的 rect】，全为 0 时退回子元素累加。
+  var rc = el.getBoundingClientRect();
+  var W = rc.width || el.offsetWidth || el.scrollWidth || window.innerWidth;
+  var H = rc.height || el.offsetHeight || el.scrollHeight || 0;
+  if (!H) {
+    Array.prototype.forEach.call(el.children, function (c) {
+      var r = c.getBoundingClientRect();
+      if (r.height > H) H = r.height;
+    });
   }
+  var wrap = document.createElement('div');
+  wrap.setAttribute('data-export-snap', '1');
+  wrap.style.cssText =
+    'position:absolute;left:-100000px;top:0;width:' + W + 'px;' +
+    'background:#fff;z-index:-1;';
+  var clone = el.cloneNode(true);
+  clone.style.width = W + 'px';
+  wrap.appendChild(clone);
+  document.body.appendChild(wrap);
+  return { node: clone, wrap: wrap, w: W, h: H };
 }
 
-/* 中文按 1 个字宽、数字按 0.56 字宽估算，先量一遍再定列宽 */
-function imgTextW(s, fs) {
-  var w = 0;
-  for (var i = 0; i < s.length; i++) {
-    w += s.charCodeAt(i) > 255 ? fs : fs * 0.56;
-  }
-  return w;
-}
-
+/* 导出当前列表为图片（保留原排版）。
+ * rows 仅用于决定【要截图哪些行】：默认截屏幕上已渲染的部分，
+ * showAll 打开时截全部。 */
 function exportImage(rows) {
   var tip = document.getElementById('progText');
-  if (!rows || !rows.length) { if (tip) tip.textContent = '没有可导出的数据'; return; }
-
-  var PAD = 14, HEADH = 74, ROWH = 26, COLH = 30, FOOT = 26;
-  var width = PAD * 2 + IMG_COLS.reduce(function (a, c) { return a + c.w; }, 0);
-  var pages = Math.ceil(rows.length / IMG_PAGE_ROWS);
-  var title = '风神考核看板 · ' +
-              ({ agency: '整商', district: '商圈片', site: '站点', rider: '骑手' }[S.level] || S.level) +
-              '明细';
-  var range = (S.from || '') === (S.to || S.from) ? (S.from || '')
-             : (S.from || '') + ' ~ ' + (S.to || '');
-  var fname = '看板_' + S.level + '_' + (S.from || today()) +
-              (S.to && S.to !== S.from ? '_' + S.to : '');
-
-  for (var p = 0; p < pages; p++) {
-    var slice = rows.slice(p * IMG_PAGE_ROWS, (p + 1) * IMG_PAGE_ROWS);
-    var height = PAD + HEADH + COLH + slice.length * ROWH + FOOT + PAD;
-    var cv = document.createElement('canvas');
-    var dpr = Math.min(2, window.devicePixelRatio || 1);   // 高清但别把内存撑爆
-    cv.width = width * dpr;
-    cv.height = height * dpr;
-    var g = cv.getContext('2d');
-    g.scale(dpr, dpr);
-    g.textBaseline = 'middle';
-
-    // 背景
-    g.fillStyle = '#fff';
-    g.fillRect(0, 0, width, height);
-
-    // 标题区
-    g.fillStyle = '#111827';
-    g.font = '600 17px -apple-system,system-ui,sans-serif';
-    g.textAlign = 'left';
-    g.fillText(title, PAD, PAD + 14);
-    g.fillStyle = '#6b7280';
-    g.font = '12px -apple-system,system-ui,sans-serif';
-    g.fillText('数据区间 ' + range + '　·　共 ' + rows.length + ' 人' +
-               (pages > 1 ? ('　·　第 ' + (p + 1) + '/' + pages + ' 页') : ''),
-               PAD, PAD + 36);
-    g.strokeStyle = '#e5e7eb';
-    g.lineWidth = 1;
-    g.beginPath(); g.moveTo(PAD, PAD + HEADH - 12.5);
-    g.lineTo(width - PAD, PAD + HEADH - 12.5); g.stroke();
-
-    // 表头
-    var y = PAD + HEADH;
-    g.fillStyle = '#f3f4f6';
-    g.fillRect(PAD, y, width - PAD * 2, COLH);
-    g.fillStyle = '#374151';
-    g.font = '600 12px -apple-system,system-ui,sans-serif';
-    var x = PAD;
-    IMG_COLS.forEach(function (c) {
-      g.textAlign = c.align === 'r' ? 'right' : 'left';
-      var tx = c.align === 'r' ? x + c.w - 8 : x + 8;
-      g.fillText(c.n, tx, y + COLH / 2);
-      x += c.w;
-    });
-    y += COLH;
-
-    // 数据行（隔行浅底，导出后仍清晰可读）
-    g.font = '12.5px -apple-system,system-ui,sans-serif';
-    slice.forEach(function (r, i) {
-      var ry = y + i * ROWH;
-      if (i % 2) { g.fillStyle = '#fafafa'; g.fillRect(PAD, ry, width - PAD * 2, ROWH); }
-      var cx = PAD;
-      IMG_COLS.forEach(function (c) {
-        var txt = String(imgCellText(r, c.k, p * IMG_PAGE_ROWS + i));
-        g.textAlign = c.align === 'r' ? 'right' : 'left';
-        // 超宽就截断并加省略号，避免文字压到相邻列
-        var maxw = c.w - 14;
-        if (imgTextW(txt, 12.5) > maxw) {
-          while (txt.length && imgTextW(txt + '…', 12.5) > maxw) txt = txt.slice(0, -1);
-          txt += '…';
-        }
-        g.fillStyle = '#111827';
-        g.fillText(txt, c.align === 'r' ? cx + c.w - 8 : cx + 8, ry + ROWH / 2);
-        cx += c.w;
-      });
-    });
-
-    // 页脚
-    g.fillStyle = '#9ca3af';
-    g.font = '11px -apple-system,system-ui,sans-serif';
-    g.textAlign = 'right';
-    g.fillText('导出 ' + new Date().toLocaleString('zh-CN'), width - PAD, y + slice.length * ROWH + 14);
-
-    // 下载
-    try {
-      var a = document.createElement('a');
-      a.href = cv.toDataURL('image/png');
-      a.download = fname + (pages > 1 ? '_' + (p + 1) + 'of' + pages : '') + '.png';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(function () { a.remove(); }, 1000);
-    } catch (e) {
-      if (tip) tip.textContent = '图片生成失败：' + (e && e.message || e);
-      return;
-    }
+  if (typeof html2canvas !== 'function') {
+    if (tip) tip.textContent = '图片组件未加载，稍后重试';
+    return;
   }
-  if (tip) tip.textContent = '已导出 ' + rows.length + ' 行，' + pages + ' 张 PNG 图片';
+  var list = document.getElementById('list');
+  if (!list || !list.children.length) {
+    if (tip) tip.textContent = '没有可导出的数据';
+    return;
+  }
+  if (tip) tip.textContent = '正在生成图片…';
+
+  // 带上工具条（标题+筛选条件），这样导出图里能看出这是哪天的、按什么筛的
+  var panel = document.getElementById('listPanel');
+  var snap = buildSnapshot(panel || list);
+
+  var scale = 2;                       // 高清
+  html2canvas(snap.node, {
+    backgroundColor: '#ffffff',
+    scale: scale,
+    useCORS: true,
+    logging: false,
+    windowWidth: snap.w,
+    height: snap.h,
+    onclone: function (doc) {
+      // 截图副本里去掉可能造成截断的 sticky 元素（滚动时会重复/错位）
+      var st = doc.querySelectorAll('[data-export-snap] *');
+      Array.prototype.forEach.call(st, function (n) {
+        if (getComputedStyle(n).position === 'sticky') n.style.position = 'static';
+      });
+    }
+  }).then(function (cv) {
+    var lv = ({ agency: '整商', district: '商圈片', site: '站点', rider: '骑手' }[S.level]) || S.level;
+    var a = document.createElement('a');
+    a.href = cv.toDataURL('image/png');
+    a.download = '看板_' + lv + '_' + (S.from || today()) +
+                 (S.to && S.to !== S.from ? '_' + S.to : '') + '.png';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { a.remove(); }, 1000);
+    if (tip) tip.textContent = '已导出图片（含当前筛选与涂色）';
+  }).catch(function (e) {
+    if (tip) tip.textContent = '图片生成失败：' + ((e && e.message) || e);
+  }).then(function () {
+    if (snap.wrap && snap.wrap.parentNode) snap.wrap.parentNode.removeChild(snap.wrap);
+  });
 }
