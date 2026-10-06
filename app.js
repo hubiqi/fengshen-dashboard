@@ -1393,6 +1393,9 @@ function loadState() {
 
 /* ── 今日数据同步：进度条 + 明细 + 百分比 ──────────────────────────── */
 var _syncPoll = null, _wasRunning = false;
+// 最近一次已消费的同步特征（完成时间|水位|新增行数）。变了 = 有新数据入库。
+// 首屏置空，保证第一次进来就会 loadAll 一次。
+var _lastSig = '';
 
 function fmtDur(s) {
   s = Math.max(0, Math.round(s || 0));
@@ -1473,7 +1476,23 @@ function syncTick() {
       _wasRunning = true;
       _syncPoll = setTimeout(syncTick, 1200);
     } else {
-      if (_wasRunning) { _wasRunning = false; loadAll(); loadState(); }
+      // ★★★ 判定「有新数据入库」不能只看 running 的下降沿。
+      //
+      //   后端每 600 秒自动同步一次，而前端空闲时 20 秒才轮询一次 ——
+      //   一次同步常常在【两次轮询之间】开始并结束，
+      //   于是 p.running 一直是 false，_wasRunning 永远不置 true，
+      //   下面的 loadAll() 永远不执行 → 用户看到「同步完了但数据不更新，
+      //   必须自己刷页面」。
+      //
+      //   ★ 改成比对「最近一次完成的批次时间戳」：只要它变了就是有新数据，
+      //     不管那次同步有没有被我们「看见」在跑。
+      var sig = String(p.finished || '') + '|' + String(p.watermark || '') + '|' + String(p.newRows || '');
+      if (_wasRunning || (sig !== _lastSig)) {
+        _wasRunning = false;
+        _lastSig = sig;
+        loadAll();
+        loadState();
+      }
       _syncPoll = setTimeout(syncTick, 20000);
     }
   }).catch(function () {
