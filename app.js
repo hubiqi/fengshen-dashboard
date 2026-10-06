@@ -1311,6 +1311,107 @@ function openTrend(label) {
   } else drawTrend(label);
 }
 
+/* ★ 全屏查看趋势图（用户 2026-10-07）。
+   用 fixed 铺满视口，而不是 Fullscreen API：后者在 iOS Safari 要用户手势、
+   退出后页面布局常出错。滚动时锁住 body，退出还原。 */
+function toggleTrendFull(box) {
+  if (box.classList.contains('full')) {
+    box.classList.remove('full');
+    document.body.classList.remove('noScroll');
+    window.scrollTo(0, window.__trendScrollY || 0);
+    return;
+  }
+  window.__trendScrollY = window.scrollY || 0;
+  box.classList.add('full');
+  document.body.classList.add('noScroll');
+}
+
+/* ★ 导出趋势图为 PNG，表头带【表格结算】（用户 2026-10-07：
+     指标名 + 数据区间 + 天数 + 当前对象 + 均值/最新值，单看图不知是什么）。
+   做法：SVG 序列化成图片 → 画到 canvas → 拼上表头 → 导出。
+   ★ SVG 里样式全是【属性】形式（fill/stroke/font-size…），脱离页面也能正确渲染。 */
+function exportTrendImage(box, label, W, H, pad, pts, m) {
+  var tip = $('progText');
+  var svg = box.querySelector('.tr-scroll svg') || box.querySelector('svg');
+  if (!svg) { if (tip) tip.textContent = '图表尚未渲染'; return; }
+  try {
+    var HEADH = 58;
+    var TOTW = W, TOTH = H + HEADH;
+    var clone = svg.cloneNode(true);
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clone.setAttribute('viewBox', '0 0 ' + TOTW + ' ' + TOTH);
+    clone.setAttribute('width', TOTW);
+    clone.setAttribute('height', TOTH);
+    var g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    while (clone.firstChild) g.appendChild(clone.firstChild);
+    g.setAttribute('transform', 'translate(0,' + HEADH + ')');   // 图表整体下移
+    clone.appendChild(g);
+    var bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('x', 0); bg.setAttribute('y', 0);
+    bg.setAttribute('width', TOTW); bg.setAttribute('height', TOTH);
+    bg.setAttribute('fill', '#ffffff');
+    clone.insertBefore(bg, clone.firstChild);
+
+    var NS = 'http://www.w3.org/2000/svg';
+    function T(x, y, t, size, fill, weight) {
+      var n = document.createElementNS(NS, 'text');
+      n.setAttribute('x', x); n.setAttribute('y', y);
+      n.setAttribute('font-size', size); n.setAttribute('fill', fill);
+      if (weight) n.setAttribute('font-weight', weight);
+      n.textContent = t; clone.appendChild(n);
+    }
+    // ── 表头：表格结算信息 ──
+    var vals = (pts || []).map(function (p) { return p[m.f]; })
+      .filter(function (v) { return v != null; });
+    var lvName = ({ agency: '整商', district: '商圈片', site: '站点', rider: '骑手' })[S.level] || S.level;
+    var scope = S.key ? (S.keyName || S.key) : '（全部）';
+    var r0 = pts && pts.length ? pts[0].date : (S.from || '');
+    var r1 = pts && pts.length ? pts[pts.length - 1].date : (S.to || '');
+    var fmt = function (v) {
+      if (v == null) return '—';
+      if (m.rate) return (v * 100).toFixed(m.dp || 2) + '%';
+      if (m.f === 'score') return Number(v).toFixed(2);
+      return Math.abs(v - Math.round(v)) < 0.01 ? String(Math.round(v)) : Number(v.toFixed(2));
+    };
+    var avg = vals.length ? vals.reduce(function (a, b) { return a + b; }, 0) / vals.length : null;
+    var lastV = vals.length ? vals[vals.length - 1] : null;
+    T(0, 20, label + '　·　' + lvName, 15, '#111827', 700);
+    T(0, 36, '数据区间 ' + r0 + ' ~ ' + r1 + '　·　' + (pts ? pts.length : 0) + ' 天' +
+        '　·　当前对象：' + scope, 11, '#6b7280');
+    T(0, 51, '均值 ' + fmt(avg) + '　·　最新 ' + fmt(lastV) +
+        '　·　单位：' + (m.unit || (m.rate ? '%' : '')), 11, '#b45309');
+    var ln = document.createElementNS(NS, 'line');
+    ln.setAttribute('x1', 0); ln.setAttribute('y1', HEADH - 0.5);
+    ln.setAttribute('x2', TOTW); ln.setAttribute('y2', HEADH - 0.5);
+    ln.setAttribute('stroke', '#e5e7eb'); ln.setAttribute('stroke-width', 1);
+    clone.appendChild(ln);
+
+    var url = 'data:image/svg+xml;charset=utf-8,' +
+      encodeURIComponent(new XMLSerializer().serializeToString(clone));
+    var img = new Image();
+    img.onload = function () {
+      var dpr = 2;
+      var cv = document.createElement('canvas');
+      cv.width = TOTW * dpr; cv.height = TOTH * dpr;
+      var gg = cv.getContext('2d');
+      gg.scale(dpr, dpr);
+      gg.fillStyle = '#fff'; gg.fillRect(0, 0, TOTW, TOTH);
+      gg.drawImage(img, 0, 0);
+      if (cv.height < 50) { if (tip) tip.textContent = '内容过高，生成失败'; return; }
+      var a = document.createElement('a');
+      a.href = cv.toDataURL('image/png');
+      a.download = '趋势_' + label + '_' + r0 + '.png';
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { a.remove(); }, 1000);
+      if (tip) tip.textContent = '已导出趋势图（含表格结算表头）';
+    };
+    img.onerror = function () { if (tip) tip.textContent = '图片生成失败'; };
+    img.src = url;
+  } catch (e) {
+    if (tip) tip.textContent = '图片生成失败：' + ((e && e.message) || e);
+  }
+}
+
 function closeTrend() {
   var b = trendBox(); if (b) b.hidden = true;
 }
@@ -1536,18 +1637,32 @@ function drawTrend(label) {
       ' paint-order="stroke">' + txt + '</text>');
   });
   out.push('</svg>');
-  // ★★ 结构：左侧【固定 Y 轴列】 + 右侧【横向滑动区】（用户 2026-10-07）
-  //   点数多时（如整月 30+ 天）图表宽于屏幕，必须能左右滑动；
-  //   而滑动时 Y 轴刻度要【留在原地】，否则读数失去参照。
-  //   实现：Y 轴列 position:sticky left:0，滑动容器在右侧 overflow-x:auto。
 
+  // ★★★ 滑动【仅在数据太挤时启用】（用户 2026-10-07 明确要求）
+  //   判定：按点数算出的"不挤"宽度 > 容器宽度 ⇒ 点太多、横向放不下 ⇒ 才开滚动。
+  //   实现只用 overflow-x:auto，【不动 SVG 坐标系、不拆 SVG、不改任何样式】——
+  //   所以没触发滑动的场景，显示与现在【完全一致】。
+  //   阈值取「超出容器 15% 以上才算挤」—— 直接用 needW > availW 会导致
+  //   手机上 7 天（376px vs 360px）就触发滑动，可 7 天其实一点也不挤。
+  var needW = pts.length * 40 + 96;
+  var availW = box.clientWidth || 360;
+  var crowded = needW > availW * 1.15;
   var head = '<div class="tr-head"><b>' + esc(label) + '</b>' +
-    '<span class="hint">' + pts.length + ' 天 · ' + pts[0].date + ' ~ ' + pts[pts.length - 1].date + '</span>' +
+    '<span class="hint">' + pts.length + ' 天 · ' + pts[0].date + ' ~ ' + pts[pts.length - 1].date +
+    (crowded ? '　·　可左右滑动' : '') + '</span>' +
+    '<button class="mini tr-act" data-trfull title="全屏">⛶</button>' +
+    '<button class="mini tr-act" data-trimg title="导出图片">⬇</button>' +
     '<button class="mini tr-close">✕</button></div>';
-  // ★ 两种结构按需切换：
-  //   宽度够（常见：7~30 天的整月趋势）→ 【单 SVG】，就是加滑动功能之前的原样，
-  //     刻度/网格/折线同在一个坐标系，对齐 100% 与从前一致。
-  box.innerHTML = head + out.join('');
+  box.innerHTML = head +
+    '<div class="tr-scroll' + (crowded ? ' on' : '') + '">' + out.join('') + '</div>';
+  box.querySelector('.tr-close').onclick = function (e) { e.stopPropagation(); closeTrend(); };
+  var fb = box.querySelector('[data-trfull]');
+  if (fb) fb.onclick = function (e) { e.stopPropagation(); toggleTrendFull(box); };
+  var ib = box.querySelector('[data-trimg]');
+  if (ib) ib.onclick = function (e) {
+    e.stopPropagation();
+    exportTrendImage(box, label, W, H, pad, pts, m);
+  };
   box.querySelector('.tr-close').onclick = function (e) { e.stopPropagation(); closeTrend(); };
 }
 /* ── 取数：卡片 + 明细列表 ────────────────────────────────────────
