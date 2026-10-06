@@ -39,16 +39,8 @@ h3{font-size:15px;margin:0 0 12px}
 .rangetext{font-size:12px;color:var(--sub);margin-top:8px}
 
 main{padding:12px 16px 40px}
-/* 卡片栅格：手机 2 列；宽屏逐级加密 —— 2 列时每张卡在 1200px 屏上
-   宽到 600px，内容全挤在左侧、右侧一大片空白（用户 2026-10-07：电脑端好丑）。 */
+/* 卡片栅格：固定 2 列（用户 2026-10-07 要求恢复原排版，不要改）。 */
 .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-@media (min-width:900px){ .cards{grid-template-columns:repeat(3,1fr);gap:12px} }
-@media (min-width:1400px){ .cards{grid-template-columns:repeat(4,1fr);gap:12px} }
-/* 宽屏卡片内文字可以大一点，不再是手机那种挤法 */
-@media (min-width:900px){
-  .tcard .v{font-size:26px}
-  .tcard .k{font-size:12px}
-}
 /* 当前对象提示条：占满整行，不跟卡片抢格子 */
 .cardScope{grid-column:1/-1;font-size:12px;color:var(--sub);
   background:var(--card);border-radius:10px;padding:8px 12px}
@@ -572,16 +564,3 @@ body.noScroll{overflow:hidden}
 .sb-scroll{display:inline-block;vertical-align:top;line-height:0}
 
 
-/* ★ 宽屏下 KPI 三张卡（KPI奖励/订单/单均）单独占一行会显得参差：
-   指标卡 8 张 + KPI 3 张 = 11 张，3 列时最后一行只剩 2 张、右边空一格。
-   做法：宽屏把 KPI 区当成一个整体块，跨满整行，内部再分列。
-   （KPI 三格在 DOM 里是连续的 tcard，用 :nth-last-child 无法跨列，
-     故改为让它们统一加 .kpirow 包裹 —— 见 app.js。） */
-@media (min-width:900px){
-  .cards .kpirow{grid-column:1/-1;display:grid;
-    grid-template-columns:repeat(3,1fr);gap:12px}
-}
-@media (min-width:1400px){
-  .cards .kpirow{grid-template-columns:repeat(4,1fr)}
-}
-.cards .kpirow .tcard{margin:0}
