@@ -1124,6 +1124,11 @@ function refreshListKeepOpen() {
   renderList(LAST_ROWS.slice());
 }
 function renderList(rows) {
+  // ★ 记录"列表当前展示的是哪个维度"，供导出图片校验。
+  //   切维度时 /api/metrics 是异步的，列表渲染完成前 DOM 里还是上一维度的内容；
+  //   导出图片若不校验，就会把【整商的 1 行】当成【骑手明细】导出去（用户 2026-10-06 反馈）。
+  window.__listLevel = S.level;
+  window.__listCount = rows.length;
   // ★ 四个颗粒度严格分开、行为一致：整商=代理商本身(1行)、商圈片、站点、骑手。
   //   原来 agency 被降级成 district，又额外开了「不出列表」特例，
   //   导致点整商看到的是商圈片数据、或干脆什么都不显示。
@@ -1379,8 +1384,16 @@ function loadCards(dfrom, dto, withList) {
   var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
   $('cards').innerHTML = '<div class="loading">加载中…</div>';
   var keyq = S.key ? '&key=' + q(S.key) : '';
-  return api('/api/metrics?' + aq + 'level=' + S.level + '&from=' + dfrom + '&to=' + dto + keyq)
+  // ★ 记住发起请求时的层级：切维度是异步的，快速连点时旧响应可能后到。
+  //   原来不校验，于是「整商」的响应在用户已切到「骑手」后渲染列表：
+  //       listTitle 按【当前 S.level】写成"骑手明细"，
+  //       内容却是【整商那 1 行】，工具条显示"显示 1 / 1 人"。
+  //   导出图片时就把它当骑手明细导了出去（用户 2026-10-06 实测）。
+  var reqLevel = S.level, reqKey = S.key;
+  return api('/api/metrics?' + aq + 'level=' + reqLevel + '&from=' + dfrom + '&to=' + dto + keyq)
     .then(function (j) {
+      // 响应回来时用户已经切走/点了别的对象 → 直接丢弃，别污染当前视图
+      if (reqLevel !== S.level || reqKey !== S.key) return null;
       LAST_TOTAL = j.total || {};
       renderCards(j.total);
       // ★ 本地指标到达后同步给罗盘，让「平台 / 我算」两列都能显示 ——
