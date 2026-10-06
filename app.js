@@ -1239,6 +1239,22 @@ var T_METRICS = {
   '非时效不满意率':{ f: 'dissat', label: '不满意率', unit: '', rate: true, dp: 3 }
 };
 
+/* ★ 最适配的整数档位（1-2-2.5-5 × 10^k），用户 2026-10-07。
+   例：需要步长 3.7 → 返回 5；需要 0.023 → 返回 0.025。
+   这样所有刻度都是"整数"，读数一眼能对上。 */
+function niceStep(raw) {
+  if (!(raw > 0)) return 1;
+  var mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10));
+  var norm = raw / mag;
+  var mult = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10;
+  return mult * mag;
+}
+/* 档位需要几位小数：步长 5 → 0 位；0.05 → 2 位 */
+function stepDecimals(step) {
+  if (step >= 1) return 0;
+  return Math.min(6, Math.ceil(-Math.log(step) / Math.LN10));
+}
+
 function trendBox() {
   var b = $('trendBox');
   if (!b) return null;
@@ -1308,15 +1324,24 @@ function drawTrend(label) {
   //     数据 0.000%~0.116% → 轴范围 0.000%~2.116%
   //     留白是数据幅度的 17 倍，6 天的起伏看起来是一条直线（用户 2026-10-07 反馈）。
   //   现在按幅度的 30% 留白；幅度为 0（全天都是 0）时给一个小兜底值。
+  // ★★ 刻度取【整数档位】，不再按范围任意等分（用户 2026-10-07）。
+  //   原来 lo+(hi-lo)*g/4 得到的是 0.529% / 1.058% 这种"随机小数"，
+  //   人看着别扭、也不好读数。现在按 1-2-2.5-5-10 × 10^k 选档位，
+  //   使所有刻度都落在整数（或比率的整数百分点）上。
   if (m.rate) {
     var rlo = Math.max(0, lo), rhi = Math.min(1, hi);
-    var rspan = rhi - rlo;
-    var rpad = rspan > 0 ? rspan * 0.3 : 0.0005;
-    lo = Math.max(0, rlo - rpad);
-    hi = Math.min(1, rhi + rpad);
-    if (hi - lo < 1e-9) hi = lo + 0.001;      // 防除零
+    if (rhi - rlo < 1e-9) { rhi = rlo + 0.001; }   // 全为0 → 给个兜底跨度
+  } else {
+    var s0 = (hi - lo) || Math.max(1, Math.abs(hi) * 0.1 || 1);
+    lo = lo - s0 * 0.15; hi = hi + s0 * 0.15;
+    if (hi - lo < 1e-9) hi = lo + 1;
   }
-  else { var sp = (hi - lo) || Math.max(1, hi * 0.1); lo = Math.max(0, lo - sp * 0.2); hi = hi + sp * 0.2; }
+  var TICKS = 4;
+  var step = niceStep((hi - lo) / TICKS);
+  var nlo = Math.floor(lo / step) * step, nhi = Math.ceil(hi / step) * step;
+  if (nhi - nlo < step) nhi = nlo + step;              // 至少 2 条
+  if (m.rate) { nlo = Math.max(0, nlo); nhi = Math.min(1, Math.max(nhi, nlo + step)); }
+  lo = nlo; hi = nhi;
   var X = function (i) { return pad.l + (pts.length === 1 ? iw / 2 : iw * i / (pts.length - 1)); };
   var Y = function (v) { return pad.t + ih * (1 - (v - lo) / ((hi - lo) || 1)); };
   function fv(v) {
@@ -1327,13 +1352,19 @@ function drawTrend(label) {
   }
 
   var out = ['<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" class="trendsvg">'];
-  // 5 条参考线
-  for (var g = 0; g <= 4; g++) {
-    var v = lo + (hi - lo) * g / 4, y = Y(v);
+  // ★ 网格线：按整数档位等距，不再是任意分数
+  var gdec = stepDecimals(step);
+  var kMax = Math.round((hi - lo) / step);
+  for (var g = 0; g <= kMax; g++) {
+    var v = lo + step * g, y = Y(v);
     out.push('<line x1="' + pad.l + '" y1="' + y + '" x2="' + (W - pad.r) + '" y2="' + y +
       '" stroke="#eef1f6" stroke-width="1"/>');
+    // 刻度值强制走 step 的小数位，保证是"整数档位"而不是 0.529 这种
+    var lab = m.rate
+      ? (v * 100).toFixed(Math.max(0, gdec - 2)) + '%'
+      : Number(v.toFixed(gdec)).toString();
     out.push('<text x="' + (pad.l - 5) + '" y="' + (y + 3) + '" font-size="9" fill="#9aa3af" text-anchor="end">' +
-      fv(v) + '</text>');
+      lab + '</text>');
   }
   pts.forEach(function (p, i) {
     if (pts.length > 12 && i % Math.ceil(pts.length / 10) !== 0 && i !== pts.length - 1) return;
@@ -1351,6 +1382,23 @@ function drawTrend(label) {
   seg.forEach(function (s) {
     out.push('<polyline points="' + s.join(' ') + '" fill="none" stroke="#1f6feb" stroke-width="2.2"/>');
   });
+  // ★★ 平均值虚线（用户 2026-10-07）：一条橙红虚线标出算术平均，
+  //   右边带一个标签。只画在【有≥2 个有效值】且落在轴范围内时。
+  //   放在折线之后、点之前，保证虚线压在折线上方可见但标签不被点盖住。
+  var vlist = vals.filter(function (v) { return v != null; });
+  if (vlist.length >= 2) {
+    var avg = vlist.reduce(function (a, b) { return a + b; }, 0) / vlist.length;
+    if (avg >= lo && avg <= hi) {
+      var ay = Y(avg);
+      out.push('<line x1="' + pad.l + '" y1="' + ay + '" x2="' + (W - pad.r) + '" y2="' + ay +
+        '" stroke="#f59e0b" stroke-width="1.4" stroke-dasharray="5 4"/>');
+      var alab = m.rate
+        ? '均 ' + (avg * 100).toFixed(Math.max(1, stepDecimals(step))) + '%'
+        : '均 ' + (Math.abs(avg - Math.round(avg)) < 0.01 ? Math.round(avg) : Number(avg.toFixed(2)));
+      out.push('<text x="' + (W - pad.r - 2) + '" y="' + (ay - 4) + '" font-size="9" fill="#b45309"' +
+        ' text-anchor="end" font-weight="600">' + alab + '</text>');
+    }
+  }
   // ★ 点 + tooltip + 【每点数值标签】
   //   点少时全标；点多时隔点标，避免挤成一团互相遮挡。
   //   标签画在点的【正上方】，折线不会压住文字；且用白描边保证叠在网格线上也清晰。
