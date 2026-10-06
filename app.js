@@ -1382,6 +1382,41 @@ function drawTrend(label) {
   seg.forEach(function (s) {
     out.push('<polyline points="' + s.join(' ') + '" fill="none" stroke="#1f6feb" stroke-width="2.2"/>');
   });
+  // ★ 把折线拆成线段，供标签避让用（用户 2026-10-07：标签被折线压住看不清）
+  var SEG = [];
+  seg.forEach(function (s) {
+    for (var i = 1; i < s.length; i++) {
+      var a = s[i - 1].split(','), b = s[i].split(',');
+      SEG.push([+a[0], +a[1], +b[0], +b[1]]);
+    }
+  });
+  // 已占位区域（均值标签先占，数据标签后占并互相避让）
+  var PLACED = [];
+  function txtW(s) {                       // 估算文字宽度：中文按字号、数字约 0.6
+    var w = 0;
+    for (var i = 0; i < s.length; i++) w += s.charCodeAt(i) > 255 ? 9.6 : 5.9;
+    return w;
+  }
+  // 线段与矩形是否相交（沿线采样 12 个点，够用且快）
+  function hitsLine(x1, y1, x2, y2, r) {
+    for (var i = 0; i <= 12; i++) {
+      var t = i / 12, px = x1 + (x2 - x1) * t, py = y1 + (y2 - y1) * t;
+      if (px >= r.x - 2 && px <= r.x + r.w + 2 && py >= r.y - 2 && py <= r.y + r.h + 2) return true;
+    }
+    return false;
+  }
+  function clash(r) {
+    for (var i = 0; i < SEG.length; i++) {
+      var g = SEG[i];
+      if (hitsLine(g[0], g[1], g[2], g[3], r)) return true;
+    }
+    for (var j = 0; j < PLACED.length; j++) {
+      var q = PLACED[j];
+      if (r.x < q.x + q.w + 3 && r.x + r.w + 3 > q.x &&
+          r.y < q.y + q.h + 2 && r.y + r.h + 2 > q.y) return true;
+    }
+    return false;
+  }
   // ★★ 平均值虚线（用户 2026-10-07）：一条橙红虚线标出算术平均，
   //   右边带一个标签。只画在【有≥2 个有效值】且落在轴范围内时。
   //   放在折线之后、点之前，保证虚线压在折线上方可见但标签不被点盖住。
@@ -1395,8 +1430,40 @@ function drawTrend(label) {
       var alab = m.rate
         ? '均 ' + (avg * 100).toFixed(Math.max(1, stepDecimals(step))) + '%'
         : '均 ' + (Math.abs(avg - Math.round(avg)) < 0.01 ? Math.round(avg) : Number(avg.toFixed(2)));
-      out.push('<text x="' + (W - pad.r - 2) + '" y="' + (ay - 4) + '" font-size="9" fill="#b45309"' +
-        ' text-anchor="end" font-weight="600">' + alab + '</text>');
+      // ★ 标签尽量【靠中间】摆（用户 2026-10-07），且不与折线重叠。
+      //   原来固定贴最右端，正好压在上升段折线和末点数值上（截图里 95.46% 被糊住）。
+      //   做法：沿虚线在中间区域取若干候选位，逐个测冲突，取第一个干净的位置；
+      //   全都冲突时退到最右，并【上下位移】让开。
+      var aw = txtW(alab), ah = 10;
+      var midX = pad.l + iw * 0.5;
+      // 候选位：先【正中间本身】，再 0.15/0.30/0.45 左右展开，最后最右兜底。
+      //   原来写成 frac 从 0.5 起、push(midX ± iw*frac)，
+      //   第一个候选就是 midX+0.5*iw（贴着右边缘），真正的中轴 0.5 反被跳过 ——
+      //   于是均值标签总被挤到最右，压在折线上（用户 2026-10-07 反馈）。
+      var candX = [midX], frac;
+      for (frac = 0.15; frac <= 0.46; frac += 0.15) {
+        candX.push(midX + iw * frac);
+        candX.push(midX - iw * frac);
+      }
+      candX.push(W - pad.r - 2);
+      var axy = ay - 5, chosen = null;
+      for (var ci = 0; ci < candX.length && !chosen; ci++) {
+        var cx = Math.max(pad.l + 2, Math.min(W - pad.r - 2, candX[ci]));
+        // 上下各试三个位置
+        var offs = [-5, -16, 9, -27, 20];
+        for (var oi = 0; oi < offs.length && !chosen; oi++) {
+          var r = { x: cx - aw / 2, y: ay + offs[oi] - ah, w: aw, h: ah };
+          if (!clash(r)) chosen = { x: cx, y: ay + offs[oi], r: r };
+        }
+      }
+      if (!chosen) {
+        var r2 = { x: W - pad.r - 2 - aw, y: ay - 5 - ah, w: aw, h: ah };
+        chosen = { x: W - pad.r - 2, y: ay - 5, r: r2 };
+      }
+      PLACED.push(chosen.r);
+      out.push('<text x="' + chosen.x + '" y="' + chosen.y + '" font-size="9" fill="#b45309"' +
+        ' text-anchor="middle" font-weight="600" stroke="#fff" stroke-width="2.4"' +
+        ' paint-order="stroke">' + alab + '</text>');
     }
   }
   // ★ 点 + tooltip + 【每点数值标签】
@@ -1408,14 +1475,24 @@ function drawTrend(label) {
     out.push('<circle cx="' + X(i) + '" cy="' + Y(v) + '" r="2.6" fill="#1f6feb">' +
       '<title>' + p.date + '  ' + esc(m.label) + ' ' + fv(v) + m.unit + '</title></circle>');
     if (i % stepLbl !== 0 && i !== pts.length - 1) return;
-    // ★ 首尾标签靠边时改用 start/end 锚点，否则会被 SVG 边界裁掉
-    //   （用户截图里最后一个 "0.000%" 只显示了一半）。
-    var lx = X(i), anchor = 'middle';
+    // ★ 标签避让：默认在点上方；与折线/均值标签/其他标签冲突就上下挪。
+    //   用户 2026-10-07：数值压在折线上、彼此叠在一起都看不清。
+    var txt = fv(v), tw = txtW(txt), th = 11, lx = X(i);
+    var anchor = 'middle';
     if (i === pts.length - 1) { anchor = 'end'; lx = Math.min(lx, W - pad.r - 1); }
     else if (i === 0) { anchor = 'start'; lx = Math.max(lx, pad.l - 20); }
-    out.push('<text x="' + lx + '" y="' + (Y(v) - 8) + '" font-size="10" font-weight="600"' +
+    var bx = anchor === 'end' ? lx - tw : anchor === 'start' ? lx : lx - tw / 2;
+    var offs = [-8, 15, -19, 26, -30, 37];
+    var put = null;
+    for (var oi = 0; oi < offs.length && !put; oi++) {
+      var r = { x: bx, y: Y(v) + offs[oi] - th, w: tw, h: th };
+      if (!clash(r)) put = { y: Y(v) + offs[oi], r: r };
+    }
+    if (!put) { put = { y: Y(v) - 8, r: { x: bx, y: Y(v) - 8 - th, w: tw, h: th } }; }
+    PLACED.push(put.r);
+    out.push('<text x="' + lx + '" y="' + put.y + '" font-size="10" font-weight="600"' +
       ' fill="#1f6feb" text-anchor="' + anchor + '" stroke="#fff" stroke-width="2.6"' +
-      ' paint-order="stroke">' + fv(v) + '</text>');
+      ' paint-order="stroke">' + txt + '</text>');
   });
   out.push('</svg>');
   box.innerHTML = '<div class="tr-head"><b>' + esc(label) + '</b>' +
