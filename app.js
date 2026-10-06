@@ -373,9 +373,14 @@ function renderCards(t) {
       + '避免把今天进度落后误读成业务变差；出勤骑手数例外（骑手早在线，偏差仅约 1.4%，同期化反而添噪）">'
       + '环比已按昨日同期（出勤除外）</span>';
   }
+  // ★ 宽屏把 KPI 三格包进 .kpirow 跨满整行，避免 11 张卡在 3 列下
+  //   最后一行只剩 2 张、右边空一格显得残缺（用户 2026-10-07）。
+  var kpiHtml = kpiCells
+    ? '<div class="kpirow">' + kpiCells + '</div>'
+    : '';
   $('cards').innerHTML = '<div class="cardScope">当前对象：<b>' + esc(scope) + '</b>' +
     '<span class="hint">　每格＝所选日期 · 全月 · 环比昨天　· 点卡片看整月趋势</span>' + thru + '</div>' +
-    c.join('') + kpiCells;
+    c.join('') + kpiHtml;
   // ★ 点任一卡片 → 展开该指标的整月趋势（四层级通用）
   Array.prototype.forEach.call($('cards').querySelectorAll('[data-trend]'), function (el) {
     el.onclick = function () { openTrend(el.getAttribute('data-trend')); };
@@ -474,7 +479,9 @@ function drawChart() {
   var d = SB.districts.filter(function (x) { return x.id === SB.sel; })[0];
   if (!d || !d.series || !d.series.length) { $('sbChart').innerHTML = ''; $('sbLegend').innerHTML = ''; return; }
   var rows = d.series;
-  var W = Math.max(320, rows.length * 42 + 90), H = 190;
+  // 同趋势图：容器宽与点数所需宽取大者，宽屏铺满、窄屏才滚动
+  var sbAvail = Math.max(320, (($('sbChart') || {}).clientWidth || 360) - 2);
+  var W = Math.max(sbAvail, rows.length * 42 + 90), H = 190;
   var pad = { l: 34, r: 10, t: 10, b: 24 };
   var iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
   var SER = [
@@ -1439,7 +1446,12 @@ function drawTrend(label) {
   var vals = pts.map(function (p) { return p[m.f]; }).filter(function (v) { return v != null; });
   if (!vals.length) { box.innerHTML = '<div class="empty">该指标暂无数据</div>'; return; }
 
-  var W = Math.max(320, pts.length * 40 + 96), H = 200;
+  // ★ 宽度取【容器宽】与【点数所需宽】的较大者（用户 2026-10-07：电脑端图表好丑）。
+  //   原来固定 max(320, 点数*40+96)，在宽屏上图表只占左侧一小块、右侧大片空白；
+  //   窄屏上点数多时才需要横向滑动。
+  var availW = Math.max(320, (box.clientWidth || 360) - 2);
+  var needW = pts.length * 40 + 96;
+  var W = Math.max(availW, needW), H = 200;
   var pad = { l: 44, r: 12, t: 14, b: 26 };
   var iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
   var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
@@ -1504,8 +1516,15 @@ function drawTrend(label) {
     ytext.push('<text x="' + (pad.l - 5) + '" y="' + (y + 3) + '" font-size="9" ' +
       'fill="#9aa3af" text-anchor="end">' + lab + '</text>');
   }
+  // ★ 宽屏下点数少，X 轴别全挤在左边：按可用宽度决定标签间隔，
+  //   至少保证每隔 ~46px 有一个日期（否则 7 个点只占图表左侧三分之一）。
+  var labelStep = 1;
+  if (pts.length > 1) {
+    var perPx = (W - pad.l - pad.r) / (pts.length - 1);
+    labelStep = Math.max(1, Math.ceil(46 / Math.max(1, perPx)));
+  }
   pts.forEach(function (p, i) {
-    if (pts.length > 12 && i % Math.ceil(pts.length / 10) !== 0 && i !== pts.length - 1) return;
+    if (i % labelStep !== 0 && i !== pts.length - 1) return;
     // ★ 首尾用 start/end 锚点：绘图区已通过 viewBox 平移到 SVG 左边缘，
     //   X(0) 就在 x=0 处，anchor=middle 会有一半落在画布外被裁掉（用户 2026-10-07）。
     var da = (i === 0) ? 'start' : (i === pts.length - 1) ? 'end' : 'middle';
