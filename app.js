@@ -761,7 +761,11 @@ var SORT_KEYS = [
   { k: 'dissat', n: '不满意', good: -1 },
   { k: 'duration', n: '复合',  good: -1 }
 ];
-var LIST_F = { sortKey: 'orders', sortDir: -1, quant: 0.10,   // ★ 默认只看前 10%
+// ★★ 默认按【得分升序】（用户 2026-10-06）：得分低的排最前。
+//   配合默认的「只看前 10%」，进去看到的就是【得分最低的那批骑手】——
+//   这才是骑手模块的用途：找拖后腿的人。原先默认「单量降序」，
+//   前 10% 等于"单量最高的10%"，跟质量无关，方向刚好反了。
+var LIST_F = { sortKey: 'score.cur', sortDir: 1, quant: 0.10,   // ★ 默认只看前 10%
               sites: null };   // sites: null = 全选（不过滤），否则为站点名数组
 var LAST_ROWS = [];
 
