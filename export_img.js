@@ -25,13 +25,16 @@ function buildSnapshot(el) {
   //   所以尺寸优先取【渲染出来的 rect】，全为 0 时退回子元素累加。
   var rc = el.getBoundingClientRect();
   var W = rc.width || el.offsetWidth || el.scrollWidth || window.innerWidth;
-  var H = rc.height || el.offsetHeight || el.scrollHeight || 0;
-  if (!H) {
-    Array.prototype.forEach.call(el.children, function (c) {
-      var r = c.getBoundingClientRect();
-      if (r.height > H) H = r.height;
-    });
-  }
+  // ★★ 高度必须用【scrollHeight】（内容完整高度），不能用 rc.height。
+  //   rc.height 是元素在视口里的【可见高度】—— 列表很长时会小于内容高度，
+  //   再把这个值当 height 传给 html2canvas，就等于"按一屏截取"，
+  //   结果只导出前十几行（用户 2026-10-06 实测：143 人只截到 12 个）。
+  var H = el.scrollHeight || rc.height || el.offsetHeight || 0;
+  // 子元素兜底：父容器限高时 scrollHeight 也可能偏小，逐个比较取最大
+  Array.prototype.forEach.call(el.children, function (c) {
+    var h = c.scrollHeight || c.getBoundingClientRect().height;
+    if (h > H) H = h;
+  });
   var wrap = document.createElement('div');
   wrap.setAttribute('data-export-snap', '1');
   wrap.style.cssText =
@@ -95,15 +98,35 @@ function exportImage(rows) {
     useCORS: true,
     logging: false,
     windowWidth: snap.w,
-    height: snap.h,
+    // ★ 不要传 height：传了就等于把画布【钉死】在那个高度，
+    //   DOM 比它高时超出部分直接丢失（用户反馈"导出的图片不全"）。
+    //   让 html2canvas 按真实内容算高度；windowWidth 只用于保证排版宽度稳定。
     onclone: function (doc) {
-      // 截图副本里去掉可能造成截断的 sticky 元素（滚动时会重复/错位）
-      var st = doc.querySelectorAll('[data-export-snap] *');
-      Array.prototype.forEach.call(st, function (n) {
+      var all = doc.querySelectorAll('[data-export-snap] *');
+      Array.prototype.forEach.call(all, function (n) {
+        // sticky 元素在截图里会重复/错位 → 改静态
         if (getComputedStyle(n).position === 'sticky') n.style.position = 'static';
+        // ★ 解除限高与滚动：任何 max-height / overflow 都会让 html2canvas
+        //   只画到可视区域，后面的行整段消失（用户反馈"导出的图片不全"）。
+        //   导出图要的是完整内容，不是屏幕上那一屏。
+        var cs = getComputedStyle(n);
+        if (cs.maxHeight !== 'none') n.style.maxHeight = 'none';
+        if (cs.overflow === 'auto' || cs.overflow === 'scroll' ||
+            cs.overflowY === 'auto' || cs.overflowY === 'scroll') {
+          n.style.overflow = 'visible';
+        }
+        if (cs.overflow === 'hidden' || cs.overflowY === 'hidden') {
+          n.style.overflow = 'visible';
+        }
       });
     }
   }).then(function (cv) {
+    // ★ canvas 有硬高度上限（多数浏览器 32767px，移动端 Safari 更低）。
+    //   超过就会静默截断或整张空白 —— 导出前先探一次真实高度，别等下载完才发现。
+    if (cv.height < 100) {
+      if (tip) tip.textContent = '内容过高，浏览器画布放不下，请减少行数后重试';
+      return;
+    }
     var lv = ({ agency: '整商', district: '商圈片', site: '站点', rider: '骑手' }[S.level]) || S.level;
     var a = document.createElement('a');
     a.href = cv.toDataURL('image/png');
