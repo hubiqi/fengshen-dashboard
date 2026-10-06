@@ -1657,7 +1657,14 @@ function drawTrend(label) {
   //     ② 需要的宽度 > 容器宽 —— 宽屏上 30 天也可能装得下，那就不必滑
   //   只用 needW > availW 的话，手机上 7 天（376 vs 360px）就会误触发。
   var needW = pts.length * 40 + 96;
-  var availW = box.clientWidth || 360;
+  // ★ 可用宽度取【父容器】而不是 trendBox 自己：trendBox 在未展开/未布局时
+  //   clientWidth 会是 0（本地实测整条祖先链都是 0），回退到硬编码 360
+  //   在真实手机上必然不准 —— 平板 800px 时就会误判成"很挤"。
+  var host = box.parentElement || box;
+  var availW = host.clientWidth || box.clientWidth || 0;
+  if (!availW) {                                  // 布局未就绪：保守不触发滑动
+    availW = needW;
+  }
   var crowded = pts.length > 7 && needW > availW;
   var head = '<div class="tr-head"><b>' + esc(label) + '</b>' +
     '<span class="hint">' + pts.length + ' 天 · ' + pts[0].date + ' ~ ' + pts[pts.length - 1].date +
@@ -1667,6 +1674,26 @@ function drawTrend(label) {
     '<button class="mini tr-close">✕</button></div>';
   box.innerHTML = head +
     '<div class="tr-scroll' + (crowded ? ' on' : '') + '">' + out.join('') + '</div>';
+  // ★ 布局完成后【复核】滑动：drawTrend 可能在布局未就绪时跑（clientWidth=0），
+  //   首屏判断可能漏开滑动。这里用 requestAnimationFrame 等真实布局算完再复查一次，
+  //   —— 否则 37 点的长图也会因为初始 clientWidth=0 而不触发滚动（用户 2026-10-07）。
+  (function () {
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        var wrap = box.querySelector('.tr-scroll');
+        var svgEl = box.querySelector('.tr-scroll svg');
+        if (!wrap || !svgEl) return;
+        var need = +svgEl.getAttribute('width') || needW;
+        var real = wrap.clientWidth;
+        var on = pts.length > 7 && need > real;
+        wrap.classList.toggle('on', on);
+        var hintEl = box.querySelector('.tr-head .hint');
+        if (hintEl) hintEl.textContent = pts.length + ' 天 · ' +
+          (pts.length ? pts[0].date + ' ~ ' + pts[pts.length - 1].date : '') +
+          (on ? '　·　可左右滑动' : '');
+      });
+    });
+  })();
   box.querySelector('.tr-close').onclick = function (e) { e.stopPropagation(); closeTrend(); };
   var fb = box.querySelector('[data-trfull]');
   if (fb) fb.onclick = function (e) { e.stopPropagation(); toggleTrendFull(box); };
