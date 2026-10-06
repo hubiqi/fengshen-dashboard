@@ -171,16 +171,19 @@ function prefetchScore(from, to) {
   //   表现为「还没点明细就显示别的层级的数据」。
   if (CUR_SCORE.scope !== (lv + '|' + key)) {
     CUR_SCORE.cur = null; CUR_SCORE.month = null; CUR_SCORE.scope = '';
-    if (TREND && TREND.key !== (lv + '|' + key)) TREND.points = null;
+    if (TREND && TREND.key !== (lv + '|' + key)) TREND.points = null;   // 换层级才清空
   }
   var ym = from.slice(0, 7);
-  var m0 = ym + '-01';
-  var m1 = new Date(+ym.slice(0,4), +ym.slice(5,7), 0).toISOString().slice(0,10);
+  // ★ 与 openTrend 用【同一个取数区间】，否则两处写进 TREND.points 的
+  //   数据范围不同、key 又是同一个，谁后跑谁覆盖 —— 打开图表时
+  //   拿到的可能是另一个范围的数据（7点 vs 30点），滑动也就触发不了。
+  var m0 = (S.quick === 'range') ? from : (ym + '-01');
+  var tkey = lv + '|' + key + '|' + m0 + '~' + to;
   var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
   api('/api/trend?' + aq + 'level=' + q(lv) + '&key=' + q(key) + '&from=' + q(m0) + '&to=' + q(to))
     .then(function (j) {
       TREND.points = j.points || [];
-      TREND.key = lv + '|' + key;
+      TREND.key = tkey;
       CUR_SCORE.cur = j.todayBigNet;
       CUR_SCORE.month = j.monthBigNet;
       CUR_SCORE.scope = lv + '|' + key;
@@ -1277,20 +1280,27 @@ function openTrend(label) {
   var lv = S.level, key = S.key || '';
   var r = computeRange();
   var ym = r[0].slice(0, 7);
-  // 整月趋势 = 所选日期所在月的 1 号 ~ 今天
   var to = r[1];
   var last = (r[0] > to ? r[0] : to);
-  var d1 = last + ' 23:59:59';
+  // ★★ 趋势图的取数区间（用户 2026-10-07）：
+  //   · 区间模式：跟随【你选的区间】起止 —— 否则选「9/1~10/7」这种跨月区间时，
+  //     ym 取的是起始月(9月)、只画到今天，图里只有 7 个点，
+  //     既看不到整段数据、也不会触发左右滑动（7 天不滑）。
+  //   · 其他模式（今天/昨天/前天/选日期）：仍是【所在月月初 ~ 今天】，"整月趋势"。
+  var trendFrom = (S.quick === 'range') ? r[0] : (ym + '-01');
+  // ★ 缓存标识要带上取数范围：否则先看「今天」(7点)、再切「区间」(30点)，
+  //   lv|key 没变会直接用旧缓存，图里还是那 7 个点、也不会触发滑动。
+  var tkey = lv + '|' + key + '|' + trendFrom + '~' + to;
   box.hidden = false;
   TREND.metric = m; TREND.label = label;
-  if (!TREND.points || TREND.key !== (lv + '|' + key)) {
-    box.innerHTML = '<div class="loading">正在加载 ' + esc(label) + ' 的整月趋势…</div>';
+  if (!TREND.points || TREND.key !== tkey) {
+    box.innerHTML = '<div class="loading">正在加载 ' + esc(label) + ' 的趋势…</div>';
     var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
     api('/api/trend?' + aq + 'level=' + q(lv) + '&key=' + q(key) +
-        '&from=' + q(ym + '-01') + '&to=' + q(to))
+        '&from=' + q(trendFrom) + '&to=' + q(to))
       .then(function (j) {
         TREND.points = j.points || [];
-        TREND.key = lv + '|' + key;
+        TREND.key = tkey;
         // ★ 顺带把得分回填到卡片：/api/trend 已经算了「当日得分 + 月得分」，
         //   不必再等 /api/scoreboard —— 那是得分出不来 + 首屏慢的根源。
         if (label === '大网质量得分') {
