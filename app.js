@@ -1303,7 +1303,19 @@ function drawTrend(label) {
   var pad = { l: 44, r: 12, t: 14, b: 26 };
   var iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
   var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
-  if (m.rate) { lo = Math.max(0, lo - 0.02); hi = Math.min(1, hi + 0.02); }
+  // ★★ 比率类指标的留白必须【按数据幅度自适应】，不能写死 2 个百分点。
+  //   写死 ±0.02 时，不满意率这种【本身就只有 0.1% 量级】的指标会被压平：
+  //     数据 0.000%~0.116% → 轴范围 0.000%~2.116%
+  //     留白是数据幅度的 17 倍，6 天的起伏看起来是一条直线（用户 2026-10-07 反馈）。
+  //   现在按幅度的 30% 留白；幅度为 0（全天都是 0）时给一个小兜底值。
+  if (m.rate) {
+    var rlo = Math.max(0, lo), rhi = Math.min(1, hi);
+    var rspan = rhi - rlo;
+    var rpad = rspan > 0 ? rspan * 0.3 : 0.0005;
+    lo = Math.max(0, rlo - rpad);
+    hi = Math.min(1, rhi + rpad);
+    if (hi - lo < 1e-9) hi = lo + 0.001;      // 防除零
+  }
   else { var sp = (hi - lo) || Math.max(1, hi * 0.1); lo = Math.max(0, lo - sp * 0.2); hi = hi + sp * 0.2; }
   var X = function (i) { return pad.l + (pts.length === 1 ? iw / 2 : iw * i / (pts.length - 1)); };
   var Y = function (v) { return pad.t + ih * (1 - (v - lo) / ((hi - lo) || 1)); };
@@ -1348,8 +1360,13 @@ function drawTrend(label) {
     out.push('<circle cx="' + X(i) + '" cy="' + Y(v) + '" r="2.6" fill="#1f6feb">' +
       '<title>' + p.date + '  ' + esc(m.label) + ' ' + fv(v) + m.unit + '</title></circle>');
     if (i % stepLbl !== 0 && i !== pts.length - 1) return;
-    out.push('<text x="' + X(i) + '" y="' + (Y(v) - 8) + '" font-size="10" font-weight="600"' +
-      ' fill="#1f6feb" text-anchor="middle" stroke="#fff" stroke-width="2.6"' +
+    // ★ 首尾标签靠边时改用 start/end 锚点，否则会被 SVG 边界裁掉
+    //   （用户截图里最后一个 "0.000%" 只显示了一半）。
+    var lx = X(i), anchor = 'middle';
+    if (i === pts.length - 1) { anchor = 'end'; lx = Math.min(lx, W - pad.r - 1); }
+    else if (i === 0) { anchor = 'start'; lx = Math.max(lx, pad.l - 20); }
+    out.push('<text x="' + lx + '" y="' + (Y(v) - 8) + '" font-size="10" font-weight="600"' +
+      ' fill="#1f6feb" text-anchor="' + anchor + '" stroke="#fff" stroke-width="2.6"' +
       ' paint-order="stroke">' + fv(v) + '</text>');
   });
   out.push('</svg>');
