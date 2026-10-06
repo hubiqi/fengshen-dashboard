@@ -373,14 +373,9 @@ function renderCards(t) {
       + '避免把今天进度落后误读成业务变差；出勤骑手数例外（骑手早在线，偏差仅约 1.4%，同期化反而添噪）">'
       + '环比已按昨日同期（出勤除外）</span>';
   }
-  // ★ 宽屏把 KPI 三格包进 .kpirow 跨满整行，避免 11 张卡在 3 列下
-  //   最后一行只剩 2 张、右边空一格显得残缺（用户 2026-10-07）。
-  var kpiHtml = kpiCells
-    ? '<div class="kpirow">' + kpiCells + '</div>'
-    : '';
   $('cards').innerHTML = '<div class="cardScope">当前对象：<b>' + esc(scope) + '</b>' +
     '<span class="hint">　每格＝所选日期 · 全月 · 环比昨天　· 点卡片看整月趋势</span>' + thru + '</div>' +
-    c.join('') + kpiHtml;
+    c.join('') + kpiCells;
   // ★ 点任一卡片 → 展开该指标的整月趋势（四层级通用）
   Array.prototype.forEach.call($('cards').querySelectorAll('[data-trend]'), function (el) {
     el.onclick = function () { openTrend(el.getAttribute('data-trend')); };
