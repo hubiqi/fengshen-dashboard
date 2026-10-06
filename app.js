@@ -1004,6 +1004,16 @@ function loadListScores() {
         var box = $('list').querySelector('.item[data-id="' + d.id + '"] .row3');
         if (box) box.innerHTML = detailGrid(row);
       });
+      // ★★★ 排序【得分】必须等得分全部补齐后重新排一次。
+      //   得分是异步回来的，而列表在补分前就按【旧分（多半是 null）】排好序了，
+      //   分数回来后顺序没跟着变 → "按得分排序"看到的是一团乱。
+      //   只有当前排序列正是得分才重排；别的列不受影响（分补齐不改变它们的顺序）。
+      //   重排要重新走 站点筛选→排序→分位，避免跳过当前生效的筛选条件。
+      if (LIST_F.sortKey === 'score.cur') {
+        var rows = LIST_F.sites ? (LAST_ROWS || []).filter(function (r) {
+          return r.siteName && LIST_F.sites.indexOf(r.siteName) >= 0; }) : (LAST_ROWS || []).slice();
+        renderList(rows);
+      }
     }).catch(function () {})
     .then(function () { SCORE_BUSY = false; });
 }
