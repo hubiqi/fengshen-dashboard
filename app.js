@@ -248,7 +248,9 @@ function renderCards(t) {
   //   「得分 + 对比 + 环比」原本散在三个地方（明细展开区 / objScore / 罗盘），
   //   现在合并到顶部「当前对象」卡片。
   var mp = t.monthParts || {}, pv = t.prevParts || {};
-  function cell(label, cur, month, prev, kind, hint) {
+  // monthLabel: 覆盖第二栏的标签文字。默认「全月」，
+  //   像完单量这格显示的是【日均】时，写「全月日均」才不会让人误读成月累计。
+  function cell(label, cur, month, prev, kind, hint, monthLabel) {
     var f = function (v) {
       if (v == null) return '—';
       if (kind === 'num') return num(v);
@@ -282,7 +284,7 @@ function renderCards(t) {
       '" data-trend="' + esc(label) + '" title="点击查看整月趋势">' +
       '<div class="k">' + esc(label) + '</div>' +
       '<div class="v">' + f(cur) + '</div>' +
-      '<div class="cmp"><span>全月 ' + f(month) + '</span>' + d + '</div>' +
+      '<div class="cmp"><span>' + (monthLabel || '全月') + ' ' + f(month) + '</span>' + d + '</div>' +
       (hint ? '<div class="d">' + hint + '</div>' : '') +
     '</div>';
   }
@@ -290,10 +292,19 @@ function renderCards(t) {
   var c = [
     cell('大网质量得分', t.bigNet != null ? t.bigNet : curScoreFor(),
       t.monthBigNet != null ? t.monthBigNet : monScoreFor(), null, 'score'),
-    cell('完单量', t.orders, mp.orders, pv.orders, 'num'),
+    // ★ 全月显示【日均订单】而非月累计（用户 2026-10-06）。
+    //   左边是单日 1,692、右边是月累计 29,975 —— 日 vs 月放一起没法比。
+    //   环比昨天那栏同理：prevDays 绝大多数是 1，日均=原值，
+    //   但若昨天那天无数据（days=0）就不显示，避免除零/误导。
+    //   单日区间时 ordersDailyAvg === orders，显示完全不变。
+    cell('完单量', t.orders,
+      mp.ordersDailyAvg != null ? mp.ordersDailyAvg : mp.orders,
+      pv.ordersDailyAvg != null ? pv.ordersDailyAvg : pv.orders,
+      'num', '全月为日均', '全月日均'),
     // ★ 多天区间显示【日均】出勤（累计 ÷ 有数据天数），单日区间等于当天人数。
     //   人效仍用累计出勤做分母，两者等价：总订单/累计出勤 = (订单/天)/(出勤/天)。
-    cell('出勤骑手数', t.attendRiders, mp.attendRiders, pv.attendRiders, 'num'),
+    cell('出勤骑手数', t.attendRiders, mp.attendRiders, pv.attendRiders, 'num',
+      '按天去重后跨天累加 ÷ 天数', '全月日均'),
     cell('人效', t.efficiency, mp.efficiency, pv.efficiency, 'num', '完单 ÷ 出勤'),
     cell('完全妥投率', t.likt, mp.likt, pv.likt, null, '考核口径'),
     cell('预测T8准时率', t.t8, mp.ontime, pv.ontime, null, t8d),
