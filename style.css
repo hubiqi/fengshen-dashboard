@@ -524,3 +524,34 @@ td.sc{font-size:11px;color:var(--sub)}
 .lb-ok{padding:3px 10px;font-size:12px;font-weight:600;color:#fff;
   background:var(--blue);border:1px solid var(--blue);border-radius:6px;cursor:pointer}
 .lb-ok:active{opacity:.85}
+
+
+/* ══ 趋势图 / 得分板图表：固定 Y 轴 + 横向滑动 + 全屏 ══════════════
+   ★ 左侧刻度列 position:sticky，横向滑动时留在原地，
+     否则刻度跟着滚走，滑动时就失去了读数参照（用户 2026-10-07）。 */
+.tr-wrap{display:flex;align-items:stretch;overflow:hidden}
+.tr-wrap.scrollable .trscroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tr-wrap.scrollable .trscroll::-webkit-scrollbar{height:4px}
+.tr-wrap.scrollable .trscroll::-webkit-scrollbar-thumb{background:var(--line);border-radius:2px}
+.tryax{position:sticky;left:0;z-index:2;flex:0 0 auto;width:40px;
+  background:#fff;pointer-events:none}
+.try-t{position:absolute;right:4px;transform:translateY(-50%);
+  font-size:9px;color:#9aa3af;white-space:nowrap;line-height:1}
+.trscroll{flex:1 1 auto;min-width:0}
+.trinner{display:inline-block}
+.tr-head .tr-act{min-width:26px;text-align:center}
+
+/* 全屏：fixed 铺满，不用 Fullscreen API（iOS 上要手势、退出后布局常坏） */
+/* 全屏同时适用于趋势图(#trendBox) 与得分板(#sbChart) */
+#trendBox.full,#sbChart.full{position:fixed;inset:0;z-index:200;background:#fff;
+  margin:0;border-radius:0;overflow:auto;padding:8px 6px}
+#trendBox.full .tr-wrap,#sbChart.full .sb-wrap{height:calc(100vh - 70px)}
+#trendBox.full .trscroll,#sbChart.full .sb-scroll{overflow:auto}
+#sbChart.full .trinner svg{height:calc(100vh - 120px)}
+.sb-acts{margin-top:4px;text-align:right}
+body.noScroll{overflow:hidden}
+
+/* 得分板图表（商圈片/站点/骑手 的考核得分）复用同一套 */
+.sb-wrap{display:flex;align-items:stretch;overflow:hidden}
+.sb-wrap .sb-scroll{flex:1 1 auto;min-width:0}
+.sb-wrap.scrollx .sb-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
