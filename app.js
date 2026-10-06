@@ -984,9 +984,16 @@ function loadListScores() {
   if (SCORE_LEVELS.indexOf(S.level) < 0 || SCORE_BUSY) return;
   var rows = LAST_ROWS || [];
   if (!rows.length) return;
-  var ids = rows.slice(0, 200).map(function (r) { return r.id; });
-  var missing = ids.filter(function (id) {
-    var r = LIST_ROWS[id]; return !(r && r.score && r.score.cur != null); });
+  // ★★★ 必须按【全量 LAST_ROWS】判断谁还没分，不能用 LIST_ROWS。
+  //   LIST_ROWS 只装了【已经渲染出来的那几行】—— 默认分位 10%，
+  //   138 个骑手只会渲染 14 行，用它算 missing 会得到：
+  //       请求了其余 124 个骑手的分，而这 14 个【从没被请求过】
+  //   结果这 14 行永远显示「—」，score.cur 是 undefined，
+  //   按得分排序时被沉到最底 —— 顺序彻底乱（用户 2026-10-06 反馈）。
+  //   排序依赖的是 LAST_ROWS 里的 score.cur，所以取分也必须覆盖全量。
+  var missing = rows.slice(0, 200).filter(function (r) {
+    return !(r.score && r.score.cur != null); })
+    .map(function (r) { return r.id; });
   if (!missing.length) return;
   SCORE_BUSY = true;
   var r0 = computeRange();
@@ -995,27 +1002,43 @@ function loadListScores() {
   api('/api/scoreboard?' + aq + 'month=' + q(day.slice(0, 7)) + '&day=' + q(day) +
       '&level=' + q(S.level) + '&ids=' + q(missing.join(',')))
     .then(function (j) {
+      // ★ 回填要写进【LAST_ROWS 里的那一行】(排序用的就是它的 score.cur)，
+      //   而不是只写 LIST_ROWS —— 分位筛选下 LIST_ROWS 只有少数行，
+      //   写它等于没写全量，排序时其余行全是 undefined。
+      var idx = {};
+      (LAST_ROWS || []).forEach(function (r) { idx[r.id] = r; });
       (j.districts || []).forEach(function (d) {
-        var row = LIST_ROWS[d.id];
+        var row = idx[d.id];
         if (!row) return;
         row.score = { cur: (d.today || {}).dayNet, month: (d.month || {}).bigNet };
+        if (LIST_ROWS[d.id]) LIST_ROWS[d.id].score = row.score;
         var cell = $('list').querySelector('.item[data-id="' + d.id + '"] .row2 .sc-cell b');
         if (cell) cell.textContent = row.score.cur == null ? '—' : Number(row.score.cur).toFixed(2);
         var box = $('list').querySelector('.item[data-id="' + d.id + '"] .row3');
         if (box) box.innerHTML = detailGrid(row);
       });
-      // ★★★ 排序【得分】必须等得分全部补齐后重新排一次。
-      //   得分是异步回来的，而列表在补分前就按【旧分（多半是 null）】排好序了，
-      //   分数回来后顺序没跟着变 → "按得分排序"看到的是一团乱。
-      //   只有当前排序列正是得分才重排；别的列不受影响（分补齐不改变它们的顺序）。
-      //   重排要重新走 站点筛选→排序→分位，避免跳过当前生效的筛选条件。
-      if (LIST_F.sortKey === 'score.cur') {
-        var rows = LIST_F.sites ? (LAST_ROWS || []).filter(function (r) {
-          return r.siteName && LIST_F.sites.indexOf(r.siteName) >= 0; }) : (LAST_ROWS || []).slice();
-        renderList(rows);
-      }
     }).catch(function () {})
-    .then(function () { SCORE_BUSY = false; });
+    .then(function () {
+      // ★★ 必须【先复位 SCORE_BUSY，再重排】。
+      //   原来在 .then 里先调 renderList → 里面又调 loadListScores，
+      //   而此时 SCORE_BUSY 还是 true → 直接 return，剩余骑手的分再也补不上，
+      //   标志位因为异常路径也没复位 → 整个模块的取分从此死锁（实测只请求 1 个 id）。
+      SCORE_BUSY = false;
+      // ★★★ 排序【得分】必须等得分全部补齐后重新排一次。
+      //   得分是异步回来的，列表在补分前已按【null】排好序，
+      //   分数回来不重排 → "按得分排序"看到的是一团乱。
+      if (LIST_F.sortKey === 'score.cur') {
+        // 全量都拿到分才重排，否则按不完整的数据排出来的顺序仍是错的。
+        var all = (LAST_ROWS || []).every(function (r) {
+          return r.score && r.score.cur != null; });
+        if (all) {
+          var rows = LIST_F.sites ? (LAST_ROWS || []).filter(function (r) {
+            return r.siteName && LIST_F.sites.indexOf(r.siteName) >= 0; })
+            : (LAST_ROWS || []).slice();
+          renderList(rows);
+        }
+      }
+    });
 }
 /* 站点下拉多选专用：勾选后要重画列表，但下拉必须【保持展开】，
  * 否则用户连点两个站点，第二次勾选时下拉已经合上了 —— 没法连续勾。
