@@ -721,6 +721,48 @@ function secVal(v) {
   return v == null ? '—' : Number(Number(v).toFixed(2)) + 's';
 }
 
+/* ★ 导出当前列表为 CSV（用户 2026-10-06）。
+ * 导出的是【当前筛选 + 排序后的完整结果】，不是屏幕上这 200 行 ——
+ * 骑手有 143 人时如果只导 200 行就正好全了，但换个大单量就会静默少数据。
+ * 用 BOM + CRLF：Excel 打开中文不乱码。
+ */
+function exportCsv(rows) {
+  var tip = $('progText');
+  if (!rows || !rows.length) { if (tip) tip.textContent = '没有可导出的数据'; return; }
+  var head = ['排名', '骑手', '站点', '完单', '得分', '出勤', '人效',
+              '完全妥投率', 'T8准时率', '单均复合时长(s)', '不满意率',
+              '妥投分子', '妥投分母', '准时分子', '准时分母',
+              '不满意加权分子', '不满意分母', '复合合计', '得分全月'];
+  function q(v) {                       // CSV 转义：含逗号/引号/换行要加引号
+    if (v == null) return '';
+    var s = String(v);
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  var lines = [head.join(',')];
+  rows.forEach(function (r, i) {
+    var p = r.parts || {}, sc = r.score || {};
+    lines.push([
+      i + 1, r.name || r.id, r.siteName || '',
+      r.orders, sc.cur == null ? '' : Number(sc.cur).toFixed(2),
+      r.attendRiders, r.efficiency,
+      r.likt == null ? '' : (r.likt * 100).toFixed(2) + '%',
+      r.t8 == null ? '' : (r.t8 * 100).toFixed(2) + '%',
+      r.duration == null ? '' : Number(r.duration).toFixed(2),
+      r.dissat == null ? '' : (r.dissat * 100).toFixed(3) + '%',
+      p.likt_n, p.likt_d, p.ont_n, p.ont_d, p.dis_n, p.dis_d, p.dur_n,
+      sc.month == null ? '' : Number(sc.month).toFixed(2)
+    ].map(q).join(','));
+  });
+  var blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  var lv = { agency: '整商', district: '商圈片', site: '站点', rider: '骑手' }[S.level] || S.level;
+  a.download = '骑手明细_' + S.level + '_' + (S.from || today()) + '_' + (S.to || S.from) + '.csv';
+  document.body.appendChild(a); a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  if (tip) tip.textContent = '已导出 ' + rows.length + ' 行 CSV';
+}
+
 function itemHtml(r) {
   // ★ 骑手行：站点与名字【同一行并排】（用户 2026-10-05）。
   //   站点是骑手的归属信息，比名字次要，所以用小字灰色跟在名字后面。
@@ -735,7 +777,7 @@ function itemHtml(r) {
     '</div>' +
     '<div class="row2 g6">' +
       '<span>完单 <b>' + num(r.orders) + '</b></span>' +
-      '<span class="sc-cell">得分 <b>' + (r.score && r.score.cur != null
+      '<span class="sc-cell">今日得分 <b>' + (r.score && r.score.cur != null
         ? Number(r.score.cur).toFixed(2) : '—') + '</b></span>' +
       '<span>妥投 <b>' + pct(r.likt) + '</b></span>' +
       '<span>准时 <b>' + pct(r.t8) + '</b></span>' +
@@ -766,7 +808,8 @@ var SORT_KEYS = [
 //   这才是骑手模块的用途：找拖后腿的人。原先默认「单量降序」，
 //   前 10% 等于"单量最高的10%"，跟质量无关，方向刚好反了。
 var LIST_F = { sortKey: 'score.cur', sortDir: 1, quant: 0.10,   // ★ 默认只看前 10%
-              sites: null };   // sites: null = 全选（不过滤），否则为站点名数组
+              sites: null,     // sites: null = 全选（不过滤），否则为站点名数组
+              showAll: false };// 显示明细：true = 全部行都展开详情
 var LAST_ROWS = [];
 
 function applySort(rows) {
@@ -815,7 +858,15 @@ function renderListBar(rows) {
   // ★ 排序与分位筛选【只在骑手模块】提供（用户要求）。
   //   整商/商圈片/站点 数量都很少，按指标排序意义不大，保持默认按单量降序。
   if (S.level !== 'rider') { bar.hidden = true; bar.innerHTML = ''; return; }
-  var h = '<div class="lb-row"><span class="lb-lab">排序</span>';
+  // ★「显示明细」+「导出」两枚按钮（用户 2026-10-06）。
+  //   显示明细 = 全部行都展开分子/分母详情，且【不受 200 行渲染上限】限制 ——
+  //   平时只渲染 200 行，点"全部展开"却只有 200 行展开，会让人以为就这么多。
+  var h = '<div class="lb-row">' +
+    '<button class="lb' + (LIST_F.showAll ? ' on' : '') + '" data-showall>' +
+      (LIST_F.showAll ? '收起明细' : '显示明细') + '</button>' +
+    '<button class="lb" data-export>导出 CSV</button>' +
+    '</div>';
+  h += '<div class="lb-row"><span class="lb-lab">排序</span>';
   SORT_KEYS.forEach(function (k) {
     var on = LIST_F.sortKey === k.k;
     h += '<button class="lb' + (on ? ' on' : '') + '" data-sort="' + k.k + '">' + k.n +
@@ -881,6 +932,19 @@ function renderListBar(rows) {
   }
   bar.innerHTML = h;
   bar.hidden = false;
+  // 显示明细 / 导出
+  var saBtn = bar.querySelector('[data-showall]');
+  if (saBtn) saBtn.onclick = function () {
+    LIST_F.showAll = !LIST_F.showAll;
+    renderList(LAST_ROWS.slice());
+  };
+  var exBtn = bar.querySelector('[data-export]');
+  if (exBtn) exBtn.onclick = function () {
+    var rows = applySites((LAST_ROWS || []).slice());
+    rows = applySort(rows);
+    rows = applyQuantile(rows);
+    exportCsv(rows);          // 导出【当前筛选+排序后的完整结果】
+  };
   Array.prototype.forEach.call(bar.querySelectorAll('[data-sort]'), function (b) {
     b.onclick = function () {
       var k = b.getAttribute('data-sort');
@@ -1071,7 +1135,10 @@ function renderList(rows) {
   rows = applyQuantile(rows);
   // ★ 行数据存全局：objScore 拿到分数后要写回对应行，卡片内的分数才能显示。
   LIST_ROWS = {};
-  $('list').innerHTML = rows.slice(0, 200).map(function (r) {
+  // ★ 「显示明细」时放开 200 行上限：否则会出现"点了展开却只有 200 行"，
+  //   让人误以为这个区间就这么多骑手。收起时仍限 200 行，避免手机卡顿。
+  var cap = LIST_F.showAll ? 100000 : 200;
+  $('list').innerHTML = rows.slice(0, cap).map(function (r) {
     LIST_ROWS[r.id] = r;
     // ★ 紧凑行：默认只一行摘要；点开的那个才展开完整指标（master-detail）。
     //   原来每行都铺开 4 个指标 + 大字号单量，4 个站点就占满一屏。
@@ -1079,6 +1146,12 @@ function renderList(rows) {
   }).join('');
   loadListScores();           // ★ 各层级得分异步补齐（只改得分格，不重绘整表）
   var items = $('list').querySelectorAll('.item');
+  // ★ 「显示明细」：渲染完直接把全部行标记为展开。
+  //   mark() 只在【点某一行】时才跑，首次渲染不会经过它 ——
+  //   所以这里必须单独兜一遍，否则点了"显示明细"一行都没展开。
+  if (LIST_F.showAll) {
+    Array.prototype.forEach.call(items, function (x) { x.classList.add('open'); });
+  }
   // 选中态：只高亮，【不自动展开】。
 // ★ 之前恢复选中/自动选中首行时都顺手 add('open')，用户没点就被迫看一屏数据，
 //   手机端一个站点就占满整屏（用户反馈「我都没点击怎么默认展开了」）。
@@ -1087,6 +1160,9 @@ function mark(el, expand) {
   Array.prototype.forEach.call(items, function (x) {
     x.classList.remove('on');
     x.classList.remove('open');
+    // ★ 「显示明细」打开时，每行都带 open —— 否则 mark() 会把它们全收起来，
+    //   点一下任意行就把全部展开状态清空。
+    if (LIST_F.showAll) x.classList.add('open');
   });
   if (el) {
     el.classList.add('on');
