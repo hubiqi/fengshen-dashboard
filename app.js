@@ -496,8 +496,8 @@ function drawChart() {
     out.push('<line x1="' + pad.l + '" y1="' + Y(g) + '" x2="' + (W - pad.r) + '" y2="' + Y(g) +
       '" stroke="#eef1f6" stroke-width="1"/>');
     // 刻度文字进左侧固定 SVG（SVG 内才能保持和原来一致的字号/字重）
-    sby.push('<text x="' + (pad.l - 4) + '" y="' + (Y(g) + 3) + '" font-size="9" ' +
-      'fill="#9aa3af" text-anchor="end">' + g + '</text>');
+    sby.push('<text x="' + (pad.l - 4) + '" y="' + Y(g) + '" font-size="9" ' +
+      'dominant-baseline="middle" fill="#9aa3af" text-anchor="end">' + g + '</text>');
   });
   rows.forEach(function (r, i) {
     // 首尾用 start/end：viewBox 平移后 X(0) 贴在 SVG 左边缘，middle 会被裁
@@ -1396,12 +1396,18 @@ function exportTrendImage(box, label, ytext, pad, H) {
     ln.setAttribute('x2', TOTW); ln.setAttribute('y2', HEADH - 0.5);
     ln.setAttribute('stroke', '#e5e7eb'); ln.setAttribute('stroke-width', 1);
     clone.appendChild(ln);
-    // 左侧 Y 轴刻度（在左 SVG 里，这里补画进同一个画布）
-    ytext.forEach(function (t) {
+    // 左侧 Y 轴刻度：仅【双 SVG】模式下刻度不在本 SVG 里，需要补画；
+    // 单 SVG（NEED_SLIDE=false）时刻度已经画进去了，补一遍会重影。
+    (ytext || []).forEach(function (t) {
       var tmp = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      tmp.innerHTML = t.replace(/y="([\d.]+)"/, 'y="$1"');
+      tmp.innerHTML = t;
       var tx = tmp.firstChild;
-      if (tx) { tx.setAttribute('transform', 'translate(0,' + HEADH + ')'); clone.appendChild(tx); }
+      if (tx) {
+        // 整块下移表头高度；y 用的是 dominant-baseline="middle"，所以
+        // 下移后文字仍精确居中于网格线（与屏幕上一致）
+        tx.setAttribute('transform', 'translate(0,' + HEADH + ')');
+        clone.appendChild(tx);
+      }
     });
 
     var s2 = new XMLSerializer().serializeToString(clone);
@@ -1447,7 +1453,10 @@ function drawTrend(label) {
   var availW = Math.max(320, (box.clientWidth || 360) - 2);
   var needW = pts.length * 40 + 96;
   var W = Math.max(availW, needW), H = 200;
-  var pad = { l: 44, r: 12, t: 14, b: 26 };
+  // ★ 顶部留白要够：数值标签画在数据点【上方 8px】，最高点恰好落在 pad.t 时
+  //   标签会被 SVG 上边界裁掉（用户 2026-10-07："顶部的留白要够"）。
+  //   标签字高约 11px + 8px 偏移 ⇒ pad.t 至少 24 才留得住。
+  var pad = { l: 44, r: 12, t: 24, b: 26 };
   var iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
   var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
   // ★★ 比率类指标的留白必须【按数据幅度自适应】，不能写死 2 个百分点。
@@ -1494,7 +1503,14 @@ function drawTrend(label) {
   var PW = W - pad.l;
   var out = ['<svg width="' + PW + '" height="' + H + '" viewBox="' + pad.l +
     ' 0 ' + (W - pad.l) + ' ' + H + '" class="trendsvg">'];
-  // ★ 网格线：按整数档位等距，不再是任意分数
+  // ★★ 需不需要拆出「固定左轴」？—— 宽度装得下就【绝不拆】。
+  //   拆成两个 SVG 拼接（sticky 固定标尺）虽然能在滑动时留住刻度，
+  //   但接缝处必然有对齐风险（viewBox 缩放、flex 拉伸、锚点裁剪…）。
+  //   用户明确要求"没加滑动/全屏/导出之前对齐就很好"，
+  //   所以：宽度够 → 走原来的单 SVG；只有超出容器才启用双 SVG。
+  var NEED_SLIDE = W > (box.clientWidth || 360) + 1;
+
+  // 网格线：按整数档位等距，不再是任意分数
   var gdec = stepDecimals(step);
   var kMax = Math.round((hi - lo) / step);
   var ytext = [];            // 左侧固定 Y 轴 SVG 的刻度文字
@@ -1502,14 +1518,17 @@ function drawTrend(label) {
     var v = lo + step * g, y = Y(v);
     out.push('<line x1="' + pad.l + '" y1="' + y + '" x2="' + (W - pad.r) + '" y2="' + y +
       '" stroke="#eef1f6" stroke-width="1"/>');
-    // ★ 刻度文字画在【左侧独立 SVG】里（sticky），横向滑动时留在原地。
-    //   用 SVG 而不是 HTML div —— div 会继承父级字号/字重，显示和原来不一样
-    //   （用户 2026-10-07：字号变大、标题换行、图表整体右移）。
     var lab = m.rate
       ? (v * 100).toFixed(Math.max(0, gdec - 2)) + '%'
       : Number(v.toFixed(gdec)).toString();
-    ytext.push('<text x="' + (pad.l - 5) + '" y="' + (y + 3) + '" font-size="9" ' +
-      'fill="#9aa3af" text-anchor="end">' + lab + '</text>');
+    // ★ 用 dominant-baseline="middle" 让文字【精确垂直居中】于网格线，
+    //   而不是靠 y+3 这个经验值（字号/字体/浏览器不同就会偏几像素）。
+    var t1 = '<text x="' + (pad.l - 5) + '" y="' + y + '" font-size="9" ' +
+      'dominant-baseline="middle" fill="#9aa3af" text-anchor="end">' + lab + '</text>';
+    // ★★ 宽度够用时，刻度【直接画进主 SVG】—— 与加滑动功能之前一模一样。
+    //   只有真正需要横向滑动的长图才拆出左轴（否则拼接处会出现
+    //   "最小刻度没跟最低横线对齐"这类错位，用户 2026-10-07 明确指出）。
+    if (NEED_SLIDE) ytext.push(t1); else out.push(t1);
   }
   // ★ 宽屏下点数少，X 轴别全挤在左边：按可用宽度决定标签间隔，
   //   至少保证每隔 ~46px 有一个日期（否则 7 个点只占图表左侧三分之一）。
@@ -1641,7 +1660,7 @@ function drawTrend(label) {
     // ★ 别压到 X 轴日期行（用户 2026-10-07：数值叠在 10-02/10-06 上）。
     //   绘图区底部 = H - pad.b，标签底边不能越过它。
     var bottomLimit = H - pad.b - 2;
-    var topLimit = pad.t + 2;
+    var topLimit = 3;          // 标签顶边距画布顶至少 3px（不被裁即可）
     var put = null;
     for (var oi = 0; oi < offs.length && !put; oi++) {
       var ty = Y(v) + offs[oi];
@@ -1660,21 +1679,23 @@ function drawTrend(label) {
   //   点数多时（如整月 30+ 天）图表宽于屏幕，必须能左右滑动；
   //   而滑动时 Y 轴刻度要【留在原地】，否则读数失去参照。
   //   实现：Y 轴列 position:sticky left:0，滑动容器在右侧 overflow-x:auto。
-  var leftSvg = '<svg width="' + pad.l + '" height="' + H + '" class="yax-svg">' +
-    ytext.join('') + '</svg>';
+  var leftSvg = NEED_SLIDE
+    ? '<svg width="' + pad.l + '" height="' + H + '" class="yax-svg">' + ytext.join('') + '</svg>'
+    : '';
   var head = '<div class="tr-head"><b>' + esc(label) + '</b>' +
     '<span class="hint">' + pts.length + ' 天 · ' + pts[0].date + ' ~ ' + pts[pts.length - 1].date + '</span>' +
     '<button class="mini tr-act" data-trfull title="全屏">⛶</button>' +
     '<button class="mini tr-act" data-trimg title="导出图片">⬇</button>' +
     '<button class="mini tr-close">✕</button></div>';
-  // ★ 用 inline-block 排两个 SVG，不能用 flex：
-  //   flex 会把 .yax 里的 SVG 横向拉伸（实测刻度跑到 x=78 而非 44），
-  //   导致 Y 轴与绘图区错位。inline-block 按 SVG 自身 width 精确排布。
-  box.innerHTML = head +
-    '<div class="tr-wrap' + (W > box.clientWidth ? ' scrollable' : '') + '">' +
-      '<span class="yax">' + leftSvg + '</span>' +
-      '<span class="trscroll">' + out.join('') + '</span>' +
-    '</div>';
+  // ★ 两种结构按需切换：
+  //   宽度够（常见：7~30 天的整月趋势）→ 【单 SVG】，就是加滑动功能之前的原样，
+  //     刻度/网格/折线同在一个坐标系，对齐 100% 与从前一致。
+  //   宽度不够（更长区间）→ 拆左轴 + 横向滚动，标尺固定。
+  var bodyHtml = NEED_SLIDE
+    ? '<div class="tr-wrap scrollable"><span class="yax">' + leftSvg + '</span>' +
+      '<span class="trscroll">' + out.join('') + '</span></div>'
+    : '<div class="tr-wrap">' + out.join('') + '</div>';
+  box.innerHTML = head + bodyHtml;
   box.querySelector('.tr-close').onclick = function (e) { e.stopPropagation(); closeTrend(); };
   var fullBtn = box.querySelector('[data-trfull]');
   if (fullBtn) fullBtn.onclick = function (e) { e.stopPropagation(); toggleFullTrend(box, label); };
