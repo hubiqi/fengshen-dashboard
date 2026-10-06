@@ -58,6 +58,30 @@ function exportImage(rows) {
     if (tip) tip.textContent = '没有可导出的数据';
     return;
   }
+  // ★★ 导出前必须校验【列表已经渲染成当前维度】。
+  //   切维度时 /api/metrics 是异步的，列表渲染完成前 DOM 里还是上一维度的内容；
+  //   而且 renderListBar 只在骑手维度显示（整商不显示排序条），
+  //   于是会出现「标题写着骑手明细、内容却是整商那 1 行」的错乱导出
+  //   （用户 2026-10-06 实测：选了骑手维度，导出的却是整商）。
+  if (window.__listLevel && window.__listLevel !== S.level) {
+    if (tip) tip.textContent = '列表还在切换中，等加载完再导出（当前' +
+      ({ agency: '整商', district: '商圈片', site: '站点', rider: '骑手' }[window.__listLevel] || window.__listLevel) +
+      '，要' + ({ agency: '整商', district: '商圈片', site: '站点', rider: '骑手' }[S.level] || S.level) + '）';
+    return;
+  }
+  // 行数为 0 时也拦一下（"该区间暂无数据"那一屏不该被导成图）
+  if (!list.querySelector('.item')) {
+    if (tip) tip.textContent = '当前列表没有数据，无法导出';
+    return;
+  }
+  // ★ 兜底：商圈片/站点/骑手 维度只渲染出【1 行】基本可以断定是竞态或加载未完成
+  //   （这些维度天然有多行；只有整商恰好是 1 行）。导出去必然是错的。
+  if (S.level !== 'agency' && list.querySelectorAll('.item').length <= 1) {
+    if (tip) tip.textContent = '列表只加载出 ' +
+      list.querySelectorAll('.item').length + ' 行（' + S.level +
+      '维度应有更多），请等加载完成后重试';
+    return;
+  }
   if (tip) tip.textContent = '正在生成图片…';
 
   // 带上工具条（标题+筛选条件），这样导出图里能看出这是哪天的、按什么筛的
