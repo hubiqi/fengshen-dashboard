@@ -486,10 +486,13 @@ function drawChart() {
   var X = function (i) { return pad.l + (rows.length === 1 ? iw / 2 : iw * i / (rows.length - 1)); };
   var Y = function (v) { return pad.t + ih * (1 - Math.max(0, Math.min(100, v)) / 100); };
   var out = ['<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">'];
+  // ★ 与趋势图一致：刻度文字不进 SVG，改由左侧【固定列】渲染，
+  //   横向滑动时标尺留在原地（用户 2026-10-07："其他模块的图表也要一样优化"）。
+  var sby = [];
   [0, 20, 40, 60, 80, 100].forEach(function (g) {
     out.push('<line x1="' + pad.l + '" y1="' + Y(g) + '" x2="' + (W - pad.r) + '" y2="' + Y(g) +
       '" stroke="#eef1f6" stroke-width="1"/>');
-    out.push('<text x="' + (pad.l - 4) + '" y="' + (Y(g) + 3) + '" font-size="9" fill="#9aa3af" text-anchor="end">' + g + '</text>');
+    sby.push({ y: Y(g), text: String(g) });
   });
   rows.forEach(function (r, i) {
     out.push('<text x="' + X(i) + '" y="' + (H - 7) + '" font-size="9" fill="#9aa3af" text-anchor="middle">' +
@@ -509,7 +512,22 @@ function drawChart() {
     });
   });
   out.push('</svg>');
-  $('sbChart').innerHTML = out.join('');
+  var sbyHtml = sby.map(function (t) {
+    return '<div class="try-t" style="top:' + t.y + 'px">' + t.text + '</div>';
+  }).join('');
+  var sbHost = $('sbChart');
+  // 全屏 / 导出 两枚按钮
+  sbHost.innerHTML = '<div class="sb-wrap' + (W > sbHost.clientWidth ? ' scrollx' : '') + '">' +
+      '<div class="tryax" style="height:' + H + 'px">' + sbyHtml + '</div>' +
+      '<div class="sb-scroll"><div class="trinner">' + out.join('') + '</div></div>' +
+    '</div>' +
+    '<div class="sb-acts">' +
+      '<button class="mini" data-sbfull title="全屏">⛶</button>' +
+      '<button class="mini" data-sbimg title="导出图片">⬇</button></div>';
+  var sbFull = sbHost.querySelector('[data-sbfull]');
+  if (sbFull) sbFull.onclick = function () { toggleFullTrend(sbHost, '考核得分'); };
+  var sbImg = sbHost.querySelector('[data-sbimg]');
+  if (sbImg) sbImg.onclick = function () { exportTrendImage(sbHost, '考核得分', sby, pad, H); };
   $('sbLegend').innerHTML = SER.map(function (sr) {
     return '<span><i style="background:' + sr.c + '"></i>' + sr.name + '</span>';
   }).join('');
@@ -1303,6 +1321,76 @@ function openTrend(label) {
   } else drawTrend(label);
 }
 
+/* ★ 全屏查看趋势图（用户 2026-10-07）。
+   用 fixed 铺满视口而不是 Fullscreen API：后者在 iOS Safari 上
+   需要用户手势、且退出后页面布局常出错，这里用一个 class 就够。 */
+function toggleFullTrend(box, label) {
+  if (box.classList.contains('full')) {
+    box.classList.remove('full');
+    document.body.classList.remove('noScroll');
+    if (window.scrollY) window.scrollTo(0, window.__trendScrollY || 0);
+    return;
+  }
+  window.__trendScrollY = window.scrollY || 0;
+  box.classList.add('full');
+  document.body.classList.add('noScroll');
+}
+
+/* ★ 导出【单张趋势图】为 PNG（用户 2026-10-07）。
+   做法：把 SVG 序列化成图片 → 画到 canvas → 导出。
+   ★ 关键：SVG 里的样式全部是【属性】形式（fill/stroke/font-size…），
+     不是 CSS class，所以脱离页面也能正确渲染。
+   Y 轴刻度不在 SVG 里（是固定列的 HTML），这里按同样的 y 坐标补画到图上。 */
+function exportTrendImage(box, label, yticks, pad, H) {
+  var tip = $('progText');
+  var svg = box.querySelector('.trscroll svg');
+  if (!svg) { if (tip) tip.textContent = '图表尚未渲染'; return; }
+  try {
+    var W = +svg.getAttribute('width');
+    var clone = svg.cloneNode(true);
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    // 补一个白底，否则透明 PNG 在深色背景上看不清
+    var bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('x', 0); bg.setAttribute('y', 0);
+    bg.setAttribute('width', W); bg.setAttribute('height', H);
+    bg.setAttribute('fill', '#ffffff');
+    clone.insertBefore(bg, clone.firstChild);
+    // 补 Y 轴刻度
+    yticks.forEach(function (t) {
+      var tx = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      tx.setAttribute('x', pad.l - 5);
+      tx.setAttribute('y', t.y + 3);
+      tx.setAttribute('font-size', 9);
+      tx.setAttribute('fill', '#9aa3af');
+      tx.setAttribute('text-anchor', 'end');
+      tx.textContent = t.text;
+      clone.appendChild(tx);
+    });
+    var s = new XMLSerializer().serializeToString(clone);
+    var url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s);
+    var img = new Image();
+    img.onload = function () {
+      var dpr = 2;
+      var cv = document.createElement('canvas');
+      cv.width = W * dpr; cv.height = H * dpr;
+      var g = cv.getContext('2d');
+      g.scale(dpr, dpr);
+      g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+      g.drawImage(img, 0, 0);
+      var a = document.createElement('a');
+      a.href = cv.toDataURL('image/png');
+      a.download = '趋势_' + label + '_' + (S.from || today()) + '.png';
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { a.remove(); }, 1000);
+      if (tip) tip.textContent = '已导出趋势图 PNG';
+    };
+    img.onerror = function () { if (tip) tip.textContent = '图片生成失败'; };
+    img.src = url;
+  } catch (e) {
+    if (tip) tip.textContent = '图片生成失败：' + ((e && e.message) || e);
+  }
+}
+
 function closeTrend() {
   var b = trendBox(); if (b) b.hidden = true;
 }
@@ -1355,16 +1443,17 @@ function drawTrend(label) {
   // ★ 网格线：按整数档位等距，不再是任意分数
   var gdec = stepDecimals(step);
   var kMax = Math.round((hi - lo) / step);
+  var yticks = [];          // 固定 Y 轴的刻度（文字在 SVG 外，见上方说明）
   for (var g = 0; g <= kMax; g++) {
     var v = lo + step * g, y = Y(v);
     out.push('<line x1="' + pad.l + '" y1="' + y + '" x2="' + (W - pad.r) + '" y2="' + y +
       '" stroke="#eef1f6" stroke-width="1"/>');
-    // 刻度值强制走 step 的小数位，保证是"整数档位"而不是 0.529 这种
+    // ★ 刻度文字【不画在 SVG 里】—— 横向滑动时它会跟着滚走，读数就没了参照。
+    //   改由左侧【固定列】渲染（position:sticky），滑动时始终可见。
     var lab = m.rate
       ? (v * 100).toFixed(Math.max(0, gdec - 2)) + '%'
       : Number(v.toFixed(gdec)).toString();
-    out.push('<text x="' + (pad.l - 5) + '" y="' + (y + 3) + '" font-size="9" fill="#9aa3af" text-anchor="end">' +
-      lab + '</text>');
+    yticks.push({ y: y, text: lab });
   }
   pts.forEach(function (p, i) {
     if (pts.length > 12 && i % Math.ceil(pts.length / 10) !== 0 && i !== pts.length - 1) return;
@@ -1495,10 +1584,31 @@ function drawTrend(label) {
       ' paint-order="stroke">' + txt + '</text>');
   });
   out.push('</svg>');
-  box.innerHTML = '<div class="tr-head"><b>' + esc(label) + '</b>' +
-    '<span class="hint">' + (pts.length) + ' 天 · ' + pts[0].date + ' ~ ' + pts[pts.length - 1].date + '</span>' +
-    '<button class="mini tr-close">✕</button></div>' + out.join('');
+  // ★★ 结构：左侧【固定 Y 轴列】 + 右侧【横向滑动区】（用户 2026-10-07）
+  //   点数多时（如整月 30+ 天）图表宽于屏幕，必须能左右滑动；
+  //   而滑动时 Y 轴刻度要【留在原地】，否则读数失去参照。
+  //   实现：Y 轴列 position:sticky left:0，滑动容器在右侧 overflow-x:auto。
+  var yhtml = yticks.map(function (t) {
+    return '<div class="try-t" style="top:' + t.y + 'px">' + esc(t.text) + '</div>';
+  }).join('');
+  var head = '<div class="tr-head"><b>' + esc(label) + '</b>' +
+    '<span class="hint">' + pts.length + ' 天 · ' + pts[0].date + ' ~ ' + pts[pts.length - 1].date + '</span>' +
+    '<button class="mini tr-act" data-trfull title="全屏">⛶</button>' +
+    '<button class="mini tr-act" data-trimg title="导出图片">⬇</button>' +
+    '<button class="mini tr-close">✕</button></div>';
+  box.innerHTML = head +
+    '<div class="tr-wrap' + (W > box.clientWidth ? ' scrollable' : '') + '">' +
+      '<div class="tryax" style="height:' + H + 'px">' + yhtml + '</div>' +
+      '<div class="trscroll"><div class="trinner">' + out.join('') + '</div></div>' +
+    '</div>';
   box.querySelector('.tr-close').onclick = function (e) { e.stopPropagation(); closeTrend(); };
+  var fullBtn = box.querySelector('[data-trfull]');
+  if (fullBtn) fullBtn.onclick = function (e) { e.stopPropagation(); toggleFullTrend(box, label); };
+  var imgBtn = box.querySelector('[data-trimg]');
+  if (imgBtn) imgBtn.onclick = function (e) {
+    e.stopPropagation();
+    exportTrendImage(box, label, yticks, pad, H);
+  };
 }
 /* ── 取数：卡片 + 明细列表 ────────────────────────────────────────
  * ★ 这两个函数（loadAll / loadCards）曾被我用 Python 切片替换时误删过，
