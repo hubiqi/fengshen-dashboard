@@ -488,7 +488,7 @@ function drawChart() {
   // ★ 与趋势图同一套结构：左（固定刻度 SVG）+ 右（绘图 SVG，用 viewBox 平移 pad.l）
   var PW2 = W - pad.l;
   var out = ['<svg width="' + PW2 + '" height="' + H + '" viewBox="' + pad.l +
-    ' 0 ' + (W - pad.r) + ' ' + H + '">'];
+    ' 0 ' + (W - pad.l) + ' ' + H + '">'];
   var sby = [];
   [0, 20, 40, 60, 80, 100].forEach(function (g) {
     out.push('<line x1="' + pad.l + '" y1="' + Y(g) + '" x2="' + (W - pad.r) + '" y2="' + Y(g) +
@@ -1472,12 +1472,18 @@ function drawTrend(label) {
     return Math.abs(v - Math.round(v)) < 0.01 ? String(Math.round(v)) : Number(v).toFixed(2);
   }
 
-  // ★ 右（绘图）SVG：宽度只占绘图区，靠 viewBox 平移 pad.l —— 
+  // ★ 右（绘图）SVG：宽度只占绘图区，靠 viewBox 平移 pad.l ——
   //   这样下面所有绘制代码的坐标【一行都不用改】，显示效果与原来完全一致。
   //   与左侧固定轴 SVG 拼起来总宽 = pad.l + (W-pad.l) = W。
+  //
+  // ★★ viewBox 的宽度必须【等于 SVG 宽度】(W-pad.l)，缩放才是 1:1：
+  //     曾误写成 (W - pad.r)，缩放比 =(W-44)/(W-12)≈0.91，
+  //     横向坐标全被压缩 9%，于是 X 轴日期与 Y 轴刻度错位、
+  //     "底部第一个日期"对不上"最下面那条刻度线"
+  //     （用户 2026-10-07 发现）。右侧 pad.r 的留白由绘图区外的空白自然形成。
   var PW = W - pad.l;
   var out = ['<svg width="' + PW + '" height="' + H + '" viewBox="' + pad.l +
-    ' 0 ' + (W - pad.r) + ' ' + H + '" class="trendsvg">'];
+    ' 0 ' + (W - pad.l) + ' ' + H + '" class="trendsvg">'];
   // ★ 网格线：按整数档位等距，不再是任意分数
   var gdec = stepDecimals(step);
   var kMax = Math.round((hi - lo) / step);
