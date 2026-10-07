@@ -915,9 +915,22 @@ function renderListBar(rows) {
         '<button class="lb-x" data-qclose title="收起">✕</button></span>'
       : '<button class="lb" data-qopen>自定义</button>';
     h += custom;
+    // ★ 分位的分母必须是【站点筛选之后】的人数 —— 那才是"当前这批人"。
+    //   用全量做分母时，勾了只一个站点仍显示"显示 15 / 149 人"，
+    //   实际只渲染了 3 行，看起来像漏了人。
+    var poolN = applySites((rows || []).slice()).length;
+    var shownN = LIST_F.quant ? Math.max(1, Math.ceil(poolN * LIST_F.quant)) : poolN;
+    // ★ 未出分的人数要显式说出来 —— 按得分排序时，没分的行会沉到最后，
+    //   被分位筛掉。不提示的话，用户只会看到"人数对不上"。
+    var noScore = (rows || []).filter(function (r) {
+      return !(r.score && r.score.cur != null); }).length;
     h += '<span class="lb-hint">' + (LIST_F.quant
-      ? '显示 ' + Math.max(1, Math.ceil(rows.length * LIST_F.quant)) + ' / ' + rows.length + ' 人'
-      : '共 ' + rows.length + ' 人') + '</span></div>';
+      ? '显示 ' + shownN + ' / ' + poolN + ' 人'
+      : '共 ' + poolN + ' 人') +
+      (noScore && LIST_F.sortKey === 'score.cur'
+        ? '　<em class="lb-noscore" title="这些人在所选日期没有可计分的完单，按得分排序时排在最后">'
+          + noScore + ' 人未出分</em>' : '') +
+      '</span></div>';
   }
   // ★ 站点筛选：默认全选（sites=null），可单选（点一个）或多选（点多个）。
   var siteNames = [];
@@ -974,8 +987,15 @@ function renderListBar(rows) {
   Array.prototype.forEach.call(bar.querySelectorAll('[data-sort]'), function (b) {
     b.onclick = function () {
       var k = b.getAttribute('data-sort');
-      if (LIST_F.sortKey === k) LIST_F.sortDir = -LIST_F.sortDir;   // 再点一次反向
-      else { LIST_F.sortKey = k; LIST_F.sortDir = -1; }             // 换指标默认从大到小
+      if (LIST_F.sortKey === k) {
+        LIST_F.sortDir = -LIST_F.sortDir;                 // 再点一次反向
+      } else {
+        LIST_F.sortKey = k;
+        // ★★ 「得分」换过来时【固定升序】—— 得分低的排最前才是这个模块的用途
+        //   （找拖后腿的人）。跟随"换指标默认从大到小"会让它变成"得分最高的前 10%"，
+        //   跟进来时的默认方向刚好相反，用户会以为排序坏了（用户 2026-10-07）。
+        LIST_F.sortDir = (k === 'score.cur') ? 1 : -1;
+      }
       refreshList();
     };
   });
@@ -1064,37 +1084,95 @@ function renderListBar(rows) {
 /* 排序/筛选只影响列表，不重新请求接口 —— 复用已取到的全量行 */
 function refreshList() { renderList(LAST_ROWS.slice()); }
 
-/* ★ 批量拉取骑手得分。
+/* ★ 批量拉取【全量】得分。
    原来得分只在【点开某一行】时请求（loadObjScore），于是列表里每行的
    「得分」格永远是「—」—— 用户明确指出「明明有数据，明细却没有」。
-   现在进入骑手维度时一次取回（后端带 ids 白名单，只算当前列表里出现的那些），
-   回来后只改 .row2 的得分格，不整表重绘（避免闪烁与重复请求）。 */
+   现在进入该维度时一次取回全部对象的分，回来后只改 .row2 的得分格。 */
 var SCORE_BUSY = false;
+// 最近一次取分拿到的条数（0 条要显式提示，不能静默显示一排「—」）
+var _scoreGot = null;
 // ★ 四个层级都要取得分（原来只做骑手 → 商圈片/站点永远是「—」，用户 2026-10-06 反馈）。
-//   后端 scoreboard 对四个层级行为一致，带 ids 白名单只算列表里出现的那些。
+//   后端 scoreboard 对四个层级行为一致，带 ids 白名单只算这些对象。
 //   实测：district 2/2、site 4/4 都正常返回，且耗时 <5ms（day_score 缓存命中）。
 var SCORE_LEVELS = ['agency', 'district', 'site', 'rider'];
+
+/* ★★★ 数据版本号：/api/metrics 取到【内容不同】的数据时 +1。
+   得分是"当天运单聚合"的函数，而 T0 数据一整天都在变 ——
+   数据一变，上一轮的得分就过期了，必须重算并重排
+   （用户 2026-10-07：「如果分数又更新了，那么必须刷新骑手排序并显示新的排序」）。
+   没有版本号时，一行只要已有 score 就再也不重算 →
+   骑手得分永远停在第一次进入时的值，排序也永远不刷新。 */
+var DATA_VER = 0;
+// 上一次算分对应的签名（数据版本 + 维度 + 对象 + 日期）。不一致 = 需要重算。
+var SCORE_SIG = '';
+// 上一次 /api/metrics 的行集指纹 —— 用来判断"数据到底变没变"
+var _lastRowsFp = '';
+// ★ 最近一次取分【失败】的签名。同签名的数据不再自动重试 ——
+//   否则后端一直报错时，renderList 会「显示占位 → 请求失败 → 再显示占位」无限循环。
+//   新的数据到来会换签名，重试自然恢复。
+var SCORE_FAIL_SIG = '';
+
+/* 行集的廉价指纹：用来判断"这轮数据到底变没变"。
+   只累加单量，不用整段 JSON 比较 —— 149 行比字符串更快也更省。 */
+function rowsFingerprint(rows) {
+  var n = rows.length, sum = 0, mix = 0;
+  for (var i = 0; i < rows.length; i++) {
+    var o = Number(rows[i].orders) || 0;
+    sum += o;
+    mix = (mix + o * (i + 7) + (Number(rows[i].duration) || 0) * 3) % 1000000007;
+  }
+  return n + ':' + sum + ':' + mix;
+}
+
+/* 得分是否处于"要重算"状态（供 renderList 决定先显示占位还是直接渲染）。
+ * ★ 同一个签名刚失败过就不再算"需要重算" —— 否则会死循环。 */
+function scoresStale() {
+  var r0 = computeRange();
+  var day = r0[0] || today();
+  var sig = DATA_VER + '|' + S.level + '|' + (S.key || '') + '|' + day;
+  if (sig === SCORE_FAIL_SIG) return false;
+  return SCORE_SIG !== sig;
+}
+
 function loadListScores() {
   if (SCORE_LEVELS.indexOf(S.level) < 0 || SCORE_BUSY) return;
   var rows = LAST_ROWS || [];
   if (!rows.length) return;
-  // ★★★ 必须按【全量 LAST_ROWS】判断谁还没分，不能用 LIST_ROWS。
-  //   LIST_ROWS 只装了【已经渲染出来的那几行】—— 默认分位 10%，
-  //   138 个骑手只会渲染 14 行，用它算 missing 会得到：
-  //       请求了其余 124 个骑手的分，而这 14 个【从没被请求过】
-  //   结果这 14 行永远显示「—」，score.cur 是 undefined，
-  //   按得分排序时被沉到最底 —— 顺序彻底乱（用户 2026-10-06 反馈）。
-  //   排序依赖的是 LAST_ROWS 里的 score.cur，所以取分也必须覆盖全量。
-  var missing = rows.slice(0, 200).filter(function (r) {
-    return !(r.score && r.score.cur != null); })
-    .map(function (r) { return r.id; });
-  if (!missing.length) return;
-  SCORE_BUSY = true;
   var r0 = computeRange();
   var day = r0[0] || today();
   var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
+  var sig = DATA_VER + '|' + S.level + '|' + (S.key || '') + '|' + day;
+  var stale = (SCORE_SIG !== sig);
+  // ★★★ 必须按【全量 LAST_ROWS】判断谁还没分，不能用 LIST_ROWS，也【不做 200 截断】。
+  //   ① 不能用 LIST_ROWS：它只装了已经渲染出来的那几行（默认分位 10%
+  //      意味着 149 个骑手只渲染 15 行），用它算 missing 会漏掉绝大多数人。
+  //   ② 不能截断：按得分排序要求【每个人都有分】才能排出正确顺序 ——
+  //      只算前 200 个的"局部有序"拼在全量上仍是乱序。
+  //      实测后端全量 149 人 1.38s，代价可接受。
+  //   ③ stale 时【全部视为缺分】：数据变了就得重算，否则分数永远是旧的。
+  //   ④ ★★ 判据必须是【"这一轮问过没有"（scoreTried）】而不是【"有没有值"】——
+  //      有些骑手【本来就出不了分】（当天没有可计分的完单），
+  //      用"有没有值"判断会永远认为他缺分 → 每次重绘都再请求一次 →
+  //      实测打出了 2000+ 次请求的循环。问过就记账，无论有没有拿到值。
+  var want = [];
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    if (stale || r.scoreTried !== sig) want.push(r.id);
+  }
+  if (!want.length) { SCORE_SIG = sig; return; }
+  SCORE_BUSY = true;
+  // ★ 记下这次请求属于哪个层级：响应回来时用户可能已经切走，
+  //   把上一层级的结果（比如"接口没返回得分"）贴到新层级上是错的。
+  var reqLevel = S.level;
+  _scoreGot = null;
+  // 取分期间允许工具条显示进度（大列表时用户要看得见"在算"）
+  var pc = $('listBar');
+  if (pc && stale) {
+    var tip = pc.querySelector('.lb-hint');
+    if (tip) tip.innerHTML = '正在计算 ' + want.length + ' 人得分…';
+  }
   api('/api/scoreboard?' + aq + 'month=' + q(day.slice(0, 7)) + '&day=' + q(day) +
-      '&level=' + q(S.level) + '&ids=' + q(missing.join(',')))
+      '&level=' + q(S.level) + '&ids=' + q(want.join(',')))
     .then(function (j) {
       // ★ 回填要写进【LAST_ROWS 里的那一行】(排序用的就是它的 score.cur)，
       //   而不是只写 LIST_ROWS —— 分位筛选下 LIST_ROWS 只有少数行，
@@ -1111,26 +1189,49 @@ function loadListScores() {
         var box = $('list').querySelector('.item[data-id="' + d.id + '"] .row3');
         if (box) box.innerHTML = detailGrid(row);
       });
-    }).catch(function () {})
+      // ★ 签名在这里就落实：重绘时 renderList 会再调 loadListScores，
+      //   若签名还是旧的就会无限递归下去（实测会把浏览器卡死）。
+      SCORE_SIG = sig;
+      SCORE_FAIL_SIG = '';        // 这次成功了，清掉失败标记
+      _scoreGot = (j.districts || []).length;
+      // ★★★ 给【这一轮问过的每一个人】记账，不管他最终有没有拿到分值。
+      //   没有这一步，那个"本来就出不了分"的骑手会永远被判定为缺分，
+      //   每次重绘都再请求一遍 —— 实测打出了 2092 次请求的死循环。
+      var tried = {};
+      for (var wi = 0; wi < want.length; wi++) tried[want[wi]] = 1;
+      for (var ri = 0; ri < (LAST_ROWS || []).length; ri++) {
+        var rw = LAST_ROWS[ri];
+        if (tried[rw.id]) rw.scoreTried = sig;
+      }
+    }).catch(function () {
+      // ★ 记下失败的签名：同签名不再自动重试，否则「占位 → 失败 → 占位」会无限循环。
+      //   数据一变签名就不同，重试自然恢复。
+      SCORE_FAIL_SIG = sig;
+    })
     .then(function () {
       // ★★ 必须【先复位 SCORE_BUSY，再重排】。
       //   原来在 .then 里先调 renderList → 里面又调 loadListScores，
       //   而此时 SCORE_BUSY 还是 true → 直接 return，剩余骑手的分再也补不上，
       //   标志位因为异常路径也没复位 → 整个模块的取分从此死锁（实测只请求 1 个 id）。
       SCORE_BUSY = false;
-      // ★★★ 排序【得分】必须等得分全部补齐后重新排一次。
-      //   得分是异步回来的，列表在补分前已按【null】排好序，
-      //   分数回来不重排 → "按得分排序"看到的是一团乱。
+      // ★★★ 分数到了就要【立刻重排并按新的顺序显示】（用户 2026-10-07 明确要求）。
+      //   原来这里有个 `every(有分)` 闸门，只要有一个骑手没分就【永远不重排】——
+      //   实测 149 人里 148 人有分、1 人没有 → 闸门恒假 → 列表始终是按 null
+      //   排出来的原始顺序，"按得分排序"完全不起作用。
+      //   现在：不再要求人人有分。缺分的行由 applySort 统一沉底（规则固定），
+      //   所以只要有【新分进来】就重排，顺序就是对的。
       if (LIST_F.sortKey === 'score.cur') {
-        // 全量都拿到分才重排，否则按不完整的数据排出来的顺序仍是错的。
-        var all = (LAST_ROWS || []).every(function (r) {
-          return r.score && r.score.cur != null; });
-        if (all) {
-          var rows = LIST_F.sites ? (LAST_ROWS || []).filter(function (r) {
-            return r.siteName && LIST_F.sites.indexOf(r.siteName) >= 0; })
-            : (LAST_ROWS || []).slice();
-          renderList(rows);
-        }
+        renderList(LAST_ROWS.slice());
+      } else {
+        renderListBar(LAST_ROWS);   // 不是按得分排的：只需刷新"未出分"计数
+      }
+      // ★ 取到 0 条要能看出来（别静默显示一排「—」）。
+      //   但只在【响应仍属于当前层级】时才提示 —— 切维度时上一层的响应
+      //   后到会把提示贴到新层级上（实测整商的提示漏到了骑手视图）。
+      if (_scoreGot === 0 && reqLevel === S.level) {
+        var nb = $('listBar');
+        var t2 = nb && nb.querySelector('.lb-hint');
+        if (t2) t2.innerHTML = t2.innerHTML + '　<em class="lb-noscore">接口没返回得分</em>';
       }
     });
 }
@@ -1141,7 +1242,9 @@ function refreshListKeepOpen() {
   LIST_F.siteOpen = true;
   renderList(LAST_ROWS.slice());
 }
-function renderList(rows) {
+/* isMaster=true 表示 rows 是 /api/metrics 刚送来的【权威全量】。
+ * 其余调用（排序切换、分位切换、补分后重排）都不要传，避免把数据集改小。 */
+function renderList(rows, isMaster) {
   // ★ 记录"列表当前展示的是哪个维度"，供导出图片校验。
   //   切维度时 /api/metrics 是异步的，列表渲染完成前 DOM 里还是上一维度的内容；
   //   导出图片若不校验，就会把【整商的 1 行】当成【骑手明细】导出去（用户 2026-10-06 反馈）。
@@ -1158,8 +1261,28 @@ function renderList(rows) {
   })[S.level] || '明细';
   if (!rows.length) { $('list').innerHTML = '<div class="empty">该区间暂无数据</div>'; return; }
 
+  // ★★ 只有 /api/metrics 送来的【新数据】才能改写"权威全量行集"。
+  //   排序 / 分位 / 站点筛选 / 补分后的重绘都会传【子集或副本】，
+  //   若它们也覆盖 LAST_ROWS，勾一次站点就会把数据集永久缩小 ——
+  //   再也回不到全量，分位分母也跟着错。
+  if (isMaster) LAST_ROWS = rows;
+  // ★★★ 按【得分】排序时，必须先拿到全量得分再渲染（用户 2026-10-07 要求）：
+  //   没分之前排出来的顺序是错的（score.cur 全是 undefined），
+  //   先渲染一版错的、补分后再换成对的，会看到一次"顺序跳变"。
+  //   所以这里先显示"正在计算"，等分数回来由 loadListScores 重排后渲染。
+  if (LIST_F.sortKey === 'score.cur' && scoresStale() && !SCORE_BUSY) {
+    if (!LAST_ROWS || !LAST_ROWS.length) LAST_ROWS = rows;
+    renderListBar(LAST_ROWS);
+    var nAll = applySites((LAST_ROWS || []).slice()).length;
+    $('list').innerHTML = '<div class="loading">正在计算全部 ' + nAll +
+      ' 人的考核得分…<br><span class="hint">得分是当天四项指标加权的结果，' +
+      '必须先算出每个人才能按得分排序并取前 ' +
+      Math.round((LIST_F.quant || 0) * 100) + '%</span></div>';
+    loadListScores();
+    return;
+  }
+
   // ★ 排序 + 骑手分位筛选（在渲染前应用，作用于全量行）
-  LAST_ROWS = rows;
   renderListBar(rows);
   rows = applySites(rows);
   rows = applySort(rows);
@@ -1760,7 +1883,20 @@ function loadCards(dfrom, dto, withList) {
       if (S.level === 'agency' && Object.keys(RT_PLAT).length) {
         renderRt();
       }
-      if (withList) renderList(j.rows || []);
+      if (withList) {
+        // ★★ 只有这里的数据是【权威全量】，所以只有这里能改写 LAST_ROWS。
+        // ★★ 数据指纹变了才把版本号 +1（并让得分作废重算）。
+        //   /api/metrics 每次切维度、切日期、每 10 分钟的自动同步都会调用，
+        //   若无条件 +1，就会在数据没变时也重算一遍全量得分（白等 1 秒多）。
+        //   变了才作废，正好对应"分数又更新了 → 刷新排序"（用户 2026-10-07）。
+        var fp = rowsFingerprint(j.rows || []);
+        if (fp !== _lastRowsFp) {
+          _lastRowsFp = fp;
+          DATA_VER++;
+          SCORE_SIG = '';        // 显式作废，下面 renderList 会触发全量重算
+        }
+        renderList(j.rows || [], true);
+      }
       return j;
     })
     .catch(function (e) { $('cards').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
