@@ -410,6 +410,14 @@ var LAST_TOTAL = {};
 var SUPPRESS_AUTO = false;  // 保留字段（已无「返回全量」交互）
 function fmt1(v) { return v == null ? '—' : Number(v).toFixed(1); }
 
+/* ⚠️ 本函数当前【没有调用方】—— 全月得分板（#scorePanel）已隐藏，
+   得分改在列表每行内联显示。保留代码是为了万一要恢复面板。
+
+   ★★ 若要恢复它，记得【后端已经不再默认返回逐日明细】了：
+       drawChart 读的 d.series 现在是空数组（后端为了省流量，
+       默认不带 series，177 个对象能省 600KB+）。
+       恢复面板时要改成请求 /api/scoreboard?series=1，
+       否则图表会是空白的 —— 而页面不会报任何错。 */
 function renderScoreBoard(j) {
   SB.districts = j.districts || [];
   if (!SB.districts.length) {
