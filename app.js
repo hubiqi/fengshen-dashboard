@@ -258,7 +258,8 @@ function renderCards(t) {
   //   昨天同期数由后端按 finished_at 切到"当前时刻"算出（sameTimeOrders）。
   //   同理，环比的"基准值"显示也要用同期，否则左边显示昨天全天、右边标同期，不一致。
   var pvSame = (pv && pv.sameTime);
-  var pvSt = (pv && pv.sameTimeParts) || {};      // 昨天同一时刻的各指标
+  var pvSt = (pv && pv.sameTimeParts) || {};
+  var sameUsable = pvSame && pvSt && Object.keys(pvSt).length > 0 && pvSt.orders != null;      // 昨天同一时刻的各指标
   // ★ 选今天时，除出勤外全部改用【昨天同期】做基准（用户 2026-10-06）。
   //   实测"截至此刻 vs 全天"的偏差：完单 -68.5% / 人效 -68.1% /
   //   单均复合 -6.00s / T8准时率 +1.79pp / 完全妥投 0.01pp。
@@ -329,11 +330,11 @@ function renderCards(t) {
     cell('人效', t.efficiency, mp.efficiency, pvV(pv.efficiency, pvSt.efficiency),
       'num', '完单 ÷ 出勤（当前选今天时按昨日同期）'),
     cell('完全妥投率', t.likt, mp.likt, pvV(pv.likt, pvSt.likt), null,
-      '考核口径' + (pvSame ? ' · 环比按昨日同期' : '')),
+      '考核口径' + (sameUsable ? ' · 环比按昨日同期' : (pvSame ? ' · 环比为昨日全天（同期数据缺失）' : ''))),
     cell('预测T8准时率', t.t8, mp.ontime, pvV(pv.ontime, pvSt.t8), null,
-      t8d + (pvSame ? ' · 环比按昨日同期' : '')),
+      t8d + (sameUsable ? ' · 环比按昨日同期' : (pvSame ? ' · 环比为昨日全天（同期数据缺失）' : ''))),
     cell('单均复合时长', t.duration, mp.dur, pvV(pv.dur, pvSt.duration), 'sec',
-      '有效完单' + (pvSame ? ' · 环比按昨日同期' : '')),
+      '有效完单' + (sameUsable ? ' · 环比按昨日同期' : (pvSame ? ' · 环比为昨日全天（同期数据缺失）' : ''))),
     cell('非时效不满意率', t.dissat, mp.dissat, pv.dissat, 'rate3', '差评×5+投诉×5+索赔×1')
   ];
   // ★ 标明这排数字是"谁"的 —— 否则点了站点，卡片数字变了却看不出在讲哪个站点。
@@ -371,10 +372,16 @@ function renderCards(t) {
   //     出勤骑手数 -1.4%    → 【不同期】骑手早在线，同期化只添噪声
   //   为什么不因"判责口径不同"而全部拒绝：口径差异是纵向的（T0 vs T-1），
   //   同期化消除的是横向的时间窗口偏差（今天半场 vs 昨天全天），后者大得多。
-  if (pvSame) {
+  // ★ 只有【同期数据真的拿到了】才敢写"已按昨日同期"——
+  //   sameTimeParts 为 null 时前端会退回昨天全天，若文案还写"已按同期"，
+  //   用户就会把 -30.6% 的假暴跌当成业务结论。数据缺失必须说出来。
+  if (sameUsable) {
     thru += '<span class="wtag" title="今天还没过完，完单/人效/准时率/复合时长均与昨天同一时刻相比，'
       + '避免把今天进度落后误读成业务变差；出勤骑手数例外（骑手早在线，偏差仅约 1.4%，同期化反而添噪）">'
       + '环比已按昨日同期（出勤除外）</span>';
+  } else if (pvSame) {
+    thru += '<span class="wtag wtag-warn" title="同一时刻的切片数据没有取到，当前环比仍显示昨日全天做基准">'
+      + '⚠ 同期数据缺失（环比为昨日全天）</span>';
   }
   $('cards').innerHTML = '<div class="cardScope">当前对象：<b>' + esc(scope) + '</b>' +
     '<span class="hint">　每格＝所选日期 · 全月 · 环比昨天　· 点卡片看整月趋势</span>' + thru + '</div>' +
