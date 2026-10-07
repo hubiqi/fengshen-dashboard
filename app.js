@@ -1112,6 +1112,37 @@ var _lastRowsFp = '';
 //   新的数据到来会换签名，重试自然恢复。
 var SCORE_FAIL_SIG = '';
 
+/* ★★ 得分结果缓存：签名 → { 对象id: {cur, month} }。
+   实测全量 149 个骑手的得分要 1.4 秒，而"切到站点再切回骑手"用的是同一批数据 ——
+   没有缓存就要白等一次。缓存键就是那个签名（含数据版本），
+   所以数据一变缓存立刻失效，不会拿旧分糊弄（用户 2026-10-07 的要求）。
+   只保留最近几次，避免长时间浏览时无限增长。 */
+var SCORE_CACHE = {};
+var SCORE_CACHE_MAX = 6;
+
+function scoreSigNow() {
+  var r0 = computeRange();
+  return DATA_VER + '|' + S.level + '|' + (S.key || '') + '|' + (r0[0] || today());
+}
+
+/* 若有缓存，把分数直接写回行里并落实签名。
+   ★ 必须在 renderList 判断"要不要重算"【之前】调用：
+     否则会先显示"正在计算…"、再被缓存填上，白闪一下。 */
+function applyCachedScores() {
+  var sig = scoreSigNow();
+  var hit = SCORE_CACHE[sig];
+  if (!hit) return false;
+  var rows = LAST_ROWS || [];
+  for (var i = 0; i < rows.length; i++) {
+    var v = hit[rows[i].id];
+    if (v === undefined) continue;
+    rows[i].score = v;              // v 可能是 {cur:null,month:null}（该人本就无分）
+    rows[i].scoreTried = sig;
+  }
+  SCORE_SIG = sig;
+  return true;
+}
+
 /* 行集的廉价指纹：用来判断"这轮数据到底变没变"。
    只累加单量，不用整段 JSON 比较 —— 149 行比字符串更快也更省。 */
 function rowsFingerprint(rows) {
@@ -1199,6 +1230,16 @@ function loadListScores() {
       //   每次重绘都再请求一遍 —— 实测打出了 2092 次请求的死循环。
       var tried = {};
       for (var wi = 0; wi < want.length; wi++) tried[want[wi]] = 1;
+      // ★ 顺手把这一轮的结果存进缓存：同签名（同数据版本/维度/日期）内
+      //   切走再切回不必重算 —— 实测全量骑手 1.4s。
+      var snap = {};
+      for (var ci = 0; ci < want.length; ci++) {
+        var cr = idx[want[ci]];
+        if (cr) snap[want[ci]] = cr.score || { cur: null, month: null };
+      }
+      SCORE_CACHE[sig] = snap;
+      var keys = Object.keys(SCORE_CACHE);
+      if (keys.length > SCORE_CACHE_MAX) delete SCORE_CACHE[keys[0]];
       for (var ri = 0; ri < (LAST_ROWS || []).length; ri++) {
         var rw = LAST_ROWS[ri];
         if (tried[rw.id]) rw.scoreTried = sig;
@@ -1266,6 +1307,10 @@ function renderList(rows, isMaster) {
   //   若它们也覆盖 LAST_ROWS，勾一次站点就会把数据集永久缩小 ——
   //   再也回不到全量，分位分母也跟着错。
   if (isMaster) LAST_ROWS = rows;
+  // ★ 先看缓存：同一批数据（同数据版本/维度/日期）里切走再切回，
+  //   分数是现成的，直接填上就正常渲染 —— 不必再等一次全量计算。
+  //   数据一变 DATA_VER 就变、签名随之变化，缓存不会命中，仍会重算。
+  applyCachedScores();
   // ★★★ 按【得分】排序时，必须先拿到全量得分再渲染（用户 2026-10-07 要求）：
   //   没分之前排出来的顺序是错的（score.cur 全是 undefined），
   //   先渲染一版错的、补分后再换成对的，会看到一次"顺序跳变"。
