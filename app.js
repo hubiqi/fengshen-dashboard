@@ -1997,11 +1997,18 @@ function renderRt(state) {
   }
 
   // 平台指标 → 本地对应口径，用于核对
+  // ★★ 只有【口径相同】的平台指标才配本地值。配错 = 显示一个根本不该存在的差值。
+  //   实测（2026-10-10 18:xx 同刻）：
+  //     平台 预测T8准时率   = 97.20%   ← 考核口径，README/考核评分口径.md 的公式与 t8 逐字一致
+  //     平台 骑手准时送达率 = 96.92%   ← 平台【实时】口径，跟考核 t8 不是一回事
+  //     我们 t8 考核口径    = 3214 / 3281 = 97.96%
+  //   ⇒ t8 只跟「预测T8准时率」对；「骑手准时送达率」本地无对应，不给值
+  //     （原来两个都挂 t8，等于拿一个值去对两个不同指标，必然有一个假差）。
+  //   妥投率同理：平台另给了【物流妥投率】99.91%（对应我们的 likt 99.97%），
+  //     而「妥投率」97.77% 是另一种口径 → 只留给物流妥投率。
   var MINE = {
     complete_order_count: function (t) { return t.orders; },
-    complete_order_rate: function (t) { return t.likt; },
     wl_complete_order_rate: function (t) { return t.likt; },
-    driver_t_ontime_rate: function (t) { return t.t8; },
     predict_t8_ontime_rate: function (t) { return t.t8; },
     attend_driver_count: function (t) { return t.attendRiders; },
     complain_order_rate: function (t) { return t.dissat; }
@@ -2013,7 +2020,7 @@ function renderRt(state) {
     complete_order_count: '完单量',
     delivering_order_count: '配送中运单',
     cancel_order_count: '取消单量',
-    complete_order_rate: '完单率',
+    complete_order_rate: '妥投率',
     wl_complete_order_rate: '物流妥投率',
     logistics_un_complete_count: '物流责取消',
     driver_t_ontime_rate: '骑手准时送达率',
@@ -2028,8 +2035,12 @@ function renderRt(state) {
     overtime_claim_count: '超时申诉',
     bad_weather_final_order_rate: '恶劣天气占比'
   };
+  // ★ 0~1 的比率字段全登记 —— 漏登记的会走「绝对值差 ≥1 才算不一致」的分支，
+  //   于是永远显示「一致」（predict_t8 曾经漏登记，0.972 vs 0.979 的 0.76pp 被吞掉）。
   var isRate = { complete_order_rate: 1, wl_complete_order_rate: 1,
-                 driver_t_ontime_rate: 1, complain_order_rate: 1 };
+                 driver_t_ontime_rate: 1, predict_t8_ontime_rate: 1,
+                 complain_order_rate: 1, bad_rating_order_rate: 1,
+                 illegal_operation_order_rate: 1, bad_weather_final_order_rate: 1 };
 
   // ★ 直接读 LAST_TOTAL —— 它由 loadCards 写入，而请求本身带了当前 level+key，
   //   所以它【天然就是当前对象】的指标。
