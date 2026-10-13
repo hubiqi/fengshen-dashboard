@@ -450,7 +450,8 @@ function renderScoreBoard(j) {
     return '<div class="sb-card' + (d.id === SB.sel ? ' on' : '') + '" data-id="' + esc(d.id) + '">' +
       '<div class="sb-name">' + esc(d.name) + ' <span class="badge">' + d.days + '天</span></div>' +
       '<div class="sb-head">' +
-        '<div class="sb-h"><div class="k">今日得分 <span class="wtag">未判责·仅供参考</span></div>' +
+        '<div class="sb-h"><div class="k">' + scoreLabel() +
+          ' <span class="wtag">未判责·仅供参考</span></div>' +
         '<div class="v ' + scoreCls(t && t.dayNet) + '">' +
           ((t && t.dayNet != null) ? Number(t.dayNet).toFixed(2) : '—') + '</div>' +
           '<div class="k2">' + (t ? ('完单 ' + num(t.orders) + ' · 出勤 ' + num(t.attend) +
@@ -562,8 +563,10 @@ function loadObjScore(el) {
   if (!key) return;
   var r = computeRange();
   var day = r[0] || today();
+  var dayTo = r[1] || day;
   var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
   api('/api/scoreboard?' + aq + 'month=' + q(day.slice(0, 7)) + '&day=' + q(day) +
+      '&from=' + q(day) + '&to=' + q(dayTo) +
       '&level=' + q(lv) + '&key=' + q(key))
     .then(function (j) {
       var d = (j.districts || [])[0];
@@ -572,7 +575,7 @@ function loadObjScore(el) {
 //     所选日期得分 = d.today.dayNet   （当日四项加权 + 过程项 15）
 //     全月得分     = d.month.bigNet  （全月四项加权 + 过程项 15）
 //   之前 cur 和 month 都取了 d.month.bigNet → 两格显示同一个数。
-var dayS = (d.today || {}).dayNet;
+var dayS = scoreOfRow(d);
 var monS = (d.month || {}).bigNet;
 CUR_SCORE.cur = dayS; CUR_SCORE.month = monS;
       // ★ 得分写回行数据并重绘这一行
@@ -803,7 +806,7 @@ function itemHtml(r) {
     '</div>' +
     '<div class="row2 g6">' +
       '<span>完单 <b>' + num(r.orders) + '</b></span>' +
-      '<span class="sc-cell">今日得分 <b>' + (r.score && r.score.cur != null
+      '<span class="sc-cell">' + scoreLabel() + ' <b>' + (r.score && r.score.cur != null
         ? Number(r.score.cur).toFixed(2) : '—') + '</b></span>' +
       '<span>妥投 <b>' + pct(r.likt) + '</b></span>' +
       '<span>准时 <b>' + pct(r.t8) + '</b></span>' +
@@ -1163,12 +1166,31 @@ function rowsFingerprint(rows) {
   return n + ':' + sum + ':' + mix;
 }
 
+/* ★★ 得分的取值口径 = 跟随【所选区间】（2026-10-13 用户反馈后修）。
+   原来取 `d.today.dayNet`，而那是按【区间第一天】算的单日分；
+   卡片上的完单/准时/妥投/复合却是【整个区间】的汇总 ——
+   一张卡上两个口径，看着自相矛盾。
+   实测（区间 10-08~10-13）：曾洪 区间准时 95.62%/复合 13.03s，分却只有 55.00，
+   因为 55.00 是 10-08 那天（准时 70.59%、复合 101.41s）的分。
+   现在优先用后端新给的 `range.bigNet`（与月得分同一套场景加权算法，只是限定在所选区间）。 */
+function scoreOfRow(d) {
+  if (!d) return null;
+  if (d.range && d.range.bigNet != null) return d.range.bigNet;
+  return (d.today || {}).dayNet;     // 后端未给区间（旧版）时退回原行为
+}
+
+/* 得分标签：单日显示「今日得分」，多日区间显示「区间得分」（别再把区间第一天叫"今日"） */
+function scoreLabel() {
+  var r = computeRange();
+  return (r[0] === r[1]) ? '今日得分' : '区间得分';
+}
+
 /* 得分是否处于"要重算"状态（供 renderList 决定先显示占位还是直接渲染）。
  * ★ 同一个签名刚失败过就不再算"需要重算" —— 否则会死循环。 */
 function scoresStale() {
   var r0 = computeRange();
   var day = r0[0] || today();
-  var sig = DATA_VER + '|' + S.level + '|' + (S.key || '') + '|' + day;
+  var sig = DATA_VER + '|' + S.level + '|' + (S.key || '') + '|' + day + '~' + (r0[1] || day);
   if (sig === SCORE_FAIL_SIG) return false;
   return SCORE_SIG !== sig;
 }
@@ -1179,8 +1201,9 @@ function loadListScores() {
   if (!rows.length) return;
   var r0 = computeRange();
   var day = r0[0] || today();
+  var dayTo = r0[1] || day;
   var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
-  var sig = DATA_VER + '|' + S.level + '|' + (S.key || '') + '|' + day;
+  var sig = DATA_VER + '|' + S.level + '|' + (S.key || '') + '|' + day + '~' + dayTo;
   var stale = (SCORE_SIG !== sig);
   // ★★★ 必须按【全量 LAST_ROWS】判断谁还没分，不能用 LIST_ROWS，也【不做 200 截断】。
   //   ① 不能用 LIST_ROWS：它只装了已经渲染出来的那几行（默认分位 10%
@@ -1211,6 +1234,7 @@ function loadListScores() {
     if (tip) tip.innerHTML = '正在计算 ' + want.length + ' 人得分…';
   }
   api('/api/scoreboard?' + aq + 'month=' + q(day.slice(0, 7)) + '&day=' + q(day) +
+      '&from=' + q(day) + '&to=' + q(dayTo) +
       '&level=' + q(S.level) + '&ids=' + q(want.join(',')))
     .then(function (j) {
       // ★ 回填要写进【LAST_ROWS 里的那一行】(排序用的就是它的 score.cur)，
@@ -1221,7 +1245,7 @@ function loadListScores() {
       (j.districts || []).forEach(function (d) {
         var row = idx[d.id];
         if (!row) return;
-        row.score = { cur: (d.today || {}).dayNet, month: (d.month || {}).bigNet };
+        row.score = { cur: scoreOfRow(d), month: (d.month || {}).bigNet };
         if (LIST_ROWS[d.id]) LIST_ROWS[d.id].score = row.score;
         var cell = $('list').querySelector('.item[data-id="' + d.id + '"] .row2 .sc-cell b');
         if (cell) cell.textContent = row.score.cur == null ? '—' : Number(row.score.cur).toFixed(2);
