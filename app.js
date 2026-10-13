@@ -806,7 +806,8 @@ function itemHtml(r) {
     '</div>' +
     '<div class="row2 g6">' +
       '<span>完单 <b>' + num(r.orders) + '</b></span>' +
-      '<span class="sc-cell">' + scoreLabel() + ' <b>' + (r.score && r.score.cur != null
+      '<span class="sc-cell" title="' + esc(scoreHint()) + '">' + scoreLabel() +
+        ' <b>' + (r.score && r.score.cur != null
         ? Number(r.score.cur).toFixed(2) : '—') + '</b></span>' +
       '<span>妥投 <b>' + pct(r.likt) + '</b></span>' +
       '<span>准时 <b>' + pct(r.t8) + '</b></span>' +
@@ -1183,6 +1184,18 @@ function scoreOfRow(d) {
 function scoreLabel() {
   var r = computeRange();
   return (r[0] === r[1]) ? '今日得分' : '区间得分';
+}
+
+/* ★ 得分口径随层级不同（2026-10-13 用户定）：
+     整商 / 商圈片 → 平台考核门槛（T0/T60/T100 分段线性）
+     站点 / 骑手   → 「对大盘的影响率」（占比）
+   在得分格上给个 title，避免看的人以为两处是一套算法。 */
+function scoreHint() {
+  if (S.level === 'site' || S.level === 'rider') {
+    return '按「对大盘的影响率」算分：该项问题占全层级的比重 × 权重'
+         + '（非妥投20% + T8超时30% + 复合时长15% + 不满意20%），只看占比不看绝对门槛';
+  }
+  return '按平台考核门槛分段线性算分（T0/T60/T100 三个基准点）';
 }
 
 /* 得分是否处于"要重算"状态（供 renderList 决定先显示占位还是直接渲染）。
