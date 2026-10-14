@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1f6feb">
 <title>风神考核看板</title>
-<link rel="stylesheet" href="style.css?v=0c73833993708a57">
-<link rel="stylesheet" href="todo.css?v=0c73833993708a57">
+<link rel="stylesheet" href="style.css?v=ee53c55d5594e788">
+<link rel="stylesheet" href="todo.css?v=ee53c55d5594e788">
 </head>
 <body>
 
@@ -35,6 +35,7 @@
   <div class="hero-top">
     <h1>风神考核看板</h1>
     <div class="hero-btns">
+      <button id="btnHr" class="ghost" title="骑手管理">👥</button>
       <button id="btnPull" class="ghost" title="拉取缺失数据">↻</button>
       <button id="btnCfg" class="ghost" title="账号与设置">⚙</button>
     </div>
@@ -163,6 +164,29 @@
 </main>
 </div>
 
+<!-- ═══ 骑手管理（独立整屏视图） ═══
+     ★ 做成整屏覆盖而不是第五个 tab：它的数据源（成员管理名册 + Quark 招聘报表）
+       跟考核运单完全无关，塞进 level tab 会让「整商/商圈片/站点/骑手」的语义串味。
+     内容：① 名册 ② 三方人资月维度（近12个月） ③ 线索明细。 -->
+<div id="hrView" class="hr-view" hidden>
+  <div class="hr-head">
+    <div class="hr-title">骑手管理</div>
+    <div class="hr-btns">
+      <button id="hrSync" class="mini">同步</button>
+      <button id="hrClose" class="mini">关闭 ✕</button>
+    </div>
+  </div>
+  <div id="hrMeta" class="hint hr-meta"></div>
+  <div id="hrState" class="hint"></div>
+  <div id="hrCards" class="hr-cards"></div>
+  <div class="tabs hr-tabs" id="hrTabs">
+    <button data-t="staff" class="on" onclick="hrSwitch('staff')">骑手名册</button>
+    <button data-t="recruit" onclick="hrSwitch('recruit')">三方人资</button>
+    <button data-t="leads" onclick="hrSwitch('leads')">线索明细</button>
+  </div>
+  <div id="hrBody" class="hr-body"></div>
+</div>
+
 <!-- 设置 -->
 <div class="modal" id="cfgModal" hidden>
   <div class="modal-card">
@@ -231,8 +255,8 @@
   </div>
 </div>
 
-<script src="html2canvas.min.js?v=0c73833993708a57"></script>
-<script src="export_img.js?v=0c73833993708a57"></script>
-<script src="app.js?v=0c73833993708a57"></script>
+<script src="html2canvas.min.js?v=ee53c55d5594e788"></script>
+<script src="export_img.js?v=ee53c55d5594e788"></script>
+<script src="app.js?v=ee53c55d5594e788"></script>
 </body>
 </html>

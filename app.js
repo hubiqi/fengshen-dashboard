@@ -2649,6 +2649,10 @@ $('btnCfg').onclick = function () {
   loadAccounts(); loadState();
 };
 $('btnClose').onclick = function () { $('cfgModal').hidden = true; };
+/* ★ 骑手管理（见文件末尾模块）：整屏覆盖，打开时按需拉 /api/hr */
+$('btnHr').onclick = function () { hrOpen(); };
+$('hrClose').onclick = function () { hrClose(); };
+$('hrSync').onclick = function () { hrSync(); };
 $('abnClose').onclick = function () { $('abnModal').hidden = true; };
 $('abnModal').onclick = function (e) { if (e.target === this) this.hidden = true; };
 $('btnAdd').onclick = function () {
@@ -2825,4 +2829,227 @@ function renderAcctList() {
       }
     };
   });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   骑手管理模块（2026-10-14）
+   ───────────────────────────────────────────────────────────────────────────
+   两个数据源都在风神体系内，由后端 backend/hr.py 同步入库：
+     ① 骑手名册 = 风神-成员管理（targetId 61068）
+        → xtop.ryze.fs.knight.entry.listByPage（626 人；平台单批会返重复行，已去重）
+     ② 三方人资招聘明细 = 人资综合服务-招聘数据看板（targetId 66628 → fearow #/fbi
+        → Quark 报表 resourceId=1986382，近 12 个月）
+        → 报表在 quark.alibaba.com，令牌一次性 + 取数 body 是 guid 编码，
+          只能开浏览器渲染再点组件自带的「复制数据」（见 backend/hr_quark.py）
+
+   接口：GET /api/hr?part=all|summary|staff|leads
+        POST /api/hr/sync（后台线程跑，约 3~4 分钟）
+   ═══════════════════════════════════════════════════════════════════════════ */
+var HR = {tab: 'staff', busy: false, data: null, filt: {status: 'all', dept: '', kw: ''}};
+
+var HR_STATUS = {'1': '在职', '2': '已离职', '3': '待入职', '4': '已拒绝'};
+
+function hrOpen() {
+  $('hrView').hidden = false;
+  if (!HR.data) hrLoad(); else hrRender();
+}
+function hrClose() { $('hrView').hidden = true; }
+
+function hrNum(v, d) {
+  if (v == null || v === '' || isNaN(v)) return '—';
+  var n = Number(v);
+  return Math.abs(n - Math.round(n)) < 1e-9 ? String(Math.round(n)) : n.toFixed(d == null ? 2 : d);
+}
+function hrPct(v) { return (v == null || v === '' || isNaN(v)) ? '—' : Number(v).toFixed(2) + '%'; }
+function hrAgo(sec) {
+  if (sec == null) return '未同步';
+  if (sec < 90) return '刚刚';
+  if (sec < 3600) return Math.round(sec / 60) + ' 分钟前';
+  if (sec < 86400) return Math.round(sec / 3600) + ' 小时前';
+  return Math.round(sec / 86400) + ' 天前';
+}
+
+function hrLoad() {
+  if (HR.busy) return;
+  HR.busy = true;
+  $('hrState').textContent = '加载中…';
+  api('/api/hr?part=all&acct=' + encodeURIComponent(ACCT || ''))
+    .then(function (j) {
+      HR.busy = false;
+      if (!j || j.ok === false) { $('hrState').textContent = '加载失败'; return; }
+      HR.data = j;
+      $('hrState').textContent = '';
+      hrRender();
+    })
+    .catch(function (e) {
+      HR.busy = false;
+      $('hrState').textContent = '加载失败：' + e;
+    });
+}
+
+function hrSync() {
+  if (HR.busy) return;
+  HR.busy = true;
+  $('hrState').textContent = '已触发同步（名册 + 招聘明细，约 3~4 分钟）…';
+  api('/api/hr/sync', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                       body: JSON.stringify({acct: ACCT || ''})})
+    .then(function () {
+      setTimeout(function () { HR.busy = false; $('hrState').textContent = ''; hrLoad(); }, 200000);
+    })
+    .catch(function (e) { HR.busy = false; $('hrState').textContent = '同步触发失败：' + e; });
+}
+
+function hrRender() {
+  var d = HR.data || {};
+  var s = d.summary || {}, r = d.recruit || {}, t = r.totals || {};
+  var cards = [
+    ['在职骑手', hrNum(s.onJob), '人', '名册总数 ' + hrNum(s.total) + ' 人（含已离职）'],
+    ['本月入职', hrNum(s.joinedThisMonth), '人', '本月离职 ' + hrNum(s.leftThisMonth) + ' 人'],
+    ['近12月线索', hrNum(t.leads), '条', '面试 ' + hrNum(t.interviews) + ' · 入职 ' + hrNum(t.hires)],
+    ['三方入职占比', hrPct(t.hires && t.hiresAll ? t.hires * 100 / t.hiresAll : null), '',
+     '全渠道入职 ' + hrNum(t.hiresAll) + ' 人'],
+    ['7天有效留存', hrNum(t.r7), '人', '满10天 ' + hrNum(t.d10) + ' · 满15天 ' + hrNum(t.d15)],
+    ['线索明细', hrNum(d.leadCount), '条', '近 12 个月']
+  ];
+  $('hrCards').innerHTML = cards.map(function (c) {
+    return '<div class="hr-card"><div class="hr-k">' + esc(c[0]) + '</div>' +
+           '<div class="hr-v">' + esc(c[1]) + '<span class="hr-u">' + esc(c[2]) + '</span></div>' +
+           '<div class="hr-s">' + esc(c[3]) + '</div></div>';
+  }).join('');
+
+  var sy = d.sync || {};
+  $('hrMeta').innerHTML = '名册同步：' + hrAgo(sy.staff && sy.staff.ageSec) +
+    (sy.staff && sy.staff.msg ? ' <span class="r">' + esc(sy.staff.msg) + '</span>' : '') +
+    ' · 招聘明细同步：' + hrAgo(sy.recruit && sy.recruit.ageSec) +
+    (r.months && r.months.length ? ' · 区间 ' + esc((r.months[0] || {}).rangeFrom || '') +
+      '~' + esc((r.months[0] || {}).rangeTo || '') : '') +
+    (sy.recruit && sy.recruit.msg ? ' <span class="r">' + esc(sy.recruit.msg) + '</span>' : '');
+
+  hrRenderTab();
+}
+
+function hrSwitch(tab) {
+  HR.tab = tab;
+  Array.prototype.forEach.call($('hrTabs').querySelectorAll('button'), function (b) {
+    b.className = b.getAttribute('data-t') === tab ? 'on' : '';
+  });
+  hrRenderTab();
+}
+
+function hrRenderTab() {
+  var d = HR.data || {};
+  if (HR.tab === 'staff') return hrRenderStaff(d);
+  if (HR.tab === 'recruit') return hrRenderRecruit(d);
+  return hrRenderLeads(d);
+}
+
+/* ── 名册 ─────────────────────────────────────────────────────────────── */
+function hrRenderStaff(d) {
+  var sites = d.sites || [];
+  var opts = ['<option value="">全部站点（' + hrNum((d.summary || {}).total) + ' 人）</option>']
+    .concat(sites.map(function (x) {
+      return '<option value="' + esc(x.deptId) + '"' +
+        (String(HR.filt.dept) === String(x.deptId) ? ' selected' : '') + '>' +
+        esc(x.deptName) + '（在职 ' + x.onJob + ' / 共 ' + x.n + '）</option>';
+    }));
+  var st = HR.filt.status;
+  var stSel = ['all', '1', '2'].map(function (v) {
+    var lbl = v === 'all' ? '全部状态' : (HR_STATUS[v] || v);
+    return '<option value="' + v + '"' + (st === v ? ' selected' : '') + '>' + lbl + '</option>';
+  }).join('');
+
+  $('hrBody').innerHTML =
+    '<div class="hr-filter">' +
+      '<select id="hrSt">' + stSel + '</select>' +
+      '<select id="hrDep">' + opts.join('') + '</select>' +
+      '<input id="hrKw" placeholder="姓名 / 手机 / 站点" value="' + esc(HR.filt.kw) + '">' +
+      '<button id="hrGo" class="mini">筛选</button>' +
+      '<span class="hint">共 ' + hrNum((d.staff || []).length) + ' 条</span>' +
+    '</div>' +
+    '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
+      '<th>姓名</th><th>手机</th><th>状态</th><th>站点</th><th>入职时间</th><th>离职时间</th><th>身份证</th>' +
+    '</tr></thead><tbody>' +
+    (d.staff || []).map(function (x) {
+      var cls = x.workStatus === 1 ? '' : ' class="hr-off"';
+      return '<tr' + cls + '><td>' + esc(x.name) + '</td><td>' + esc(x.mobile) + '</td>' +
+        '<td>' + esc(HR_STATUS[String(x.workStatus)] || x.workStatus) + '</td>' +
+        '<td>' + esc(x.deptName) + '</td>' +
+        '<td>' + esc((x.entryTime || '').slice(0, 16)) + '</td>' +
+        '<td>' + esc((x.leaveTime || '').slice(0, 16) || '—') + '</td>' +
+        '<td class="hr-dim">' + esc(x.idNumber) + '</td></tr>';
+    }).join('') +
+    '</tbody></table></div>';
+
+  $('hrGo').onclick = function () {
+    HR.filt.status = $('hrSt').value;
+    HR.filt.dept = $('hrDep').value;
+    HR.filt.kw = $('hrKw').value.trim();
+    hrFilterStaff();
+  };
+}
+
+function hrFilterStaff() {
+  var q = '/api/hr?part=staff&status=' + encodeURIComponent(HR.filt.status) +
+          '&dept=' + encodeURIComponent(HR.filt.dept) +
+          '&kw=' + encodeURIComponent(HR.filt.kw) + '&limit=2000' +
+          '&acct=' + encodeURIComponent(ACCT || '');
+  $('hrBody').insertAdjacentHTML('afterbegin', '<div id="hrWait" class="hint">筛选中…</div>');
+  api(q).then(function (j) {
+    HR.data.staff = (j && j.staff) || [];
+    hrRenderStaff(HR.data);
+  });
+}
+
+/* ── 三方人资月维度 ───────────────────────────────────────────────────── */
+function hrRenderRecruit(d) {
+  var ms = ((d.recruit || {}).months) || [];
+  var agg = ms.filter(function (m) { return m.ym === ''; });
+  var rows = ms.filter(function (m) { return m.ym !== ''; });
+  $('hrBody').innerHTML =
+    '<div class="hint">每行 = 站点 × 招聘年月；「人资渠道」= 三方人资服务商推来的线索/面试/入职。' +
+    '数据由风神「招聘数据看板」按月汇总（近 12 个月）。</div>' +
+    (agg.length ? '<div class="hr-agg">区间合计（' + esc(agg[0].rangeFrom) + '~' + esc(agg[0].rangeTo) + '）：' +
+      '线索 ' + hrNum(agg[0].leads) + ' · 面试 ' + hrNum(agg[0].interviews) +
+      ' · 入职 ' + hrNum(agg[0].hires) + ' · 全渠道入职 ' + hrNum(agg[0].hiresAll) +
+      ' · 入职占比 ' + hrPct(agg[0].hireRatio) + ' · 结算率 ' + hrPct(agg[0].settleRate) +
+      ' · 7天留存 ' + hrNum(agg[0].r7) + '（' + hrPct(agg[0].r7Rate) + '）' +
+      ' · 15天留存 ' + hrNum(agg[0].r15) + '（' + hrPct(agg[0].r15Rate) + '）</div>' : '') +
+    '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
+      '<th>年月</th><th>站点</th><th>缺口</th><th>线索</th><th>面试</th><th>入职</th>' +
+      '<th>全渠道入职</th><th>入职占比</th><th>结算率</th><th>满10天</th>' +
+      '<th>7天留存</th><th>7天留存率</th><th>满15天</th><th>15天留存</th><th>15天留存率</th>' +
+    '</tr></thead><tbody>' +
+    rows.map(function (m) {
+      return '<tr><td>' + esc(m.ym) + '</td><td>' + esc(m.siteName || m.siteId) + '</td>' +
+        '<td>' + hrNum(m.gap) + '</td><td>' + hrNum(m.leads) + '</td>' +
+        '<td>' + hrNum(m.interviews) + '</td><td>' + hrNum(m.hires) + '</td>' +
+        '<td>' + hrNum(m.hiresAll) + '</td><td>' + hrPct(m.hireRatio) + '</td>' +
+        '<td>' + hrPct(m.settleRate) + '</td><td>' + hrNum(m.d10) + '</td>' +
+        '<td>' + hrNum(m.r7) + '</td><td>' + hrPct(m.r7Rate) + '</td>' +
+        '<td>' + hrNum(m.d15) + '</td><td>' + hrNum(m.r15) + '</td>' +
+        '<td>' + hrPct(m.r15Rate) + '</td></tr>';
+    }).join('') +
+    '</tbody></table></div>' +
+    (rows.length ? '' : '<div class="hint">还没有招聘明细。点右上角「同步」拉取（约 3~4 分钟）。</div>');
+}
+
+/* ── 线索明细 ─────────────────────────────────────────────────────────── */
+function hrRenderLeads(d) {
+  var ls = d.leads || [];
+  $('hrBody').innerHTML =
+    '<div class="hint">三方人资服务商推送的线索级明细（近 12 个月，共 ' + hrNum(d.leadCount) + ' 条）。</div>' +
+    '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
+      '<th>线索日期</th><th>骑手</th><th>人资商</th><th>面试状态</th><th>入职状态</th>' +
+      '<th>入职时间</th><th>有效留存天数</th><th>总完单数</th><th>推送站点</th>' +
+    '</tr></thead><tbody>' +
+    ls.map(function (x) {
+      return '<tr><td>' + esc(x.leadDate) + '</td><td>' + esc(x.riderName) + '</td>' +
+        '<td>' + esc(x.humanName) + '</td><td>' + esc(x.interviewStatus) + '</td>' +
+        '<td>' + esc(x.entryStatus) + '</td>' +
+        '<td>' + esc((x.entryAt || '').slice(0, 16) || '—') + '</td>' +
+        '<td>' + esc(x.remainDays || '—') + '</td><td>' + esc(x.ordersTotal || '—') + '</td>' +
+        '<td>' + esc(x.pushSiteName || '') + '</td></tr>';
+    }).join('') +
+    '</tbody></table></div>' +
+    (ls.length ? '' : '<div class="hint">还没有线索明细。点右上角「同步」拉取。</div>');
 }

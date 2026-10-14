@@ -559,3 +559,31 @@ td.sc{font-size:11px;color:var(--sub)}
 #trendBox.full .tr-scroll{overflow:auto !important;max-height:calc(100vh - 60px)}
 #trendBox.full svg{max-height:calc(100vh - 110px);height:auto}
 body.noScroll{overflow:hidden}
+
+/* ═══ 骑手管理（整屏覆盖） ═══════════════════════════════════════════════ */
+.hr-view{position:fixed;inset:0;z-index:60;background:var(--bg,#0d1117);overflow-y:auto;
+  padding:14px 12px 40px;-webkit-overflow-scrolling:touch}
+.hr-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.hr-title{font-size:19px;font-weight:700}
+.hr-btns{display:flex;gap:6px}
+.hr-meta{margin:0 0 8px}
+.hr-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:10px 0 14px}
+.hr-card{background:var(--card,#161b22);border:1px solid var(--line,#30363d);border-radius:10px;
+  padding:10px 11px}
+.hr-k{font-size:12px;color:var(--dim,#8b949e)}
+.hr-v{font-size:22px;font-weight:700;line-height:1.25;margin-top:2px}
+.hr-u{font-size:12px;font-weight:400;color:var(--dim,#8b949e);margin-left:2px}
+.hr-s{font-size:11px;color:var(--dim,#8b949e);margin-top:3px}
+.hr-tabs{margin:6px 0 8px;display:flex;gap:6px;flex-wrap:wrap}
+.hr-filter{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0 10px}
+.hr-filter select,.hr-filter input{background:var(--card,#161b22);color:inherit;
+  border:1px solid var(--line,#30363d);border-radius:7px;padding:6px 8px;font-size:13px;max-width:46vw}
+.hr-agg{background:var(--card,#161b22);border:1px solid var(--line,#30363d);border-radius:9px;
+  padding:9px 11px;font-size:12.5px;line-height:1.7;margin-bottom:10px}
+.hr-tbl{width:100%;border-collapse:collapse;font-size:12.5px;white-space:nowrap}
+.hr-tbl th,.hr-tbl td{border-bottom:1px solid var(--line,#30363d);padding:6px 8px;text-align:left}
+.hr-tbl th{position:sticky;top:0;background:var(--card,#161b22);z-index:1;font-weight:600}
+.hr-tbl tr.hr-off td{opacity:.5}
+.hr-tbl td.hr-dim{color:var(--dim,#8b949e)}
+.hr-body .daily-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line,#30363d);
+  border-radius:9px}
