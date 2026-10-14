@@ -230,17 +230,17 @@ function renderCards(t) {
   var t8d = '考核口径', dud = '复合超时时长 ÷ 有效完单';
   // ★ 只报【超时单数 + 比例】，不显示"若剔除后指标变动多少"——
   //   那个是推导值，含义绕而且看不出到底有多少单受影响。
-  // ★★ 用户 2026-10-13：这里改成【分数】——
-  //   分子 = 卡餐超时单，分母 = 卡餐单量（即 lateRate，= 卡餐超时单占比 ÷ 卡餐单占比）。
-  //   原来显示的是「占完单量」的比例（0.97%），跟"卡餐单里到底有多大比例超时"不是一回事。
+  // ★★ 用户 2026-10-14：改成【分数】显示 ——
+  //   分子 = 卡餐超时单，分母 = 卡餐单量（卡餐且妥投）；
+  //   括号里是 (分子占比, 分母占比) —— 即两者各占【完单量】的比重，不是两者的比值。
   function lateTxt(imp) {
     if (!imp.orders) return '';
     var late = imp.late != null ? imp.late : 0;
     var den = imp.delivered != null ? imp.delivered : null;      // 卡餐/二呼 且妥投 = 单量
-    var rate = imp.lateRate != null ? imp.lateRate
-             : (den ? Math.round(late * 10000 / den) / 100 : null);
+    var ns = imp.lateShare != null ? imp.lateShare + '%' : '—';  // 分子占比 = 超时单/完单量
+    var ds = imp.share != null ? imp.share + '%' : '—';          // 分母占比 = 单量/完单量
     var frac = (den != null) ? (num(late) + '/' + num(den) + '单') : (num(late) + '单');
-    return '超时 ' + frac + (rate != null ? '(' + rate + '%)' : '');
+    return '超时 ' + frac + '(' + ns + ', ' + ds + ')';
   }
   if (mi.orders) {
     t8d += ' · 卡餐' + lateTxt(mi);
