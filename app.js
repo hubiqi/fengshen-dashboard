@@ -2923,7 +2923,8 @@ function hrRender() {
   var cards = [
     ['在职骑手', hrNum(s.onJob), '人', '名册总数 ' + hrNum(s.total) + ' 人（含已离职）'],
     ['本月入职', hrNum(s.joinedThisMonth), '人',
-     '本月离职 ' + hrNum(s.leftThisMonth) + ' 人 · 三方入职 ' + hrNum(m.hires) + ' 人'],
+     '本月离职 ' + hrNum(s.leftThisMonth) + ' 人 · 三方入职 ' + hrNum(m.hires) +
+     ' 人 · 离职骑手 ' + hrNum(s.leftTotal) + ' 人'],
     ['本月线索', hrNum(m.leads), '条',
      '三方人资 · 面试 ' + hrNum(m.interviews) + ' · 入职 ' + hrNum(m.hires)],
     ['三方入职占比', hrPct(m.hireRatio), '',
