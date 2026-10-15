@@ -2845,7 +2845,11 @@ function renderAcctList() {
    接口：GET /api/hr?part=all|summary|staff|leads
         POST /api/hr/sync（后台线程跑，约 3~4 分钟）
    ═══════════════════════════════════════════════════════════════════════════ */
-var HR = {tab: 'staff', busy: false, data: null, filt: {status: 'all', dept: '', kw: ''}};
+var HR = {tab: 'staff', busy: false, data: null,
+          // ★ 名册默认看【在职】（用户指定）；下拉一改就立刻生效，不必再点「筛选」
+          filt: {status: '1', dept: '', kw: ''},
+          // 线索明细自己的筛选：entry='已入职'/'未入职'，onjob=只看目前在职
+          lfilt: {entry: '', onjob: false, kw: ''}};
 
 var HR_STATUS = {'1': '在职', '2': '已离职', '3': '待入职', '4': '已拒绝'};
 
@@ -2873,7 +2877,13 @@ function hrLoad() {
   if (HR.busy) return;
   HR.busy = true;
   $('hrState').textContent = '加载中…';
-  api('/api/hr?part=all&acct=' + encodeURIComponent(ACCT || ''))
+  // ★ 首次就带上名册的默认筛选（默认「在职」），否则拿回来的 626 行和下拉显示的
+  //   「在职」对不上 —— 看起来又像筛选没生效。
+  api('/api/hr?part=all' +
+      '&status=' + encodeURIComponent(HR.filt.status) +
+      '&dept=' + encodeURIComponent(HR.filt.dept) +
+      '&kw=' + encodeURIComponent(HR.filt.kw) +
+      '&acct=' + encodeURIComponent(ACCT || ''))
     .then(function (j) {
       HR.busy = false;
       if (!j || j.ok === false) { $('hrState').textContent = '加载失败'; return; }
@@ -2964,7 +2974,7 @@ function hrRenderStaff(d) {
       '<select id="hrDep">' + opts.join('') + '</select>' +
       '<input id="hrKw" placeholder="姓名 / 手机 / 站点" value="' + esc(HR.filt.kw) + '">' +
       '<button id="hrGo" class="mini">筛选</button>' +
-      '<span class="hint">共 ' + hrNum((d.staff || []).length) + ' 条</span>' +
+      '<span class="hint">显示 <b>' + hrNum((d.staff || []).length) + '</b> 人</span>' +
     '</div>' +
     '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
       '<th>姓名</th><th>手机</th><th>状态</th><th>站点</th><th>入职时间</th><th>离职时间</th><th>身份证</th>' +
@@ -2980,12 +2990,19 @@ function hrRenderStaff(d) {
     }).join('') +
     '</tbody></table></div>';
 
-  $('hrGo').onclick = function () {
-    HR.filt.status = $('hrSt').value;
-    HR.filt.dept = $('hrDep').value;
-    HR.filt.kw = $('hrKw').value.trim();
+  // ★ 改成【改一下就生效】：原来必须先点「筛选」，下拉选了没反应，看起来就像筛选坏了。
+  var stEl = $('hrSt'), dpEl = $('hrDep'), kwEl = $('hrKw');
+  function hrApplyStaff() {
+    HR.filt.status = stEl.value;
+    HR.filt.dept = dpEl.value;
+    HR.filt.kw = (kwEl.value || '').trim();
     hrFilterStaff();
-  };
+  }
+  stEl.onchange = hrApplyStaff;
+  dpEl.onchange = hrApplyStaff;
+  var kwT = null;
+  kwEl.oninput = function () { clearTimeout(kwT); kwT = setTimeout(hrApplyStaff, 400); };
+  $('hrGo').onclick = hrApplyStaff;
 }
 
 function hrFilterStaff() {
@@ -2993,11 +3010,12 @@ function hrFilterStaff() {
           '&dept=' + encodeURIComponent(HR.filt.dept) +
           '&kw=' + encodeURIComponent(HR.filt.kw) + '&limit=2000' +
           '&acct=' + encodeURIComponent(ACCT || '');
-  $('hrBody').insertAdjacentHTML('afterbegin', '<div id="hrWait" class="hint">筛选中…</div>');
+  $('hrState').textContent = '筛选中…';
   api(q).then(function (j) {
     HR.data.staff = (j && j.staff) || [];
+    $('hrState').textContent = '';
     hrRenderStaff(HR.data);
-  });
+  }).catch(function (e) { $('hrState').textContent = '筛选失败：' + e; });
 }
 
 /* ── 三方人资月维度 ───────────────────────────────────────────────────── */
@@ -3036,20 +3054,71 @@ function hrRenderRecruit(d) {
 /* ── 线索明细 ─────────────────────────────────────────────────────────── */
 function hrRenderLeads(d) {
   var ls = d.leads || [];
+  var s = d.leadSummary || {};
+  var f = HR.lfilt;
+  var cur = f.onjob ? 'onjob' : (f.entry || '');
+  var opts = [
+    ['', '全部（' + hrNum(s.total) + '）'],
+    ['已入职', '已入职（' + hrNum(s.hired) + '）'],
+    ['未入职', '未入职（' + hrNum(s.notHired) + '）'],
+    ['onjob', '目前在职（' + hrNum(s.onJob) + '）']
+  ].map(function (o) {
+    return '<option value="' + esc(o[0]) + '"' + (cur === o[0] ? ' selected' : '') + '>' +
+      esc(o[1]) + '</option>';
+  }).join('');
+
   $('hrBody').innerHTML =
-    '<div class="hint">三方人资服务商推送的线索级明细（近 12 个月，共 ' + hrNum(d.leadCount) + ' 条）。</div>' +
+    '<div class="hr-filter">' +
+      '<select id="hrLE">' + opts + '</select>' +
+      '<input id="hrLK" placeholder="骑手 / 人资商 / 线索id" value="' + esc(f.kw) + '">' +
+      '<button id="hrLG" class="mini">筛选</button>' +
+      '<span class="hint">显示 <b>' + hrNum(ls.length) + '</b> 条 · 按<b>有效留存天数正序</b>' +
+      '（— 等无数据的排最后）</span>' +
+    '</div>' +
     '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
-      '<th>线索日期</th><th>骑手</th><th>人资商</th><th>面试状态</th><th>入职状态</th>' +
-      '<th>入职时间</th><th>有效留存天数</th><th>总完单数</th><th>推送站点</th>' +
+      '<th>线索日期</th><th>骑手</th><th>是否在职</th><th>人资商</th><th>面试状态</th>' +
+      '<th>入职状态</th><th>入职时间</th><th>有效留存天数</th><th>总完单数</th><th>推送站点</th>' +
     '</tr></thead><tbody>' +
     ls.map(function (x) {
+      var onJob = x.onJob ? '<span class="g">在职</span>' : (x.entryStatus === '已入职'
+        ? '<span class="r">已离职</span>' : '—');
       return '<tr><td>' + esc(x.leadDate) + '</td><td>' + esc(x.riderName) + '</td>' +
-        '<td>' + esc(x.humanName) + '</td><td>' + esc(x.interviewStatus) + '</td>' +
+        '<td>' + onJob + '</td><td>' + esc(x.humanName) + '</td>' +
+        '<td>' + esc(x.interviewStatus) + '</td>' +
         '<td>' + esc(x.entryStatus) + '</td>' +
         '<td>' + esc((x.entryAt || '').slice(0, 16) || '—') + '</td>' +
         '<td>' + esc(x.remainDays || '—') + '</td><td>' + esc(x.ordersTotal || '—') + '</td>' +
         '<td>' + esc(x.pushSiteName || '') + '</td></tr>';
     }).join('') +
     '</tbody></table></div>' +
-    (ls.length ? '' : '<div class="hint">还没有线索明细。点右上角「同步」拉取。</div>');
+    (ls.length ? '' : '<div class="hint">没有符合条件的线索。点右上角「同步」拉取数据。</div>');
+
+  var el = $('hrLE'), kwEl = $('hrLK');
+  function hrApplyLeads() {
+    var v = el.value;
+    HR.lfilt.onjob = (v === 'onjob');
+    HR.lfilt.entry = (v === 'onjob' ? '' : v);
+    HR.lfilt.kw = (kwEl.value || '').trim();
+    hrFilterLeads();
+  }
+  el.onchange = hrApplyLeads;
+  var t = null;
+  kwEl.oninput = function () { clearTimeout(t); t = setTimeout(hrApplyLeads, 400); };
+  $('hrLG').onclick = hrApplyLeads;
+}
+
+function hrFilterLeads() {
+  var f = HR.lfilt;
+  var q = '/api/hr?part=leads&limit=2000&order=remain' +
+          '&entry=' + encodeURIComponent(f.entry || '') +
+          (f.onjob ? '&onjob=1' : '') +
+          '&kw=' + encodeURIComponent(f.kw || '') +
+          '&acct=' + encodeURIComponent(ACCT || '');
+  $('hrState').textContent = '筛选中…';
+  api(q).then(function (j) {
+    HR.data.leads = (j && j.leads) || [];
+    HR.data.leadSummary = (j && j.leadSummary) || HR.data.leadSummary;
+    $('hrState').textContent = '';
+    hrRenderLeads(HR.data);
+  }).catch(function (e) { $('hrState').textContent = '筛选失败：' + e; });
 }
