@@ -19,6 +19,12 @@ h3{font-size:15px;margin:0 0 12px}
 .hero-sub{font-size:12px;opacity:.9;margin-top:6px;line-height:1.4}
 .ghost{background:rgba(255,255,255,.18);color:#fff;border:0;border-radius:8px;
   padding:5px 10px;font-size:13px}
+/* ★ hero 上三个图标按钮必须一样大：👥（骑手管理）是 emoji，字形盒比 ↻ / ⚙ 矮，
+   没有固定高度时实测 👥=25px、↻/⚙=28px —— 用户 2026-10-16 截图反馈
+   「骑手那个按钮高度不一致」。给 hero 内的 ghost 固定最小尺寸 + flex 居中，
+   三个按钮就都是 36×28 了。只作用于 .hero，弹窗里的 ghost 不受影响。 */
+.hero .ghost{min-height:28px;min-width:36px;display:inline-flex;
+  align-items:center;justify-content:center;line-height:1}
 .modal .ghost{background:#eef0f4;color:#333}
 
 .tabs{display:flex;gap:6px;padding:12px 16px 0}
