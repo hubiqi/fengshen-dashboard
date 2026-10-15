@@ -2876,6 +2876,7 @@ function hrAgo(sec) {
 function hrLoad() {
   if (HR.busy) return;
   HR.busy = true;
+  HR.leadsAll = null;
   $('hrState').textContent = '加载中…';
   // ★ 首次就带上名册的默认筛选（默认「在职」），否则拿回来的 626 行和下拉显示的
   //   「在职」对不上 —— 看起来又像筛选没生效。
@@ -2888,6 +2889,7 @@ function hrLoad() {
       HR.busy = false;
       if (!j || j.ok === false) { $('hrState').textContent = '加载失败'; return; }
       HR.data = j;
+      HR.leadsAll = j.leads || [];      // ★ 线索本地过滤的全量底表
       $('hrState').textContent = '';
       hrRender();
     })
@@ -2973,8 +2975,8 @@ function hrRenderStaff(d) {
       '<select id="hrSt">' + stSel + '</select>' +
       '<select id="hrDep">' + opts.join('') + '</select>' +
       '<input id="hrKw" placeholder="姓名 / 手机 / 站点" value="' + esc(HR.filt.kw) + '">' +
-      '<button id="hrGo" class="mini">筛选</button>' +
-      '<span class="hint">显示 <b>' + hrNum((d.staff || []).length) + '</b> 人</span>' +
+      '<button id="hrGo" class="mini hr-btn">筛选</button>' +
+      '<span class="hint" id="hrSMsg">显示 <b>' + hrNum((d.staff || []).length) + '</b> 人</span>' +
     '</div>' +
     '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
       '<th>姓名</th><th>手机</th><th>状态</th><th>站点</th><th>入职时间</th><th>离职时间</th><th>身份证</th>' +
@@ -3010,12 +3012,19 @@ function hrFilterStaff() {
           '&dept=' + encodeURIComponent(HR.filt.dept) +
           '&kw=' + encodeURIComponent(HR.filt.kw) + '&limit=2000' +
           '&acct=' + encodeURIComponent(ACCT || '');
+  // ★ 反馈写在筛选条里（#hrSMsg）—— 原来写在页面最顶部的 #hrState，
+  //   用户滚到表格下面点「筛选」，出错/加载中都看不见，就像按钮没反应。
+  var msg = $('hrSMsg');
+  if (msg) msg.textContent = '筛选中…';
   $('hrState').textContent = '筛选中…';
   api(q).then(function (j) {
     HR.data.staff = (j && j.staff) || [];
     $('hrState').textContent = '';
     hrRenderStaff(HR.data);
-  }).catch(function (e) { $('hrState').textContent = '筛选失败：' + e; });
+  }).catch(function (e) {
+    $('hrState').textContent = '';
+    if ($('hrSMsg')) $('hrSMsg').textContent = '筛选失败：' + e;
+  });
 }
 
 /* ── 三方人资月维度 ───────────────────────────────────────────────────── */
@@ -3053,9 +3062,23 @@ function hrRenderRecruit(d) {
 
 /* ── 线索明细 ─────────────────────────────────────────────────────────── */
 function hrRenderLeads(d) {
-  var ls = d.leads || [];
+  // ★ 线索明细是「全量小表」（近12个月 46 条），直接【本地过滤】——
+  //   原先前端每次都发一次 /api/hr?part=leads 再重渲染，只要那次请求慢/失败
+  //   （错误又只写在页面最顶部的 #hrState，滚到表格时根本看不见），
+  //   用户看到的就是「筛选按钮不能用」。本地过滤是同步的，不可能失败。
+  if (!HR.leadsAll) HR.leadsAll = d.leads || [];
+  var all = HR.leadsAll;
   var s = d.leadSummary || {};
   var f = HR.lfilt;
+  var ls = all.filter(function (x) {
+    if (f.onjob && !x.onJob) return false;
+    if (!f.onjob && f.entry && x.entryStatus !== f.entry) return false;
+    if (f.kw) {
+      var blob = (x.riderName || '') + '|' + (x.humanName || '') + '|' + (x.leadId || '');
+      if (blob.indexOf(f.kw) < 0) return false;
+    }
+    return true;
+  });
   var cur = f.onjob ? 'onjob' : (f.entry || '');
   var opts = [
     ['', '全部（' + hrNum(s.total) + '）'],
@@ -3071,9 +3094,9 @@ function hrRenderLeads(d) {
     '<div class="hr-filter">' +
       '<select id="hrLE">' + opts + '</select>' +
       '<input id="hrLK" placeholder="骑手 / 人资商 / 线索id" value="' + esc(f.kw) + '">' +
-      '<button id="hrLG" class="mini">筛选</button>' +
-      '<span class="hint">显示 <b>' + hrNum(ls.length) + '</b> 条 · 按<b>有效留存天数正序</b>' +
-      '（— 等无数据的排最后）</span>' +
+      '<button id="hrLG" class="mini hr-btn">筛选</button>' +
+      '<span class="hint" id="hrLMsg">显示 <b>' + hrNum(ls.length) + '</b> 条 · ' +
+      '按<b>有效留存天数正序</b>（— 等无数据排最后）</span>' +
     '</div>' +
     '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
       '<th>线索日期</th><th>骑手</th><th>是否在职</th><th>人资商</th><th>面试状态</th>' +
@@ -3091,34 +3114,25 @@ function hrRenderLeads(d) {
         '<td>' + esc(x.pushSiteName || '') + '</td></tr>';
     }).join('') +
     '</tbody></table></div>' +
-    (ls.length ? '' : '<div class="hint">没有符合条件的线索。点右上角「同步」拉取数据。</div>');
+    (ls.length ? '' : '<div class="hint">没有符合条件的线索。</div>');
 
-  var el = $('hrLE'), kwEl = $('hrLK');
+  var el = $('hrLE'), kwEl = $('hrLK'), btn = $('hrLG');
+  // ★ 改一下就生效：下拉直接触发；关键词按 500ms 防抖；回车也立刻查。
+  //   「筛选」按钮保留，且一定要能点（.hr-btn 放大了触控区域）。
   function hrApplyLeads() {
     var v = el.value;
     HR.lfilt.onjob = (v === 'onjob');
     HR.lfilt.entry = (v === 'onjob' ? '' : v);
-    HR.lfilt.kw = (kwEl.value || '').trim();
-    hrFilterLeads();
+    HR.lfilt.kw = (kwEl.value || '').replace(/^\s+|\s+$/g, '');
+    hrRenderLeads(HR.data || {});      // 纯本地，同步完成
   }
-  el.onchange = hrApplyLeads;
-  var t = null;
-  kwEl.oninput = function () { clearTimeout(t); t = setTimeout(hrApplyLeads, 400); };
-  $('hrLG').onclick = hrApplyLeads;
-}
-
-function hrFilterLeads() {
-  var f = HR.lfilt;
-  var q = '/api/hr?part=leads&limit=2000&order=remain' +
-          '&entry=' + encodeURIComponent(f.entry || '') +
-          (f.onjob ? '&onjob=1' : '') +
-          '&kw=' + encodeURIComponent(f.kw || '') +
-          '&acct=' + encodeURIComponent(ACCT || '');
-  $('hrState').textContent = '筛选中…';
-  api(q).then(function (j) {
-    HR.data.leads = (j && j.leads) || [];
-    HR.data.leadSummary = (j && j.leadSummary) || HR.data.leadSummary;
-    $('hrState').textContent = '';
-    hrRenderLeads(HR.data);
-  }).catch(function (e) { $('hrState').textContent = '筛选失败：' + e; });
+  if (el) el.onchange = hrApplyLeads;
+  if (kwEl) {
+    kwEl.onkeydown = function (e) {
+      if (e.key === 'Enter' || e.keyCode === 13) { hrApplyLeads(); return false; }
+    };
+    var t = null;
+    kwEl.oninput = function () { clearTimeout(t); t = setTimeout(hrApplyLeads, 500); };
+  }
+  if (btn) btn.onclick = hrApplyLeads;
 }

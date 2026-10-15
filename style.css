@@ -587,3 +587,8 @@ body.noScroll{overflow:hidden}
 .hr-tbl td.hr-dim{color:var(--dim,#8b949e)}
 .hr-body .daily-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line,#30363d);
   border-radius:9px}
+
+/* ★ 筛选按钮的触控区域要够大：原来的 .mini 只有 39×22px，手机上很容易点不中，
+   表现就是「按钮不能用」。这里放宽到至少 40px 高。 */
+.hr-filter .hr-btn{min-height:36px;padding:8px 14px;font-size:13.5px;flex:0 0 auto}
+.hr-filter #hrLMsg,.hr-filter #hrSMsg{flex:1 1 100%;line-height:1.5}
