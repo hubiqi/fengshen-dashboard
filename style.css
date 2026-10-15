@@ -411,8 +411,13 @@ td.sc{font-size:11px;color:var(--sub)}
 .listbar{padding:2px 0 8px}
 .listbar .lb-row{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-bottom:5px}
 .listbar .lb-lab{font-size:11px;color:var(--sub);margin-right:2px}
+/* ★ 工具条一行内的控件高度必须一致（用户 2026-10-16 指出）。
+   原来三种高度：.lb 按钮 21px / .lb-in 输入框 27px / .msel-btn 24px，
+   同一行参差不齐。现在统一 min-height:26px，.lb-row 已经是 align-items:center，
+   所以整行齐平。 */
 .listbar .lb{font-size:11px;padding:3px 9px;border:1px solid var(--line);
-  border-radius:12px;background:#fff;color:var(--sub);cursor:pointer;white-space:nowrap}
+  border-radius:12px;background:#fff;color:var(--sub);cursor:pointer;white-space:nowrap;
+  min-height:26px;display:inline-flex;align-items:center}
 .listbar .lb:hover{border-color:var(--blue);color:var(--blue)}
 .listbar .lb.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
 .listbar .lb-hint{font-size:10.5px;color:var(--sub);margin-left:4px}
@@ -505,7 +510,7 @@ td.sc{font-size:11px;color:var(--sub)}
 
 
 /* 自定义分位输入框 */
-.lb-in{width:58px;padding:3px 5px;font-size:12px;border:1px solid var(--line);
+.lb-in{width:58px;padding:3px 5px;font-size:12px;min-height:26px;border:1px solid var(--line);
   border-radius:6px;background:#fff;color:var(--fg);text-align:center}
 .lb-in:focus{outline:none;border-color:var(--blue)}
 .lb-pct{font-size:11px;color:var(--sub);margin-left:2px}
@@ -513,7 +518,7 @@ td.sc{font-size:11px;color:var(--sub)}
 
 /* 站点下拉多选 */
 .msel{position:relative;display:inline-block;vertical-align:middle}
-.msel-btn{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;
+.msel-btn{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;min-height:26px;
   font-size:12px;color:var(--fg);background:#fff;border:1px solid var(--line);
   border-radius:14px;cursor:pointer;max-width:15em}
 .msel-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -535,10 +540,12 @@ td.sc{font-size:11px;color:var(--sub)}
 /* 自定义分位输入（补 ✕ 按钮） */
 .lb-inwrap{display:inline-flex;align-items:center;gap:3px}
 .lb-x{padding:2px 6px;font-size:12px;line-height:1;color:var(--sub);
-  background:#fff;border:1px solid var(--line);border-radius:6px;cursor:pointer}
+  background:#fff;border:1px solid var(--line);border-radius:6px;cursor:pointer;
+  min-height:26px;min-width:26px;display:inline-flex;align-items:center;justify-content:center}
 
 .lb-ok{padding:3px 10px;font-size:12px;font-weight:600;color:#fff;
-  background:var(--blue);border:1px solid var(--blue);border-radius:6px;cursor:pointer}
+  background:var(--blue);border:1px solid var(--blue);border-radius:6px;cursor:pointer;
+  min-height:26px;display:inline-flex;align-items:center}
 .lb-ok:active{opacity:.85}
 
 
@@ -609,5 +616,5 @@ body.noScroll{overflow:hidden}
 
 /* ★ 骑手明细的姓名搜索框（.lb-in 默认只有 58px，装不下名字） */
 .lb-kwwrap{flex:1 1 auto;max-width:100%}
-.lb-kw{width:150px;max-width:60vw;text-align:left;padding:5px 8px;font-size:13px}
+.lb-kw{width:150px;max-width:60vw;text-align:left;padding:4px 8px;font-size:13px;min-height:26px}
 .lb-kw::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}
