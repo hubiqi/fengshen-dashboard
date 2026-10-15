@@ -2961,13 +2961,12 @@ function hrSync() {
 
 function hrRender() {
   var d = HR.data || {};
-  var s = d.summary || {}, m = d.month || {}, ls = d.leadSummary || {};
+  var s = d.summary || {}, m = d.month || {};
   // ★ 顶部卡片统一按【本月】口径（用户 2026-10-15 指定）。
   //   「N天有效留存数」= 有效留存天数 >= N 的累计人数（已用线索明细逐条验证：
   //    >=7 → 19、>=15 → 16，与报表的 7天/15天有效留存数完全一致）；
   //   「入职满N天数」是【在职天数】口径（不要求达标），两者不能并列，
   //   并列会看成"7天留存 < 15天留存"。
-  var dim = m.ym ? (m.ym.slice(0, 4) + '-' + m.ym.slice(4)) : '';
   var cards = [
     ['在职骑手', hrNum(s.onJob), '人', '名册总数 ' + hrNum(s.total) + ' 人（含已离职）'],
     ['本月入职', hrNum(s.joinedThisMonth), '人',
@@ -2979,8 +2978,9 @@ function hrRender() {
      '全渠道入职 ' + hrNum(m.hiresAll) + ' 人'],
     ['7天有效留存', hrNum(m.r7), '人',
      '7天留存率 ' + hrPct(m.r7Rate) + ' · 15天有效留存 ' + hrNum(m.r15) +
-     '（' + hrPct(m.r15Rate) + '）'],
-    ['线索明细', hrNum(ls.monthCount), '条', '本月' + (dim ? '（' + dim + '）' : '')]
+     '（' + hrPct(m.r15Rate) + '）']
+    // ★ 「线索明细 N 条」这张卡删掉了（用户 2026-10-15）：上面的「本月线索」
+    //   已经是同一个月的条数，两张卡说的是同一件事。
   ];
   $('hrCards').innerHTML = cards.map(function (c) {
     return '<div class="hr-card"><div class="hr-k">' + esc(c[0]) + '</div>' +
