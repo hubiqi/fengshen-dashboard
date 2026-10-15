@@ -577,7 +577,8 @@ body.noScroll{overflow:hidden}
 .hr-tabs{margin:6px 0 8px;display:flex;gap:6px;flex-wrap:wrap}
 .hr-filter{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0 10px}
 .hr-filter select,.hr-filter input{background:var(--card,#161b22);color:inherit;
-  border:1px solid var(--line,#30363d);border-radius:7px;padding:6px 8px;font-size:13px;max-width:46vw}
+  border:1px solid var(--line,#30363d);border-radius:7px;padding:8px 10px;font-size:13px;
+  min-height:36px;max-width:46vw}
 .hr-agg{background:var(--card,#161b22);border:1px solid var(--line,#30363d);border-radius:9px;
   padding:9px 11px;font-size:12.5px;line-height:1.7;margin-bottom:10px}
 .hr-tbl{width:100%;border-collapse:collapse;font-size:12.5px;white-space:nowrap}
@@ -588,9 +589,16 @@ body.noScroll{overflow:hidden}
 .hr-body .daily-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line,#30363d);
   border-radius:9px}
 
-/* ★ 筛选按钮的触控区域要够大：原来的 .mini 只有 39×22px，手机上很容易点不中，
-   表现就是「按钮不能用」。这里放宽到至少 40px 高。 */
-.hr-filter .hr-btn{min-height:36px;padding:8px 14px;font-size:13.5px;flex:0 0 auto}
+/* ★ 骑手管理内的按钮统一尺寸（用户 2026-10-16：「按钮跟其他按钮大小不一致」）。
+   原来三类按钮各是各的：顶部「同步/关闭」用 .mini（23px 高、11px 字），
+   分段 tab 34px，「筛选」36px —— 一屏里三种大小。
+   现在全视图统一走 .hr-btn：36px 高 / 13.5px 字，跟分段 tab、下拉框、输入框同高。 */
+.hr-btn{padding:8px 14px;font-size:13.5px;line-height:1.2;min-height:36px;
+  border:1px solid var(--line,#30363d);background:var(--card,#161b22);border-radius:9px;
+  color:var(--fg,#1c1f24);white-space:nowrap}
+.hr-btn:active{background:#eef1f6}
+.hr-view .tabs button{min-height:36px}
+.hr-filter .hr-btn{flex:0 0 auto}
 .hr-filter #hrLMsg,.hr-filter #hrSMsg{flex:1 1 100%;line-height:1.5}
 
 /* ★ 骑手明细的姓名搜索框（.lb-in 默认只有 58px，装不下名字） */

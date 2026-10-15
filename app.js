@@ -3035,7 +3035,7 @@ function hrRenderStaff(d) {
       '<select id="hrSt">' + stSel + '</select>' +
       '<select id="hrDep">' + opts.join('') + '</select>' +
       '<input id="hrKw" placeholder="姓名 / 手机 / 站点" value="' + esc(HR.filt.kw) + '">' +
-      '<button id="hrGo" class="mini hr-btn">筛选</button>' +
+      '<button id="hrGo" class="hr-btn">筛选</button>' +
       '<span class="hint" id="hrSMsg">显示 <b>' + hrNum((d.staff || []).length) + '</b> 人</span>' +
     '</div>' +
     '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
@@ -3154,7 +3154,7 @@ function hrRenderLeads(d) {
     '<div class="hr-filter">' +
       '<select id="hrLE">' + opts + '</select>' +
       '<input id="hrLK" placeholder="骑手 / 人资商 / 线索id" value="' + esc(f.kw) + '">' +
-      '<button id="hrLG" class="mini hr-btn">筛选</button>' +
+      '<button id="hrLG" class="hr-btn">筛选</button>' +
       '<span class="hint" id="hrLMsg">显示 <b>' + hrNum(ls.length) + '</b> 条 · ' +
       '按<b>有效留存天数正序</b>（— 等无数据排最后）</span>' +
     '</div>' +
