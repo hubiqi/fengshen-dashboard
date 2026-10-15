@@ -2913,15 +2913,25 @@ function hrSync() {
 
 function hrRender() {
   var d = HR.data || {};
-  var s = d.summary || {}, r = d.recruit || {}, t = r.totals || {};
+  var s = d.summary || {}, m = d.month || {}, ls = d.leadSummary || {};
+  // ★ 顶部卡片统一按【本月】口径（用户 2026-10-15 指定）。
+  //   「N天有效留存数」= 有效留存天数 >= N 的累计人数（已用线索明细逐条验证：
+  //    >=7 → 19、>=15 → 16，与报表的 7天/15天有效留存数完全一致）；
+  //   「入职满N天数」是【在职天数】口径（不要求达标），两者不能并列，
+  //   并列会看成"7天留存 < 15天留存"。
+  var dim = m.ym ? (m.ym.slice(0, 4) + '-' + m.ym.slice(4)) : '';
   var cards = [
     ['在职骑手', hrNum(s.onJob), '人', '名册总数 ' + hrNum(s.total) + ' 人（含已离职）'],
-    ['本月入职', hrNum(s.joinedThisMonth), '人', '本月离职 ' + hrNum(s.leftThisMonth) + ' 人'],
-    ['近12月线索', hrNum(t.leads), '条', '面试 ' + hrNum(t.interviews) + ' · 入职 ' + hrNum(t.hires)],
-    ['三方入职占比', hrPct(t.hires && t.hiresAll ? t.hires * 100 / t.hiresAll : null), '',
-     '全渠道入职 ' + hrNum(t.hiresAll) + ' 人'],
-    ['7天有效留存', hrNum(t.r7), '人', '满10天 ' + hrNum(t.d10) + ' · 满15天 ' + hrNum(t.d15)],
-    ['线索明细', hrNum(d.leadCount), '条', '近 12 个月']
+    ['本月入职', hrNum(s.joinedThisMonth), '人',
+     '本月离职 ' + hrNum(s.leftThisMonth) + ' 人 · 三方入职 ' + hrNum(m.hires) + ' 人'],
+    ['本月线索', hrNum(m.leads), '条',
+     '三方人资 · 面试 ' + hrNum(m.interviews) + ' · 入职 ' + hrNum(m.hires)],
+    ['三方入职占比', hrPct(m.hireRatio), '',
+     '全渠道入职 ' + hrNum(m.hiresAll) + ' 人'],
+    ['7天有效留存', hrNum(m.r7), '人',
+     '7天留存率 ' + hrPct(m.r7Rate) + ' · 15天有效留存 ' + hrNum(m.r15) +
+     '（' + hrPct(m.r15Rate) + '）'],
+    ['线索明细', hrNum(ls.monthCount), '条', '本月' + (dim ? '（' + dim + '）' : '')]
   ];
   $('hrCards').innerHTML = cards.map(function (c) {
     return '<div class="hr-card"><div class="hr-k">' + esc(c[0]) + '</div>' +
@@ -2929,12 +2939,13 @@ function hrRender() {
            '<div class="hr-s">' + esc(c[3]) + '</div></div>';
   }).join('');
 
-  var sy = d.sync || {};
+  var sy = d.sync || {}, rec = d.recruit || {};
+  var rng = (rec.months && rec.months.length) ? rec.months[0] : {};
   $('hrMeta').innerHTML = '名册同步：' + hrAgo(sy.staff && sy.staff.ageSec) +
     (sy.staff && sy.staff.msg ? ' <span class="r">' + esc(sy.staff.msg) + '</span>' : '') +
     ' · 招聘明细同步：' + hrAgo(sy.recruit && sy.recruit.ageSec) +
-    (r.months && r.months.length ? ' · 区间 ' + esc((r.months[0] || {}).rangeFrom || '') +
-      '~' + esc((r.months[0] || {}).rangeTo || '') : '') +
+    (rng.rangeFrom ? ' · 明细区间 ' + esc(rng.rangeFrom) + '~' + esc(rng.rangeTo) +
+      '（卡片=本月）' : '') +
     (sy.recruit && sy.recruit.msg ? ' <span class="r">' + esc(sy.recruit.msg) + '</span>' : '');
 
   hrRenderTab();
