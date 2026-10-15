@@ -844,6 +844,7 @@ var SORT_KEYS = [
 //   前 10% 等于"单量最高的10%"，跟质量无关，方向刚好反了。
 var LIST_F = { sortKey: 'score.cur', sortDir: 1, quant: 0.10,   // ★ 默认只看前 10%
               sites: null,     // sites: null = 全选（不过滤），否则为站点名数组
+              kw: '',          // ★ 骑手姓名/ID 搜索（本地过滤，2026-10-15 用户要求）
               showAll: false };// 显示明细：true = 全部行都展开详情
 var LAST_ROWS = [];
 
@@ -885,6 +886,22 @@ function applyQuantile(rows) {
   if (S.level !== 'rider' || !LIST_F.quant) return rows;
   var n = Math.max(1, Math.ceil(rows.length * LIST_F.quant));
   return rows.slice(0, n);
+}
+
+/* ★ 骑手姓名 / ID 搜索（用户 2026-10-15：「骑手明细增加筛选」）。
+   走【本地过滤】，不发请求 —— LAST_ROWS 已经是该维度的全量行。
+   位置在【站点筛选之后、排序与分位之前】：这样「只看前 10%」的分母
+   是"搜出来的这批人"，而不是全站 142 人。 */
+function applyKw(rows) {
+  if (S.level !== 'rider') return rows;
+  var k = (LIST_F.kw || '').replace(/^\s+|\s+$/g, '').toLowerCase();
+  if (!k) return rows;
+  var digits = k.replace(/\D/g, '');
+  return rows.filter(function (r) {
+    if (String(r.name || '').toLowerCase().indexOf(k) >= 0) return true;
+    if (digits && String(r.id || '').indexOf(digits) >= 0) return true;
+    return false;
+  });
 }
 
 function renderListBar(rows) {
@@ -935,7 +952,7 @@ function renderListBar(rows) {
     // ★ 分位的分母必须是【站点筛选之后】的人数 —— 那才是"当前这批人"。
     //   用全量做分母时，勾了只一个站点仍显示"显示 15 / 149 人"，
     //   实际只渲染了 3 行，看起来像漏了人。
-    var poolN = applySites((rows || []).slice()).length;
+    var poolN = applyKw(applySites((rows || []).slice())).length;
     var shownN = LIST_F.quant ? Math.max(1, Math.ceil(poolN * LIST_F.quant)) : poolN;
     // ★ 未出分的人数要显式说出来 —— 按得分排序时，没分的行会沉到最后，
     //   被分位筛掉。不提示的话，用户只会看到"人数对不上"。
@@ -949,6 +966,13 @@ function renderListBar(rows) {
           + noScore + ' 人未出分</em>' : '') +
       '</span></div>';
   }
+  // ★ 骑手姓名搜索（用户 2026-10-15 要求）：本地过滤，边打边筛，不用点按钮。
+  h += '<div class="lb-row"><span class="lb-lab">搜索</span>' +
+    '<span class="lb-inwrap lb-kwwrap">' +
+    '<input class="lb-in lb-kw" type="search" autocomplete="off" ' +
+      'placeholder="骑手姓名 / 骑手ID" value="' + esc(LIST_F.kw || '') + '" data-kw>' +
+    (LIST_F.kw ? '<button class="lb-x" data-kwclear title="清除">✕</button>' : '') +
+    '</span></div>';
   // ★ 站点筛选：默认全选（sites=null），可单选（点一个）或多选（点多个）。
   var siteNames = [];
   rows.forEach(function (r) { if (r.siteName && siteNames.indexOf(r.siteName) < 0) siteNames.push(r.siteName); });
@@ -989,14 +1013,14 @@ function renderListBar(rows) {
   };
   var exImg = bar.querySelector('[data-exportimg]');
   if (exImg) exImg.onclick = function () {
-    var rows = applySites((LAST_ROWS || []).slice());
+    var rows = applyKw(applySites((LAST_ROWS || []).slice()));
     rows = applyQuantile(applySort(rows));
     if (typeof exportImage === 'function') exportImage(rows);   // export_img.js
     else { var t = $('progText'); if (t) t.textContent = '导出图片功能未加载'; }
   };
   var exBtn = bar.querySelector('[data-export]');
   if (exBtn) exBtn.onclick = function () {
-    var rows = applySites((LAST_ROWS || []).slice());
+    var rows = applyKw(applySites((LAST_ROWS || []).slice()));
     rows = applySort(rows);
     rows = applyQuantile(rows);
     exportCsv(rows);          // 导出【当前筛选+排序后的完整结果】
@@ -1096,6 +1120,30 @@ function renderListBar(rows) {
     msel.onclick = function (e) { e.stopPropagation(); };
     msel.querySelector('.msel-pop').onclick = function (e) { e.stopPropagation(); };
   }
+  // ★ 搜索框：边打边筛（300ms 防抖）。
+  //   重画工具条会让 input 失焦，所以刷完要把光标还回去 —— 否则打第二个字就断。
+  var kwi = bar.querySelector('[data-kw]');
+  if (kwi) {
+    kwi.onclick = function (e) { e.stopPropagation(); };
+    var kwT = null;
+    kwi.oninput = function () {
+      clearTimeout(kwT);
+      kwT = setTimeout(function () {
+        LIST_F.kw = kwi.value;
+        var pos = kwi.value.length;
+        renderList(LAST_ROWS.slice());
+        var el2 = $('listBar') && $('listBar').querySelector('[data-kw]');
+        if (el2) { el2.focus(); try { el2.setSelectionRange(pos, pos); } catch (e) {} }
+      }, 300);
+    };
+    kwi.onkeydown = function (e) { if (e.key === 'Enter') e.preventDefault(); };
+  }
+  var kwc = bar.querySelector('[data-kwclear]');
+  if (kwc) kwc.onclick = function (e) {
+    e.stopPropagation();
+    LIST_F.kw = '';
+    renderList(LAST_ROWS.slice());
+  };
 }
 
 /* 排序/筛选只影响列表，不重新请求接口 —— 复用已取到的全量行 */
@@ -1368,7 +1416,7 @@ function renderList(rows, isMaster) {
   if (LIST_F.sortKey === 'score.cur' && scoresStale() && !SCORE_BUSY) {
     if (!LAST_ROWS || !LAST_ROWS.length) LAST_ROWS = rows;
     renderListBar(LAST_ROWS);
-    var nAll = applySites((LAST_ROWS || []).slice()).length;
+    var nAll = applyKw(applySites((LAST_ROWS || []).slice())).length;
     $('list').innerHTML = '<div class="loading">正在计算全部 ' + nAll +
       ' 人的考核得分…<br><span class="hint">得分是当天四项指标加权的结果，' +
       '必须先算出每个人才能按得分排序并取前 ' +
@@ -1379,7 +1427,7 @@ function renderList(rows, isMaster) {
 
   // ★ 排序 + 骑手分位筛选（在渲染前应用，作用于全量行）
   renderListBar(rows);
-  rows = applySites(rows);
+  rows = applyKw(applySites(rows));
   rows = applySort(rows);
   rows = applyQuantile(rows);
   // ★ 行数据存全局：objScore 拿到分数后要写回对应行，卡片内的分数才能显示。

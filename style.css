@@ -592,3 +592,8 @@ body.noScroll{overflow:hidden}
    表现就是「按钮不能用」。这里放宽到至少 40px 高。 */
 .hr-filter .hr-btn{min-height:36px;padding:8px 14px;font-size:13.5px;flex:0 0 auto}
 .hr-filter #hrLMsg,.hr-filter #hrSMsg{flex:1 1 100%;line-height:1.5}
+
+/* ★ 骑手明细的姓名搜索框（.lb-in 默认只有 58px，装不下名字） */
+.lb-kwwrap{flex:1 1 auto;max-width:100%}
+.lb-kw{width:150px;max-width:60vw;text-align:left;padding:5px 8px;font-size:13px}
+.lb-kw::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}
