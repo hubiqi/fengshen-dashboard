@@ -2988,8 +2988,12 @@ function hrRender() {
      ' 人 · 离职骑手 ' + hrNum(s.leftTotal) + ' 人'],
     ['本月线索', hrNum(m.leads), '条',
      '三方人资 · 面试 ' + hrNum(m.interviews) + ' · 入职 ' + hrNum(m.hires)],
+    // ★ 口径提示（2026-10-17）：这个「全渠道入职」来自【招聘报表】（Quark），
+    //   统计的是走招聘系统归档到该月的入职；上面「本月入职」来自【HR 名册】
+    //   （entry_time 落在本月的人，含直接到站报名/复职/站间调动）。
+    //   两个数天然对不上（实测 17 vs 21），不写清楚会被当成数据错了。
     ['三方入职占比', hrPct(m.hireRatio), '',
-     '全渠道入职 ' + hrNum(m.hiresAll) + ' 人'],
+     '全渠道入职 ' + hrNum(m.hiresAll) + ' 人（招聘系统口径）'],
     ['7天有效留存', hrNum(m.r7), '人',
      '7天留存率 ' + hrPct(m.r7Rate) + ' · 15天有效留存 ' + hrNum(m.r15) +
      '（' + hrPct(m.r15Rate) + '）']
