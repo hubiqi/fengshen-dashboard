@@ -2002,12 +2002,22 @@ function loadAll() {
   loadKpi(r[0], r[1]);
 }
 
+/* ★ 骨架屏：等 /api/metrics（~0.3s，弱网更久）时先把卡片位占住，
+   避免"加载中…"一行字 → 6 张卡片 的跳版。 */
+function skCards(n) {
+  var one = '<div class="sk-card"><div class="sk sk-k"></div>' +
+            '<div class="sk sk-v"></div><div class="sk sk-d"></div></div>';
+  var h = '';
+  for (var i = 0; i < (n || 6); i++) h += one;
+  return h;
+}
+
 /* withList=false 时不重渲列表 —— 点对象时列表内容没变，重复渲会把选中态闪掉。 */
 function loadCards(dfrom, dto, withList) {
   var r = computeRange();
   dfrom = dfrom || r[0]; dto = dto || r[1];
   var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
-  $('cards').innerHTML = '<div class="loading">加载中…</div>';
+  $('cards').innerHTML = skCards(6);
   var keyq = S.key ? '&key=' + q(S.key) : '';
   // ★ 记住发起请求时的层级：切维度是异步的，快速连点时旧响应可能后到。
   //   原来不校验，于是「整商」的响应在用户已切到「骑手」后渲染列表：
@@ -2042,7 +2052,11 @@ function loadCards(dfrom, dto, withList) {
       }
       return j;
     })
-    .catch(function (e) { $('cards').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
+    .catch(function (e) {
+      // ★ 出错要能自救：原来只有一行错误文字，用户只能整页刷新
+      $('cards').innerHTML = '<div class="empty">' + esc(e.message) +
+        '<br><button class="mini" style="margin-top:8px" onclick="loadAll()">重试</button></div>';
+    });
 }
 
 /* ── 实时 ─────────────────────────────────────────────────────────── */

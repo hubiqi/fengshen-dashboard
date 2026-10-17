@@ -5,10 +5,17 @@
   --bg:#f5f6f8; --card:#fff; --line:#e8eaef; --fg:#1c1f24; --sub:#6b7280;
   --blue:#1f6feb; --green:#12855a; --red:#c9362b; --amber:#b7791f;
   --w0:96px;
+  /* ★ 2026-10-17 UI 统一：卡片阴影只留两级，圆角只留三档。
+     原来 0 1px 3px 和 0 1px 2px 混用、圆角 10/12/14 混用，整套界面看起来"差一点点"。 */
+  --sh1:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.06);
+  --sh2:0 4px 16px rgba(16,24,40,.10);
+  --r1:8px; --r2:12px; --r3:16px;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+/* ★ 数字等宽：表格与卡片里的金额/比例逐位对齐，扫视时不用来回找小数点 */
 body{margin:0;background:var(--bg);color:var(--fg);
-  font:14px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+  font:14px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+  font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
 h1{font-size:17px;margin:0;font-weight:600}
 h2{font-size:15px;margin:0 0 10px;font-weight:600}
 h3{font-size:15px;margin:0 0 12px}
@@ -49,13 +56,13 @@ main{padding:12px 16px 40px}
 .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
 /* 当前对象提示条：占满整行，不跟卡片抢格子 */
 .cardScope{grid-column:1/-1;font-size:12px;color:var(--sub);
-  background:var(--card);border-radius:10px;padding:8px 12px}
+  background:var(--card);border-radius:var(--r2);padding:9px 12px;box-shadow:var(--sh1)}
 .cardScope b{color:var(--fg);font-weight:650}
-.card{background:var(--card);border-radius:12px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.card{background:var(--card);border-radius:var(--r2);padding:12px;box-shadow:var(--sh1)}
 .card .k{font-size:12px;color:var(--sub)}
 .card .v{font-size:22px;font-weight:650;margin-top:4px;letter-spacing:-.3px}
 .card .u{font-size:12px;font-weight:400;color:var(--sub);margin-left:2px}
-.card .d{font-size:11px;color:var(--sub);margin-top:3px}
+.card .d{font-size:11px;color:var(--sub);margin-top:4px;line-height:1.55}
 /* ★ 环比昨日：给静态数字一个上下文。good/bad 由 JS 按指标语义判定
    （准时率涨=好，不满意率/复合时长涨=坏），不在这里用红绿一刀切。 */
 .card .mom{font-size:11px;margin-top:3px;font-weight:600}
@@ -64,8 +71,8 @@ main{padding:12px 16px 40px}
 .card.wide{grid-column:span 2}
 .g{color:var(--green)}.r{color:var(--red)}.a{color:var(--amber)}
 
-.panel{background:var(--card);border-radius:12px;padding:14px;margin-top:12px;
-  box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.panel{background:var(--card);border-radius:var(--r2);padding:14px;margin-top:12px;
+  box-shadow:var(--sh1)}
 .hint{font-size:11px;color:var(--sub);font-weight:400}
 
 .period{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
@@ -207,8 +214,19 @@ td.sc{font-size:11px;color:var(--sub)}
 .modal-card input{width:100%;margin-top:4px;padding:9px;border:1px solid var(--line);
   border-radius:8px;font-size:13px}
 .modal-card .row{display:flex;gap:8px;margin-top:6px}
-.empty{color:var(--sub);font-size:13px;padding:14px 0;text-align:center}
+.empty{color:var(--sub);font-size:13px;padding:22px 12px;text-align:center;line-height:1.7}
 .loading{color:var(--sub);font-size:13px;padding:14px 0;text-align:center}
+
+/* ── 骨架屏（2026-10-17）：首屏等接口时先占位，避免"加载中…"→内容 的布局跳动 ── */
+.sk{background:linear-gradient(90deg,#eceff3 25%,#f5f7fa 37%,#eceff3 63%);
+  background-size:400% 100%;animation:skmove 1.3s ease infinite;border-radius:6px}
+@keyframes skmove{0%{background-position:100% 50%}100%{background-position:0 50%}}
+.sk-card{background:var(--card);border-radius:var(--r2);padding:12px;box-shadow:var(--sh1)}
+.sk-card .sk{margin-bottom:7px}
+.sk-k{height:11px;width:52%}
+.sk-v{height:22px;width:64%}
+.sk-d{height:10px;width:86%;margin-bottom:0!important}
+@media (prefers-reduced-motion:reduce){.sk{animation:none}}
 
 .notice{background:#fff8e6;border:1px solid #ffe2a8;color:#7a5b12;border-radius:10px;
   padding:10px 12px;font-size:13px;margin-bottom:12px;display:flex;align-items:center;
@@ -618,3 +636,14 @@ body.noScroll{overflow:hidden}
 .lb-kwwrap{flex:1 1 auto;max-width:100%}
 .lb-kw{width:150px;max-width:60vw;text-align:left;padding:4px 8px;font-size:13px;min-height:26px}
 .lb-kw::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}
+
+/* ── 交互细节（2026-10-17 UI 优化）────────────────────────────── */
+/* 键盘/踏板聚焦时才显示轮廓，鼠标点击不出现蓝色框 */
+button:focus-visible,select:focus-visible,input:focus-visible,
+[tabindex]:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+/* 长列表滚动更顺：给结果区加惯性滚动与滚动链收敛 */
+.daily-wrap{overscroll-behavior-x:contain}
+/* 小屏安全区：底部内容不被手势条压住 */
+@media (max-width:480px){
+  body{padding-bottom:env(safe-area-inset-bottom,0)}
+}
