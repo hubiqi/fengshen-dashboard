@@ -82,7 +82,19 @@ main{padding:12px 16px 40px}
 .pchip.big{background:#e8f1ff}
 .pchip.big .v{color:var(--blue)}
 
-.daily-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.daily-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;
+  /* ★ 横滑提示（2026-10-17）：左右两侧的渐隐阴影只在「还能往那边滑」时出现
+     —— 用 background-attachment:local 的遮罩随内容移动，到头就被遮住。
+     没有这个提示，用户根本不知道表格右边还有列。 */
+  background-image:
+    linear-gradient(to right,#fff 30%,rgba(255,255,255,0)),
+    linear-gradient(to left,#fff 30%,rgba(255,255,255,0)),
+    linear-gradient(to right,rgba(16,24,40,.13),rgba(16,24,40,0)),
+    linear-gradient(to left,rgba(16,24,40,.13),rgba(16,24,40,0));
+  background-position:left center,right center,left center,right center;
+  background-repeat:no-repeat;
+  background-size:28px 100%,28px 100%,12px 100%,12px 100%;
+  background-attachment:local,local,scroll,scroll}
 table{border-collapse:separate;border-spacing:0;font-size:12px;min-width:100%}
 th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
 th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:#fff;z-index:1;
@@ -615,7 +627,21 @@ body.noScroll{overflow:hidden}
 .hr-tbl{width:100%;border-collapse:collapse;font-size:12.5px;white-space:nowrap}
 .hr-tbl th,.hr-tbl td{border-bottom:1px solid var(--line,#30363d);padding:6px 8px;text-align:left}
 .hr-tbl th{position:sticky;top:0;background:var(--card,#161b22);z-index:1;font-weight:600}
-.hr-tbl tr.hr-off td{opacity:.5}
+/* ★ 首列吸附（2026-10-17）：名册 7 列、线索 10 列，手机上必然要横滑。
+   姓名列必须跟着走，否则滑到「身份证/留存天数」就不知道这行是谁。
+   注意 th 要【同时】sticky top 和 left —— 只写 left 会把表头的 top 吸附顶掉。 */
+/* ★ 首列还要【限宽】：表格 auto layout 会把所有剩余宽度都塞给首列
+   （实测姓名列被撑到 160px，横滑时一下子盖住「状态」「站点」两列）。
+   固定 104px 够放 3~4 个汉字的名字。min-width 对 table-cell 无效，只能用 width。 */
+.hr-tbl th:first-child,.hr-tbl td:first-child{
+  position:sticky;left:0;background:var(--card,#fff);z-index:2;
+  width:104px;max-width:104px;overflow:hidden;text-overflow:ellipsis;
+  box-shadow:8px 0 8px -8px rgba(16,24,40,.22)}
+.hr-tbl th:first-child{top:0;z-index:3}
+/* ★ 离职行用【颜色】弱化，不能用 opacity —— opacity 会把首列 sticky 的
+   白色背景也变半透明，横滑时后面的列从姓名底下透出来（2026-10-17 实测截到）。 */
+.hr-tbl tr.hr-off td{color:#9aa1ab}
+.hr-tbl tr.hr-off td:first-child{background:var(--card,#fff)}
 .hr-tbl td.hr-dim{color:var(--dim,#8b949e)}
 .hr-body .daily-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line,#30363d);
   border-radius:9px}
