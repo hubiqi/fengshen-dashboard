@@ -131,10 +131,18 @@ function enterApp() {
   // ★ 2026-10-18：原来 loadAccounts() 是前置串行 —— 首屏白白多等一个 RTT
   //   （CF 边缘国内响应 1~4 秒，等于白等 1~4 秒）。账号下拉和看板数据互不依赖，
   //   并行发出去，谁先回谁先渲染。
-  loadAccounts().catch(function (e) {
+  // ★ 有缓存账号（localStorage）就并行发；首次访问（新域名 localStorage 为空）
+  //   必须等 loadAccounts 回来拿到 ACCT，否则 metrics 不带 acct 参数、
+  //   后端按 default 用户查 → 卡片一片空白。
+  var _needAcct = !ACCT;
+  var _accP = loadAccounts().catch(function (e) {
     $('heroState').textContent = '后端不可用：' + e.message;
   });
-  loadState(); loadAll(); requestRefresh(); loadTodo();
+  if (_needAcct) {
+    _accP.then(function () { loadState(); loadAll(); requestRefresh(); loadTodo(); });
+  } else {
+    loadState(); loadAll(); requestRefresh(); loadTodo();
+  }
   // ★ 进入看板就要显示同步条。
   //   原来 syncTick 只在【手动拉取】时才被调用，正常打开页面从不调用 ——
   //   于是 syncBar 一直带着 HTML 里的 hidden，同步条从来没出现过
