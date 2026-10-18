@@ -42,13 +42,16 @@ function api(path, opt) {
   // ★ 2026-10-18：CF 边缘节点偶发 30 秒无响应（实测同一接口连打 3 次，
   //   1 次 000、1 次 1.1s、1 次 9.9s），手机上就表现成「无法连接接口：Failed to fetch」。
   //   这里对 GET 做 2 次自动重试；POST/DELETE 不重试（避免重复建账号、重复删除）。
-  var _tries = String(opt.method || 'GET').toUpperCase() === 'GET' ? 2 : 0;
+  // ★ 2026-10-18 第二版：重试 2 次 → 1 次。页面首屏同时发 6~8 个请求，
+  //   每个都重试两次的话，CF 一抖动就会堆出十几秒白屏（用户反馈"刷新变慢"）。
+  //   一次重试已能把 10% 的偶发失败压到 1%。
+  var _tries = String(opt.method || 'GET').toUpperCase() === 'GET' ? 1 : 0;
   function _go(n) {
     // 每次尝试最多等 9 秒：CF 那边卡住时要 30 秒才断，不设超时就是干等
     var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var o = opt;
     if (ctl) { o = Object.assign({}, opt, { signal: ctl.signal }); }
-    var tid = ctl ? setTimeout(function () { ctl.abort(); }, 9000) : 0;
+    var tid = ctl ? setTimeout(function () { ctl.abort(); }, 7000) : 0;
     function done() { if (tid) clearTimeout(tid); }
     return fetch(url, o).then(function (r) { done(); return r; }, function (e) { done(); throw e; })
       .catch(function (e) {
@@ -112,8 +115,13 @@ function enterApp() {
   $('appView').hidden = false;
   $('d1').value = today(); $('d2').value = today();
   $('pFrom').value = today(); $('pTo').value = today();
-  loadAccounts().then(function () { loadState(); loadAll(); requestRefresh(); loadTodo(); })
-    .catch(function (e) { $('heroState').textContent = '后端不可用：' + e.message; });
+  // ★ 2026-10-18：原来 loadAccounts() 是前置串行 —— 首屏白白多等一个 RTT
+  //   （CF 边缘国内响应 1~4 秒，等于白等 1~4 秒）。账号下拉和看板数据互不依赖，
+  //   并行发出去，谁先回谁先渲染。
+  loadAccounts().catch(function (e) {
+    $('heroState').textContent = '后端不可用：' + e.message;
+  });
+  loadState(); loadAll(); requestRefresh(); loadTodo();
   // ★ 进入看板就要显示同步条。
   //   原来 syncTick 只在【手动拉取】时才被调用，正常打开页面从不调用 ——
   //   于是 syncBar 一直带着 HTML 里的 hidden，同步条从来没出现过
