@@ -2857,6 +2857,21 @@ $('capCancel').onclick = function () {
 })();
 
 /* ── 账号 ─────────────────────────────────────────────────────────── */
+/* 自动重登需要验证码 → 弹窗（同一张图只弹一次，避免每次轮询都弹） */
+function maybeCaptcha(a) {
+  if (!a || a.status !== 'need_captcha' || !a.captchaB64) return;
+  var sig = a.id + ':' + (a.captchaSid || '') + ':' + a.captchaB64.length;
+  if (window.__capSig === sig) return;
+  window.__capSig = sig;
+  LOGIN.sid = a.captchaSid || null;
+  LOGIN.account = a.account || '';
+  $('capImg').src = 'data:' + (a.captchaMime || 'image/png') + ';base64,' + a.captchaB64;
+  $('capMsg').textContent = '自动重登需要验证码（' + (a.accountMask || a.account || '') +
+    '），请输入图中字符';
+  $('capCode').value = '';
+  $('capModal').hidden = false;
+}
+
 function loadAccounts() {
   return api('/api/accounts').then(function (j) {
     ACC = j;
@@ -2874,6 +2889,10 @@ function loadAccounts() {
     }
     if (j.active && ACCT !== j.active) { ACCT = j.active; localStorage.setItem(LS_ACCT, ACCT); }
     renderAcctList();
+    // ★ 2026-10-18：自动重登撞到验证码时，后端把图和 sid 存在账号记录里。
+    //   这里发现 need_captcha 就自动弹窗 —— 不弹的话用户只知道「自动重登失败」，
+    //   却没有任何地方能输验证码。
+    (j.list || []).forEach(maybeCaptcha);
     return j;
   });
 }
