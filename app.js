@@ -2897,11 +2897,13 @@ function loadAccounts() {
   });
 }
 
-function doLogin(account, password) {
+function doLogin(account, password, id) {
   if (!TOKEN || $('appView').hidden) { showLogin(false); return; }
-  $('cfgStatus').textContent = '正在启动无头浏览器登录 ' + account + ' …（约 20-40 秒）';
+  $('cfgStatus').textContent = '正在启动无头浏览器登录 ' +
+    (account || id || '') + ' …（约 20-40 秒）';
+  // ★ id 优先：账号卡片上的 account 是脱敏的（18*******56），拿它当账号会算出一个新 id
   api('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ account: account, password: password }) })
+    body: JSON.stringify({ account: account, password: password, id: id || '' }) })
     .then(function (j) {
       if (j.status === 'captcha') {
         // ★ 验证码只可能在「已登录看板 + 添加风神账号」时出现
@@ -2957,13 +2959,24 @@ function renderAcctList() {
         //   这时点「登录」后端必然回「缺少账号或密码」，白等 30 秒。
         //   直接引导去下面的新增表单重填一次，upsert 会命中同一个 id，cookie 不会丢。
         if (a && !a.hasPassword) {
-          $('cfgStatus').textContent =
-            '这个账号没有存密码，请在下面「② 新增风神账号」重新输入手机号和密码';
-          var na = $('newAcc');
-          if (na) na.focus();
+          // ★ 2026-10-18：记录里没密码（账号文件被清空后恢复出来的），
+          //   这里直接问一次密码 → 存进同一条记录 → 立刻登录。
+          //   不用再去填下面那个表单（手机号是脱敏的，填错反而会新建一个账号）。
+          var pw = prompt('请输入 ' + (a.accountMask || '该账号') + ' 的风神登录密码\n' +
+                          '（保存后，以后 Cookie 掉了后台就能自动重登）');
+          if (!pw) return;
+          $('cfgStatus').textContent = '正在保存密码…';
+          api('/api/accounts/password', { method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: a.id, password: pw }) })
+            .then(function () { return loadAccounts(); })
+            .then(function () { doLogin(a.account, pw, a.id); })
+            .catch(function (e) {
+              $('cfgStatus').textContent = '✗ 保存密码失败：' + ((e && e.message) || e);
+            });
           return;
         }
-        doLogin(a.account, null);
+        doLogin(a.account, null, a.id);
       } else if (act === 'del') {
         if (!confirm('删除该风神账号？')) return;
         api('/api/accounts/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id }) })
