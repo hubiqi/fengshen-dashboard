@@ -2748,8 +2748,16 @@ $('btnAdd').onclick = function () {
   $('cfgStatus').textContent = '创建账号…';
   api('/api/accounts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ account: a, password: p }) })
-    .then(function () { $('newPwd').value = ''; return loadAccounts(); })
-    .then(function () { doLogin(a, p); });
+    .then(function () { ADD.p = ''; $('newPwd').value = ''; return loadAccounts(); })
+    .then(function () {
+      $('cfgStatus').textContent = '账号已保存，正在启动后端登录…';
+      doLogin(a, p);
+    })
+    // ★ 2026-10-18：原来这里【没有 catch】—— 请求一失败（网关 502 / 会话过期 / 后端 500）
+    //   整条 Promise 链静默断掉，界面上什么都不会变，看起来就是「点了按钮没反应」。
+    .catch(function (e) {
+      $('cfgStatus').textContent = '✗ 账号保存失败：' + ((e && e.message) || e);
+    });
 };
 $('cfgSave').onclick = function () {
   API = $('cfgApi').value.trim();
