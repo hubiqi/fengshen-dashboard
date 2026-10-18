@@ -2893,7 +2893,10 @@ function renderAcctList() {
       '<div class="nm"><b>' + esc(a.accountMask) + '</b>' +
       '<div class="sub">' + (a.agencyName ? esc(a.agencyName) : '未取到代理商') +
       (a.user ? ' · ' + esc(a.user) : '') + ' · ' +
-      (a.status === 'ok' ? '<span class="g">登录态✓</span>' : '<span class="r">未登录</span>') + '</div></div>' +
+      (a.status === 'ok' ? '<span class="g">登录态✓</span>' : '<span class="r">未登录</span>') +
+      // ★ 2026-10-18：没有存密码 = 自动重登这条链彻底断了（relogin 第一行就 return None）。
+      //   必须让人一眼看到，否则只会看到「自动重登失败」却不知道为什么。
+      (!a.hasPassword ? ' · <span class="r">没存密码，无法自动重登</span>' : '') + '</div></div>' +
       '<button class="mini" data-act="use" data-id="' + esc(a.id) + '">' + (on ? '当前' : '切换') + '</button>' +
       '<button class="mini" data-act="login" data-id="' + esc(a.id) + '">登录</button>' +
       '<button class="mini danger" data-act="del" data-id="' + esc(a.id) + '">删</button>' +
