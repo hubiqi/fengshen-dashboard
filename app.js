@@ -2717,9 +2717,34 @@ $('hrClose').onclick = function () { hrClose(); };
 $('hrSync').onclick = function () { hrSync(); };
 $('abnClose').onclick = function () { $('abnModal').hidden = true; };
 $('abnModal').onclick = function (e) { if (e.target === this) this.hidden = true; };
+/* ★ 2026-10-18：手机上「点了添加没反应」的兜底。
+   真机反馈：号码明明填了，点按钮却提示"请填手机号和密码" —— 典型的
+   「值还在输入法缓冲区 / 浏览器自动填充只画了字没写进 value」。
+   这里 ① 用 input/change 事件把值实时同步到 ADD，按钮读不到 value 时回退用它；
+        ② 点击前先 blur()，强制把输入法的候选内容上屏。 */
+var ADD = {a: '', p: ''};
+(function () {
+  function bind(id, k) {
+    var el = $(id);
+    if (!el) return;
+    ['input', 'change', 'blur'].forEach(function (ev) {
+      el.addEventListener(ev, function () { ADD[k] = el.value; });
+    });
+  }
+  bind('newAcc', 'a'); bind('newPwd', 'p');
+})();
 $('btnAdd').onclick = function () {
-  var a = $('newAcc').value.trim(), p = $('newPwd').value;
-  if (!a || !p) { $('cfgStatus').textContent = '请填手机号和密码'; return; }
+  var elA = $('newAcc'), elP = $('newPwd');
+  if (elA) elA.blur();
+  if (elP) elP.blur();
+  var a = String((elA && elA.value) || ADD.a || '').trim();
+  var p = String((elP && elP.value) || ADD.p || '');
+  if (!a || !p) {
+    $('cfgStatus').textContent = (!a ? '请填风神登录手机号' : '请填密码') +
+      '（如果框里已经有字，点一下输入框再点按钮）';
+    if (!a && elA) elA.focus(); else if (elP) elP.focus();
+    return;
+  }
   $('cfgStatus').textContent = '创建账号…';
   api('/api/accounts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ account: a, password: p }) })
