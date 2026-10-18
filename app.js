@@ -44,13 +44,20 @@ function api(path, opt) {
   //   这里对 GET 做 2 次自动重试；POST/DELETE 不重试（避免重复建账号、重复删除）。
   var _tries = String(opt.method || 'GET').toUpperCase() === 'GET' ? 2 : 0;
   function _go(n) {
-    return fetch(url, opt).catch(function (e) {
-      if (n > 0) {
-        return new Promise(function (r) { setTimeout(r, 900); })
-          .then(function () { return _go(n - 1); });
-      }
-      throw e;
-    });
+    // 每次尝试最多等 9 秒：CF 那边卡住时要 30 秒才断，不设超时就是干等
+    var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var o = opt;
+    if (ctl) { o = Object.assign({}, opt, { signal: ctl.signal }); }
+    var tid = ctl ? setTimeout(function () { ctl.abort(); }, 9000) : 0;
+    function done() { if (tid) clearTimeout(tid); }
+    return fetch(url, o).then(function (r) { done(); return r; }, function (e) { done(); throw e; })
+      .catch(function (e) {
+        if (n > 0) {
+          return new Promise(function (r) { setTimeout(r, 700); })
+            .then(function () { return _go(n - 1); });
+        }
+        throw e;
+      });
   }
   return _go(_tries).then(function (r) {
     return r.json().catch(function () { return {}; }).then(function (j) {
