@@ -39,7 +39,20 @@ function api(path, opt) {
   if (TOKEN) h['Authorization'] = 'Bearer ' + TOKEN;
   if (APIKEY) h['X-Api-Key'] = APIKEY;
   opt.headers = h;
-  return fetch(url, opt).then(function (r) {
+  // ★ 2026-10-18：CF 边缘节点偶发 30 秒无响应（实测同一接口连打 3 次，
+  //   1 次 000、1 次 1.1s、1 次 9.9s），手机上就表现成「无法连接接口：Failed to fetch」。
+  //   这里对 GET 做 2 次自动重试；POST/DELETE 不重试（避免重复建账号、重复删除）。
+  var _tries = String(opt.method || 'GET').toUpperCase() === 'GET' ? 2 : 0;
+  function _go(n) {
+    return fetch(url, opt).catch(function (e) {
+      if (n > 0) {
+        return new Promise(function (r) { setTimeout(r, 900); })
+          .then(function () { return _go(n - 1); });
+      }
+      throw e;
+    });
+  }
+  return _go(_tries).then(function (r) {
     return r.json().catch(function () { return {}; }).then(function (j) {
       if (r.status === 401) {
         // ★ 区分两种 401：
@@ -2852,7 +2865,8 @@ $('capCancel').onclick = function () {
     showLogin(false);
   }).catch(function (e) {
     showLogin(false);
-    $('lgMsg').textContent = '无法连接接口：' + e.message;
+    $('lgMsg').textContent = '接口暂时连不上（已自动重试 2 次）：' +
+      (e.message || e) + ' —— 请再点一次登录，或换个网络';
   });
 })();
 
