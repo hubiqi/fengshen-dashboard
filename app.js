@@ -2908,6 +2908,16 @@ function renderAcctList() {
           .then(function () { S.key = ''; loadAll(); });
       } else if (act === 'login') {
         var a = ACC.list.filter(function (x) { return x.id === id; })[0];
+        // ★ 2026-10-18：从旧配置恢复出来的账号可能【没有密码】(hasPassword=false)，
+        //   这时点「登录」后端必然回「缺少账号或密码」，白等 30 秒。
+        //   直接引导去下面的新增表单重填一次，upsert 会命中同一个 id，cookie 不会丢。
+        if (a && !a.hasPassword) {
+          $('cfgStatus').textContent =
+            '这个账号没有存密码，请在下面「② 新增风神账号」重新输入手机号和密码';
+          var na = $('newAcc');
+          if (na) na.focus();
+          return;
+        }
         doLogin(a.account, null);
       } else if (act === 'del') {
         if (!confirm('删除该风神账号？')) return;
