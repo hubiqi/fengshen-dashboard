@@ -46,7 +46,13 @@ function api(path, opt) {
         //   · 看板自己的会话过期（NO_SESSION / BAD_KEY）→ 必须清本地登录态
         //   · 后端探测到【风神账号】登录态失效（needRelogin，如「账户下线」）
         //     → 那是风神那边的问题，跟看板账号无关，登出会把用户白踢出看板。
-        if (!j || !j.needRelogin) logoutLocal();
+        if (!j || !j.needRelogin) {
+          logoutLocal();
+          // ★ 2026-10-18：原来只清 token、不跳转 —— 页面停在看板上，
+          //   hero 里挂着一行「后端不可用：未登录或会话已过期」，用户以为系统坏了。
+          //   会话确实过期了就老老实实回登录页（用户名会预填）。
+          forceLogin();
+        }
         throw new Error((j && j.error) || '未登录');
       }
       if (!r.ok) throw new Error(j.error || j.detail || ('HTTP ' + r.status));
@@ -65,12 +71,21 @@ function showLogin(needSetup) {
   $('lgPwd2Wrap').hidden = !needSetup;
   $('lgBtn').textContent = needSetup ? '创建并进入' : '登录';
   $('lgMsg').textContent = '';
+  var lu = $('lgUser');
+  if (lu && !lu.value) lu.value = localStorage.getItem(LS_USER) || USER || '';
   $('apiHint').textContent = '接口：' + (API || location.origin);
 }
 function gotoLogin() { logoutLocal(); location.reload(); }
 function logoutLocal() {
-  TOKEN = ''; APIKEY = ''; USER = '';
-  localStorage.removeItem(LS_TOKEN); localStorage.removeItem(LS_KEY); localStorage.removeItem(LS_USER);
+  TOKEN = ''; APIKEY = '';
+  localStorage.removeItem(LS_TOKEN); localStorage.removeItem(LS_KEY);
+  // ★ 保留 USER：下次登录页预填用户名，少打一遍
+}
+/* 会话过期时把用户送回登录页（只做一次，避免并发请求重复触发） */
+function forceLogin() {
+  if (window.__toLogin) return;
+  window.__toLogin = 1;
+  try { showLogin(false); } catch (e) { location.reload(); }
 }
 function enterApp() {
   $('loginView').hidden = true;
