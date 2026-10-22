@@ -596,6 +596,11 @@ td.sc{font-size:11px;color:var(--sub)}
 .tr-scroll{overflow-x:hidden}
 .tr-scroll.on{overflow-x:auto;-webkit-overflow-scrolling:touch;
   overscroll-behavior-x:contain}
+/* ★★ 2026-10-22：宽图表必须放弃 .trendsvg 的 max-width:100% ——
+   否则 SVG 虽然算出了 976px 的宽度，却被 CSS 压回容器宽（360px），
+   22 天的横轴日期和数值标签全挤成一团，而且永远不会触发横向滚动
+   （内容没超出，overflow-x:auto 就没得滚）。用户原话：「天数变多之后看不清」。 */
+.tr-scroll.on .trendsvg{max-width:none;width:auto}
 .tr-scroll.on::-webkit-scrollbar{height:5px}
 .tr-scroll.on::-webkit-scrollbar-thumb{background:#d7dde5;border-radius:3px}
 .tr-head .tr-act{min-width:26px;text-align:center;flex:0 0 auto}
