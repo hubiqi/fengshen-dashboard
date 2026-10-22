@@ -3,18 +3,9 @@
 
 var CF_ORIGIN = 'https://fengshen-dashboard.pages.dev';
 
-/* ★★ 2026-10-18：镜像站（GitHub Pages / Cloudflare Pages）自动跳到【后端直连入口】。
-   原因：国内访问 pages.dev 实测约 10% 的请求会卡死 30 秒才断（同一接口连打 10 次有 1 次 000），
-   而后端 8080 直连稳定在 0.8~1.0 秒。直连时页面和接口同源，也不存在混合内容问题。
-   想留在镜像站调试 / 服务器挂了时，在地址后面加 ?nojump=1 即可。 */
-var DIRECT_BASE = 'http://158.178.244.142.sslip.io:8080/';
-(function () {
-  var h = String(location.hostname || '');
-  var mirror = /github\.io$/i.test(h) || /pages\.dev$/i.test(h);
-  if (!mirror) return;
-  if (/[?&]nojump=1/.test(location.search)) return;
-  try { location.replace(DIRECT_BASE); } catch (e) {}
-})();
+/* 2026-10-22：按用户要求【取消】镜像站自动跳转到直连入口，
+   恢复 GitHub Pages / Cloudflare Pages 各自的静态托管（接口仍走 CF 边缘网关）。
+   直连入口 http://158.178.244.142.sslip.io:8080/ 保留可用，只是不再自动跳。 */
 var LS_API = 'fs_api', LS_TOKEN = 'fs_token', LS_KEY = 'fs_key', LS_ACCT = 'fs_acct';
 var LS_USER = 'fs_user';
 
