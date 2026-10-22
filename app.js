@@ -1760,7 +1760,17 @@ function exportTrendImage(box, label, W, H, pad, pts, m) {
 }
 
 function closeTrend() {
-  var b = trendBox(); if (b) b.hidden = true;
+  var b = trendBox();
+  if (!b) return;
+  // ★ 2026-10-22：全屏状态下直接点 ✕ 关闭时，原来只做了 b.hidden = true ——
+  //   body 上的 .noScroll（overflow:hidden）没清掉、full 类也没摘，
+  //   于是【整页再也滑不动】（用户实测：全屏再退出来，页面无法滑动）。
+  if (b.classList.contains('full')) {
+    b.classList.remove('full');
+    window.scrollTo(0, window.__trendScrollY || 0);
+  }
+  document.body.classList.remove('noScroll');     // 幂等，非全屏时也无害
+  b.hidden = true;
 }
 
 function drawTrend(label) {
