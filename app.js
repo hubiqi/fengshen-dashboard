@@ -3453,7 +3453,7 @@ function finRuleLoad() {
       }
       FRULE.tiers = (j.tiers || []).map(function (t) {
         return {id: t.id, districts: t.districts || [], natures: t.natures || [],
-                prices: t.prices || {}};
+                prices: t.prices || {}, insurance: t.insurance || 0};
       });
       FRULE.vios = j.vios || [];
       FRULE.districts = ds;
@@ -3477,6 +3477,10 @@ function finRuleCollect() {
     for (var k = 0; k < ins.length; k++) {
       var vio = ins[k].getAttribute('data-vio');
       var v = parseFloat(ins[k].value);
+      if (vio === '__insurance') {
+        t.insurance = (!isNaN(v) && v > 0) ? v : 0;
+        continue;
+      }
       if (!isNaN(v) && v > 0) t.prices[vio] = v; else delete t.prices[vio];
     }
   }
@@ -3520,14 +3524,19 @@ function finRuleRender() {
           return '<tr><td>' + esc(v.label) + '</td><td>' +
             '<input class="lb-in fr-price" data-vio="' + v.key + '" inputmode="decimal" ' +
             'value="' + (p == null ? '' : p) + '" placeholder="0"></td></tr>';
-        }).join('') + '</tbody></table></div>' +
+        }).join('') +
+        // ★ 2026-10-24（用户要求）：保险按【出勤天数】扣，不是按单
+        '<tr><td>保险<span class="hint">（元 / 天）</span></td><td>' +
+          '<input class="lb-in fr-price" data-vio="__insurance" inputmode="decimal" ' +
+          'value="' + (t.insurance ? t.insurance : '') + '" placeholder="0"></td></tr>' +
+        '</tbody></table></div>' +
       '</div>';
   }).join('');
 }
 
 function finRuleAdd() {
   finRuleCollect();
-  FRULE.tiers.push({districts: [], natures: [], prices: {}});
+  FRULE.tiers.push({districts: [], natures: [], prices: {}, insurance: 0});
   finRuleRender();
 }
 
@@ -3555,10 +3564,14 @@ function finRuleSave() {
   if (FRULE.busy) return;
   finRuleCollect();
   // 只提交有内容的档（价格全空且维度全空的不存）
-  var tiers = FRULE.tiers.filter(function (t) {
+  var tiers = FRULE.tiers.map(function (t) {
+    return {districts: t.districts || [], natures: t.natures || [],
+            prices: t.prices || {}, insurance: t.insurance || 0};
+  }).filter(function (t) {
     var hasPrice = false;
     Object.keys(t.prices || {}).forEach(function (k) { if (t.prices[k] > 0) hasPrice = true; });
-    return hasPrice || (t.districts || []).length || (t.natures || []).length;
+    return hasPrice || t.insurance > 0 ||
+           (t.districts || []).length || (t.natures || []).length;
   });
 
   FRULE.busy = true;
@@ -3617,57 +3630,93 @@ function finSwitch(tab) {
 
 // 三个维度共用的明细列（用户 2026-10-22：商圈片与整商必须和骑手口径一致）
 var FIN_COLS = [
-  // ★ 2026-10-24（用户要求）：骑手属性（全职/兼职），来自 HR 名册 work_type
-  //   骑手行是单值；站点/商圈片/整商行显示「全职 X / 兼职 Y」
-  ['属性', 'nature', 's', 'HR 名册工作性质（风神 workType：0=全职 1=兼职）'],
-  ['本月出勤天数', 'workDays', 'n', '按【接单时间】统计的自然日数（汇总层为人天合计）'],
-  ['排班内单量', 'inOrders', 'n', 'scheduleOrderCount'],
-  ['排班外单量', 'outOrders', 'n', 'noScheduleOrderCount'],
-  ['取分离单', 'pickOrders', 'n', 'specialOrderCountDetailList 里的「取分离」单量'],
-  ['送分离单', 'sendOrders', 'n', 'specialOrderCountDetailList 里的「送分离」单量'],
-  ['基础薪资', 'base', 'm', '排班内阶梯薪资 + 排班外基础薪资'],
-  ['一口价', 'fixed', 'm', 'fixedReward（取分离 / 送分离一口价合计）'],
-  ['长期激励', 'longTerm', 'm', 'longPeriodBonus'],
-  ['跑单奖励', 'runReward', 'm', '全勤 + 质保 + 段位(星级) + 时段 + 天气'],
-  ['难度奖励', 'hardReward', 'm', '重量 / 距离 / 跑单 / 1v1 / 接单等'],
-  ['推荐奖励', 'recommend', 'm', 'recommendationReward'],
-  ['活动收入', 'activity', 'm', 'activityBonus'],
-  // ★ 2026-10-24：列名带上「骑手」，方便以后区分其他口径的收入（平台/公司成本等）
-  ['骑手总收入', 'totalIncome', 'm', '以上各项收入求和'],
-  ['索赔', 'claim', 'm', '扣款项里的索赔金额（用户 2026-10-24 要求单列）'],
-  ['骑手收入单均', 'perOrder', 'm', '骑手总收入 ÷ 总单量'],
-  // ★★ 2026-10-24（用户要求）：违规单量 —— 每类在【扣款方案】里配单价，单量 × 单价 = 扣款。
-  //   口径：物流商(代理商)责任；统计全部运单（物流责取消单本来就没送达）。
-  ['物流责取消单', 'vioCancel', 'n', '取消责任=物流商/配送商 的取消单'],
-  ['投诉单', 'vioComplaint', 'n', '用户投诉 / 商户投诉，且判责为物流商'],
-  ['差评单', 'vioBad', 'n', '评价等级「吐槽」且判责为物流商'],
-  ['索赔单', 'vioClaim', 'n', '索赔成立（不含「配送超时」原因的索赔）'],
-  ['提前点送达不满意单', 'vioEarly', 'n', '违规送达成立（isIllegalComplete）'],
-  ['轻度超时单', 'vioOtLight', 'n', '超时类型=轻度超时'],
-  ['普通超时单', 'vioOtNormal', 'n', '超时类型=普通超时'],
-  ['严重超时单', 'vioOtHeavy', 'n', '超时类型=严重超时'],
-  ['配送节点伪造单', 'vioForge', 'n', '配送节点伪造（风神该字段当前全为 0）'],
-  // ★ 2026-10-24（用户要求）：违规扣款 = Σ(违规单量 × 扣款方案里的单价)
-  ['违规扣款', 'penalty', 'm', '按「扣款方案」计算：各种违规单量 × 对应单价']
+  // ── 基础信息（group 为空 → 表头跨两行）────────────────────────────────
+  ['骑手', 'riders', 'n', '该行的骑手人数', ''],
+  ['属性', 'nature', 's', 'HR 名册工作性质（风神 workType：0=全职 1=兼职）', ''],
+  // ── 单量 ───────────────────────────────────────────────────────────────
+  ['总单量', 'orders', 'n', '运单总单量', '单量'],
+  ['本月出勤天数', 'workDays', 'n', '按【接单时间】统计的自然日数（汇总层为人天合计）', '单量'],
+  ['排班内单量', 'inOrders', 'n', 'scheduleOrderCount', '单量'],
+  ['排班外单量', 'outOrders', 'n', 'noScheduleOrderCount', '单量'],
+  ['取分离单', 'pickOrders', 'n', 'specialOrderCountDetailList 里的「取分离」单量', '单量'],
+  ['送分离单', 'sendOrders', 'n', 'specialOrderCountDetailList 里的「送分离」单量', '单量'],
+  // ── 收入明细 ───────────────────────────────────────────────────────────
+  ['基础薪资', 'base', 'm', '排班内阶梯薪资 + 排班外基础薪资', '收入明细'],
+  ['一口价', 'fixed', 'm', 'fixedReward（取分离 / 送分离一口价合计）', '收入明细'],
+  ['长期激励', 'longTerm', 'm', 'longPeriodBonus', '收入明细'],
+  ['跑单奖励', 'runReward', 'm', '全勤 + 质保 + 段位(星级) + 时段 + 天气', '收入明细'],
+  ['难度奖励', 'hardReward', 'm', '重量 / 距离 / 跑单 / 1v1 / 接单等', '收入明细'],
+  ['推荐奖励', 'recommend', 'm', 'recommendationReward', '收入明细'],
+  ['活动收入', 'activity', 'm', 'activityBonus', '收入明细'],
+  ['骑手总收入', 'totalIncome', 'm', '以上各项收入求和', '收入明细'],
+  // ── 违规单量 ───────────────────────────────────────────────────────────
+  //   每类在【扣款方案】里配单价，单量 × 单价 = 违规扣款。
+  //   口径：只算物流商(代理商)责任；统计全部运单（物流责取消单本来就没送达）。
+  ['物流责取消单', 'vioCancel', 'n', '取消责任=物流商/配送商 的取消单', '违规单量'],
+  ['投诉单', 'vioComplaint', 'n', '用户投诉 / 商户投诉，且判责为物流商', '违规单量'],
+  ['差评单', 'vioBad', 'n', '评价等级「吐槽」且判责为物流商', '违规单量'],
+  ['索赔单', 'vioClaim', 'n', '索赔成立（不含「配送超时」原因的索赔）', '违规单量'],
+  ['提前点送达不满意单', 'vioEarly', 'n', '违规送达成立（isIllegalComplete）', '违规单量'],
+  ['轻度超时单', 'vioOtLight', 'n', '超时类型=轻度超时', '违规单量'],
+  ['普通超时单', 'vioOtNormal', 'n', '超时类型=普通超时', '违规单量'],
+  ['严重超时单', 'vioOtHeavy', 'n', '超时类型=严重超时', '违规单量'],
+  ['配送节点伪造单', 'vioForge', 'n', '配送节点伪造（风神该字段当前全为 0）', '违规单量'],
+  // ── 扣款 ───────────────────────────────────────────────────────────────
+  ['索赔', 'claim', 'm', '扣款项里的索赔金额', '扣款'],
+  ['保险', 'insurance', 'm', '本月出勤天数 × 扣款方案里的保险单价', '扣款'],
+  ['违规扣款', 'penalty', 'm', '各种违规单量 × 扣款方案里的对应单价', '扣款'],
+  // ── 单均 ───────────────────────────────────────────────────────────────
+  ['骑手收入单均', 'perOrder', 'm', '骑手总收入 ÷ 总单量', '单均']
 ];
+
+/* 二级表头：group 为空的列跨两行（基础信息），其余按 group 合并 colspan */
+function finHeadHtml(nameHead, subHead) {
+  var fixed = ['<th rowspan="2">' + esc(nameHead) + '</th>'];
+  if (subHead) fixed.push('<th rowspan="2">' + esc(subHead) + '</th>');
+
+  var spanCols = [], groups = [];
+  FIN_COLS.forEach(function (c) {
+    var g = c[4] || '';
+    if (!g) {
+      spanCols.push(c);
+    } else {
+      var last = groups[groups.length - 1];
+      if (last && last.name === g) last.n += 1;
+      else groups.push({name: g, n: 1});
+    }
+  });
+
+  var r1 = fixed.join('') +
+    spanCols.map(function (c) {
+      return '<th rowspan="2" title="' + esc(c[3]) + '">' + c[0] + '</th>';
+    }).join('') +
+    groups.map(function (g) {
+      return '<th colspan="' + g.n + '" class="fin-grp">' + g.name + '</th>';
+    }).join('');
+
+  var r2 = FIN_COLS.filter(function (c) { return c[4]; }).map(function (c) {
+    return '<th title="' + esc(c[3]) + '">' + c[0] + '</th>';
+  }).join('');
+
+  return '<thead class="fin-head"><tr>' + r1 + '</tr><tr>' + r2 + '</tr></thead>';
+}
+
+function finCell(c, v) {
+  if (c[2] === 'n') return num(v);
+  if (c[2] === 's') return esc(v || '—');
+  return finMoney(v);
+}
 
 /* rows 每一行：{name, sub?, riders, orders, ...明细} */
 function finTable(rows, nameHead, subHead) {
-  return '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
-    '<th>' + nameHead + '</th>' +
-    (subHead ? '<th>' + subHead + '</th>' : '') +
-    '<th>骑手</th><th>总单量</th>' +
-    FIN_COLS.map(function (c) { return '<th title="' + esc(c[3]) + '">' + c[0] + '</th>'; }).join('') +
-    '</tr></thead><tbody>' +
+  return '<div class="daily-wrap"><table class="hr-tbl fin-tbl">' +
+    finHeadHtml(nameHead, subHead) +
+    '<tbody>' +
     rows.map(function (x) {
       return '<tr><td>' + esc(x.name) + '</td>' +
         (subHead ? '<td class="hr-dim">' + esc(x.sub || '') + '</td>' : '') +
-        '<td>' + hrNum(x.riders) + '</td><td>' + num(x.orders) + '</td>' +
         FIN_COLS.map(function (c) {
-          var v = x[c[1]];
-          var txt = c[2] === 'n' ? num(v)
-                  : (c[2] === 's' ? esc(v || '—') : finMoney(v));
-          return '<td>' + txt + '</td>';
+          return '<td>' + finCell(c, x[c[1]]) + '</td>';
         }).join('') + '</tr>';
     }).join('') + '</tbody></table></div>';
 }
@@ -3752,18 +3801,14 @@ function finRender() {
       '<input id="finKw" placeholder="姓名 / 站点 / 骑手ID" value="' + esc(FIN.kw) + '">' +
       '<span class="hint" id="finSMsg">显示 <b>' + rs.length + '</b> 人 · 左右滑动看全部字段</span></div>' +
       '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
-      '<th>骑手</th><th>站点</th><th>总单量</th>' +
-      COLS.map(function (c) { return '<th title="' + esc(c[3]) + '">' + c[0] + '</th>'; }).join('') +
-      '</tr></thead><tbody>' +
+      finHeadHtml('骑手', '站点') +
+      '<tbody>' +
       rs.map(function (x) {
         return '<tr><td>' + esc(x.knight_name) + '</td><td>' + esc(x.team_name) + '</td>' +
-          '<td>' + num(x.orders || x.order_count) + '</td>' +
           COLS.map(function (c) {
             var v = x[c[1]];
-            // ★ 's' = 字符串列（如「属性」全职/兼职），不能走 finMoney 否则显示 —
-            var txt = c[2] === 'n' ? num(v)
-                    : (c[2] === 's' ? esc(v || '—') : finMoney(v));
-            return '<td>' + txt + '</td>';
+            if (c[1] === 'orders') v = (x.orders != null ? x.orders : x.order_count);
+            return '<td>' + finCell(c, v) + '</td>';
           }).join('') + '</tr>';
       }).join('') + '</tbody></table></div>';
   }
