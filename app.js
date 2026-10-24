@@ -3436,6 +3436,7 @@ function finSwitch(tab) {
 
 // 三个维度共用的明细列（用户 2026-10-22：商圈片与整商必须和骑手口径一致）
 var FIN_COLS = [
+  ['本月出勤天数', 'workDays', 'n', '按【接单时间】统计的自然日数（汇总层为人天合计）'],
   ['排班内单量', 'inOrders', 'n', 'scheduleOrderCount'],
   ['排班外单量', 'outOrders', 'n', 'noScheduleOrderCount'],
   ['取分离单', 'pickOrders', 'n', 'specialOrderCountDetailList 里的「取分离」单量'],
