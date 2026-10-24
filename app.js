@@ -3204,11 +3204,12 @@ function hrRenderStaff(d) {
       '<span class="hint" id="hrSMsg">显示 <b>' + hrNum((d.staff || []).length) + '</b> 人</span>' +
     '</div>' +
     '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
-      '<th>姓名</th><th>手机</th><th>状态</th><th>站点</th><th>入职时间</th><th>离职时间</th><th>身份证</th>' +
+      '<th>姓名</th><th>手机</th><th>属性</th><th>状态</th><th>站点</th><th>入职时间</th><th>离职时间</th><th>身份证</th>' +
     '</tr></thead><tbody>' +
     (d.staff || []).map(function (x) {
       var cls = x.workStatus === 1 ? '' : ' class="hr-off"';
       return '<tr' + cls + '><td>' + esc(x.name) + '</td><td>' + esc(x.mobile) + '</td>' +
+        '<td>' + (x.workType === 0 ? '全职' : x.workType === 1 ? '兼职' : '—') + '</td>' +
         '<td>' + esc(HR_STATUS[String(x.workStatus)] || x.workStatus) + '</td>' +
         '<td>' + esc(x.deptName) + '</td>' +
         '<td>' + esc((x.entryTime || '').slice(0, 16)) + '</td>' +
@@ -3436,6 +3437,9 @@ function finSwitch(tab) {
 
 // 三个维度共用的明细列（用户 2026-10-22：商圈片与整商必须和骑手口径一致）
 var FIN_COLS = [
+  // ★ 2026-10-24（用户要求）：骑手属性（全职/兼职），来自 HR 名册 work_type
+  //   骑手行是单值；站点/商圈片/整商行显示「全职 X / 兼职 Y」
+  ['属性', 'nature', 's', 'HR 名册工作性质（风神 workType：0=全职 1=兼职）'],
   ['本月出勤天数', 'workDays', 'n', '按【接单时间】统计的自然日数（汇总层为人天合计）'],
   ['排班内单量', 'inOrders', 'n', 'scheduleOrderCount'],
   ['排班外单量', 'outOrders', 'n', 'noScheduleOrderCount'],
@@ -3468,7 +3472,9 @@ function finTable(rows, nameHead, subHead) {
         '<td>' + hrNum(x.riders) + '</td><td>' + num(x.orders) + '</td>' +
         FIN_COLS.map(function (c) {
           var v = x[c[1]];
-          return '<td>' + (c[2] === 'n' ? num(v) : finMoney(v)) + '</td>';
+          var txt = c[2] === 'n' ? num(v)
+                  : (c[2] === 's' ? esc(v || '—') : finMoney(v));
+          return '<td>' + txt + '</td>';
         }).join('') + '</tr>';
     }).join('') + '</tbody></table></div>';
 }
@@ -3561,7 +3567,10 @@ function finRender() {
           '<td>' + num(x.orders || x.order_count) + '</td>' +
           COLS.map(function (c) {
             var v = x[c[1]];
-            return '<td>' + (c[2] === 'n' ? num(v) : finMoney(v)) + '</td>';
+            // ★ 's' = 字符串列（如「属性」全职/兼职），不能走 finMoney 否则显示 —
+            var txt = c[2] === 'n' ? num(v)
+                    : (c[2] === 's' ? esc(v || '—') : finMoney(v));
+            return '<td>' + txt + '</td>';
           }).join('') + '</tr>';
       }).join('') + '</tbody></table></div>';
   }
