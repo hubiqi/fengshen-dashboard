@@ -12,14 +12,22 @@ var LS_USER = 'fs_user';
 /* GitHub Pages 上没有后端 → 走到服务器的 HTTPS 直连入口（2026-10-24 新开 8443）。
    ★ 必须是 https：github.io 是 https，调 http 接口会被浏览器按混合内容拦掉，
      这就是之前只能绕 Cloudflare 边缘网关的原因。直连少一跳，也不会遇到 CF 偶发卡死。 */
+/* ★ 2026-10-24：GitHub Pages 直连服务器的 HTTPS 入口（8081 端口，云侧已放行）。
+   之前只能绕 Cloudflare，是因为 GH 是 https 而后端只有 http，浏览器会按
+   「混合内容」拦掉；现在服务器自己开了 https，直连少一跳、也避开 CF 偶发卡死。 */
+var DIRECT_HTTPS = 'https://158.178.244.142.sslip.io:8081';
+
 function defaultApi() {
-  // ★ 2026-10-24：服务器的 8443(https) 还没在云侧安全列表放行，外网连不上，
-  //   先回落到 CF 边缘网关（它能把 http 转成 https，绕过混合内容限制）。
-  //   等 8443 放行后把下面这行换成 'https://158.178.244.142.sslip.io:8443' 即可。
-  return /github\.io$/i.test(location.hostname) ? CF_ORIGIN : '';
+  if (/github\.io$/i.test(location.hostname)) return DIRECT_HTTPS;
+  return '';
 }
 var API = localStorage.getItem(LS_API);
 if (API === null) API = defaultApi();
+// 老版本存的是 CF 边缘网关地址 → 自动切到服务器直连（只切一次）
+if (API && /pages\.dev/i.test(API)) {
+  API = defaultApi();
+  try { localStorage.setItem(LS_API, API); } catch (e) {}
+}
 
 var TOKEN = localStorage.getItem(LS_TOKEN) || '';
 var APIKEY = localStorage.getItem(LS_KEY) || '';
