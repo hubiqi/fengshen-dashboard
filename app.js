@@ -3462,10 +3462,10 @@ function finTable(rows, nameHead, subHead) {
     rows.map(function (x) {
       return '<tr><td>' + esc(x.name) + '</td>' +
         (subHead ? '<td class="hr-dim">' + esc(x.sub || '') + '</td>' : '') +
-        '<td>' + hrNum(x.riders) + '</td><td>' + hrNum(x.orders) + '</td>' +
+        '<td>' + hrNum(x.riders) + '</td><td>' + num(x.orders) + '</td>' +
         FIN_COLS.map(function (c) {
           var v = x[c[1]];
-          return '<td>' + (c[2] === 'n' ? hrNum(v) : finMoney(v)) + '</td>';
+          return '<td>' + (c[2] === 'n' ? num(v) : finMoney(v)) + '</td>';
         }).join('') + '</tr>';
     }).join('') + '</tbody></table></div>';
 }
@@ -3552,10 +3552,10 @@ function finRender() {
       '</tr></thead><tbody>' +
       rs.map(function (x) {
         return '<tr><td>' + esc(x.knight_name) + '</td><td>' + esc(x.team_name) + '</td>' +
-          '<td>' + hrNum(x.orders || x.order_count) + '</td>' +
+          '<td>' + num(x.orders || x.order_count) + '</td>' +
           COLS.map(function (c) {
             var v = x[c[1]];
-            return '<td>' + (c[2] === 'n' ? hrNum(v) : finMoney(v)) + '</td>';
+            return '<td>' + (c[2] === 'n' ? num(v) : finMoney(v)) + '</td>';
           }).join('') + '</tr>';
       }).join('') + '</tbody></table></div>';
   }
