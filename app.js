@@ -3493,16 +3493,36 @@ function finRender() {
                String(r.knight_id || '').indexOf(kw) >= 0;
       });
     }
+    // ★ 2026-10-22：骑手维度按用户要求展开成明细宽表（横滑查看，首列姓名固定）
+    var COLS = [
+      ['排班内单量', 'inOrders', 'n', 'scheduleOrderCount'],
+      ['排班外单量', 'outOrders', 'n', 'noScheduleOrderCount'],
+      ['取分离单', 'pickOrders', 'n', 'specialOrderCountDetailList 里的「取分离」单量'],
+      ['送分离单', 'sendOrders', 'n', 'specialOrderCountDetailList 里的「送分离」单量'],
+      ['基础薪资', 'base', 'm', '排班内阶梯薪资 + 排班外基础薪资'],
+      ['一口价', 'fixed', 'm', 'fixedReward（取分离 / 送分离一口价合计）'],
+      ['长期激励', 'longTerm', 'm', 'longPeriodBonus'],
+      ['跑单奖励', 'runReward', 'm', '全勤 + 质保 + 段位(星级) + 时段 + 天气'],
+      ['难度奖励', 'hardReward', 'm', '重量 / 距离 / 跑单 / 1v1 / 接单等'],
+      ['推荐奖励', 'recommend', 'm', 'recommendationReward'],
+      ['活动收入', 'activity', 'm', 'activityBonus'],
+      ['总收入', 'totalIncome', 'm', '以上各项收入求和'],
+      ['收入单均', 'perOrder', 'm', '总收入 ÷ 总单量']
+    ];
     body = '<div class="hr-filter">' +
       '<input id="finKw" placeholder="姓名 / 站点 / 骑手ID" value="' + esc(FIN.kw) + '">' +
-      '<span class="hint" id="finSMsg">显示 <b>' + rs.length + '</b> 人</span></div>' +
+      '<span class="hint" id="finSMsg">显示 <b>' + rs.length + '</b> 人 · 左右滑动看全部字段</span></div>' +
       '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
-      '<th>骑手</th><th>站点</th><th>单量</th><th>实发(元)</th><th>应发(元)</th><th>扣款(元)</th>' +
+      '<th>骑手</th><th>站点</th><th>总单量</th>' +
+      COLS.map(function (c) { return '<th title="' + esc(c[3]) + '">' + c[0] + '</th>'; }).join('') +
       '</tr></thead><tbody>' +
       rs.map(function (x) {
         return '<tr><td>' + esc(x.knight_name) + '</td><td>' + esc(x.team_name) + '</td>' +
-          '<td>' + hrNum(x.order_count) + '</td><td>' + finMoney(x.income) + '</td>' +
-          '<td>' + finMoney(x.reward) + '</td><td>' + finMoney(x.deduct) + '</td></tr>';
+          '<td>' + hrNum(x.orders || x.order_count) + '</td>' +
+          COLS.map(function (c) {
+            var v = x[c[1]];
+            return '<td>' + (c[2] === 'n' ? hrNum(v) : finMoney(v)) + '</td>';
+          }).join('') + '</tr>';
       }).join('') + '</tbody></table></div>';
   }
   $('finBody').innerHTML = body;
