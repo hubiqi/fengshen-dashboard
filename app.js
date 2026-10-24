@@ -3448,7 +3448,10 @@ var FIN_COLS = [
   ['推荐奖励', 'recommend', 'm', 'recommendationReward'],
   ['活动收入', 'activity', 'm', 'activityBonus'],
   ['总收入', 'totalIncome', 'm', '以上各项收入求和'],
-  ['收入单均', 'perOrder', 'm', '总收入 ÷ 总单量']
+  ['收入单均', 'perOrder', 'm', '总收入 ÷ 总单量'],
+  ['索赔', 'claim', 'm', '扣款项里的索赔金额（用户 2026-10-24 要求单列）'],
+  ['扣款合计', 'deduct', 'm', '索赔 + 预支 + 个税 + 车辆/住宿等其他扣款'],
+  ['预支', 'advance', 'm', '预支扣款（已从实发里扣除）']
 ];
 
 /* rows 每一行：{name, sub?, riders, orders, ...明细} */
@@ -3482,13 +3485,16 @@ function finRender() {
   $('finMeta').innerHTML = '账单月份 <b>' + esc(d.ym) + '</b> · ' +
     esc(String(t.riders || 0)) + ' 名骑手 · 口径：实发=骑手到手，应发=税前，扣款含预支/索赔/个税';
 
+  // ★ 2026-10-24（用户要求）：卡片必须和下面的表格【同口径】——
+  //   全部取 agency 汇总行，也就是整商表格第一行的那几个数，不再各算各的。
+  var ag = d.agency || {};
   var cards = [
-    ['骑手数', hrNum(t.riders), '人', '有账单记录的骑手'],
-    ['总单量', hrNum(t.orders), '单', '账单合计单量'],
-    ['实发总额', finMoney(t.income), '元', '骑手到手合计'],
-    ['人均实发', finMoney(t.perRider), '元', '实发 ÷ 骑手数'],
-    ['单均成本', finMoney(t.perOrder), '元', '实发 ÷ 总单量'],
-    ['扣款合计', finMoney(t.deduct), '元', '预支 / 索赔 / 个税等']
+    ['骑手数', hrNum(ag.riders), '人', '有账单记录的骑手'],
+    ['总单量', num(ag.orders), '单', '与下表「总单量」一致'],
+    ['总收入', finMoney(ag.totalIncome), '元', '各项收入求和，与下表「总收入」一致'],
+    ['收入单均', finMoney(ag.perOrder), '元', '总收入 ÷ 总单量'],
+    ['实发总额', finMoney(ag.income), '元', '扣预支后的到手金额'],
+    ['扣款合计', finMoney(ag.deduct), '元', '索赔 / 预支 / 个税等']
   ];
   $('finCards').innerHTML = cards.map(function (c) {
     return '<div class="hr-card"><div class="hr-k">' + c[0] + '</div>' +
