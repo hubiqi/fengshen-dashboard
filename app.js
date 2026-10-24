@@ -3666,8 +3666,8 @@ var FIN_COLS = [
   ['保险', 'insurance', 'm', '本月出勤天数 × 扣款方案里的保险单价', '扣款'],
   ['违规扣款', 'penalty', 'm', '各种违规单量 × 扣款方案里的对应单价', '扣款'],
   // ── 单均 ───────────────────────────────────────────────────────────────
-  ['骑手收入单均', 'perOrder', 'm', '骑手总收入 ÷ 总单量', '单均'],
-  ['骑手到手单均', 'netPerOrder', 'm', '（总收入 − 索赔 − 保险 − 违规扣款）÷ 总单量', '单均']
+  ['骑手收入单均', 'perOrder', 'm3', '骑手总收入 ÷ 总单量', '单均'],
+  ['骑手到手单均', 'netPerOrder', 'm3', '（总收入 − 索赔 − 保险 − 违规扣款）÷ 总单量', '单均']
 ];
 
 /* 二级表头：group 为空的列跨两行（基础信息），其余按 group 合并 colspan */
@@ -3711,6 +3711,11 @@ function finHeadHtml(nameHead, subHead) {
 function finCell(c, v) {
   if (c[2] === 'n') return num(v);
   if (c[2] === 's') return esc(v || '—');
+  if (c[2] === 'm3') {
+    if (v == null || isNaN(v)) return '—';
+    return Number(v).toLocaleString('zh-CN',
+      {minimumFractionDigits: 3, maximumFractionDigits: 3});
+  }
   return finMoney(v);
 }
 

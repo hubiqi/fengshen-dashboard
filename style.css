@@ -739,3 +739,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,
 /* 首列（站点/骑手）必须高于同行的其它跨行表头，否则「骑手」「属性」会压上来 */
 .fin-tbl .fin-head tr:nth-child(1) th:first-child{z-index:9 !important}
 .fin-tbl tbody td:first-child{position:sticky;left:0;z-index:8 !important}
+
+/* 财务宽表：数据值也居中 */
+.fin-tbl tbody td{text-align:center}
+.fin-tbl tbody td:first-child{text-align:left}
