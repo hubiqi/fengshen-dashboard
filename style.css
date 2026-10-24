@@ -709,8 +709,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,
 .fin-tbl .fin-head tr:nth-child(1) th[rowspan="2"]{z-index:3;border-bottom:1px solid var(--line)}
 .fin-tbl .fin-head tr:nth-child(2) th{top:30px}
 .fin-tbl .fin-head .fin-grp{
-  /* 分组标题必须左对齐：单元格横跨数列很宽，居中后文字会落在看不见的地方 */
-  font-size:13px;font-weight:700;text-align:left;padding-left:14px;letter-spacing:.5px;
+  font-size:13px;font-weight:700;text-align:center;letter-spacing:.5px;
   background:#e2e8f2;color:#1f2937;
   border-left:1px solid var(--line);border-right:1px solid var(--line);
   border-bottom:1px solid var(--line)}
@@ -729,3 +728,14 @@ button:focus-visible,select:focus-visible,input:focus-visible,
 .fin-tbl .fin-head tr:nth-child(2) th.lg1{background:#e7f4ea;color:#14532d}
 .fin-tbl .fin-head tr:nth-child(2) th.lg2{background:#f0eafb;color:#4c1d95}
 .fin-tbl .fin-head tr:nth-child(2) th.lg3{background:#fdf0e6;color:#7c2d12}
+
+
+/* ★ 财务宽表首列：不要骑手管理那套 104px 限宽，并且吸附层级要最高，
+   否则「骑手」「属性」这两个跨两行的表头横滑时会压在第一列表头上 */
+.fin-tbl th:first-child,.fin-tbl td:first-child{width:auto;max-width:none;min-width:7.5em}
+.fin-tbl .fin-head th:first-child{z-index:6}
+.fin-tbl .fin-head tr:nth-child(1) th[rowspan="2"]{z-index:5}
+.fin-tbl tbody td:first-child{z-index:4}
+/* 首列（站点/骑手）必须高于同行的其它跨行表头，否则「骑手」「属性」会压上来 */
+.fin-tbl .fin-head tr:nth-child(1) th:first-child{z-index:9 !important}
+.fin-tbl tbody td:first-child{position:sticky;left:0;z-index:8 !important}

@@ -3807,7 +3807,7 @@ function finRender() {
     body = '<div class="hr-filter">' +
       '<input id="finKw" placeholder="姓名 / 站点 / 骑手ID" value="' + esc(FIN.kw) + '">' +
       '<span class="hint" id="finSMsg">显示 <b>' + rs.length + '</b> 人 · 左右滑动看全部字段</span></div>' +
-      '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
+      '<div class="daily-wrap"><table class="hr-tbl fin-tbl">' +
       finHeadHtml('骑手', '站点') +
       '<tbody>' +
       rs.map(function (x) {
