@@ -705,5 +705,6 @@ button:focus-visible,select:focus-visible,input:focus-visible,
 .fin-tbl .fin-head tr:nth-child(1) th[rowspan="2"]{z-index:3}
 .fin-tbl .fin-head tr:nth-child(2) th{top:32px}
 .fin-tbl .fin-head .fin-grp{
-  text-align:center;font-weight:600;font-size:12px;color:var(--sub);
+  /* ★ 必须左对齐：分组横跨很多列，居中的话文字会跑到横向滚动区外面看不见 */
+  text-align:left;font-weight:600;font-size:12px;color:var(--sub);
   background:var(--card);border-left:1px solid var(--line)}
