@@ -724,7 +724,8 @@ button:focus-visible,select:focus-visible,input:focus-visible,
 .fin-tbl .fin-head .fin-grp.g3{background:#e5f1ec;color:#1f5347}
 
 /* 二级列名的底色跟所属分组走（横向滚动后仍能分辨分组） */
-.fin-tbl .fin-head tr:nth-child(2) th.lg0{background:#f0f5fc}
-.fin-tbl .fin-head tr:nth-child(2) th.lg1{background:#f4f7fb}
-.fin-tbl .fin-head tr:nth-child(2) th.lg2{background:#f5f2fb}
-.fin-tbl .fin-head tr:nth-child(2) th.lg3{background:#f2f8f5}
+/* 用色相区分（蓝 / 绿 / 紫 / 橙），比只改明度更容易分辨 */
+.fin-tbl .fin-head tr:nth-child(2) th.lg0{background:#e6effb;color:#1e3a8a}
+.fin-tbl .fin-head tr:nth-child(2) th.lg1{background:#e7f4ea;color:#14532d}
+.fin-tbl .fin-head tr:nth-child(2) th.lg2{background:#f0eafb;color:#4c1d95}
+.fin-tbl .fin-head tr:nth-child(2) th.lg3{background:#fdf0e6;color:#7c2d12}
