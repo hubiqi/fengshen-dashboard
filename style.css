@@ -709,7 +709,8 @@ button:focus-visible,select:focus-visible,input:focus-visible,
 .fin-tbl .fin-head tr:nth-child(1) th[rowspan="2"]{z-index:3;border-bottom:1px solid var(--line)}
 .fin-tbl .fin-head tr:nth-child(2) th{top:30px}
 .fin-tbl .fin-head .fin-grp{
-  font-size:13px;font-weight:700;text-align:center;letter-spacing:.5px;
+  /* 分组标题必须左对齐：单元格横跨数列很宽，居中后文字会落在看不见的地方 */
+  font-size:13px;font-weight:700;text-align:left;padding-left:14px;letter-spacing:.5px;
   background:#e2e8f2;color:#1f2937;
   border-left:1px solid var(--line);border-right:1px solid var(--line);
   border-bottom:1px solid var(--line)}
