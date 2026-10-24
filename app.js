@@ -3390,6 +3390,13 @@ function finMoney(v) {
   return Number(v).toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
 
+/* 单均统一保留 3 位小数 */
+function finMoney3(v) {
+  if (v == null || isNaN(v)) return '—';
+  return Number(v).toLocaleString('zh-CN',
+    {minimumFractionDigits: 3, maximumFractionDigits: 3});
+}
+
 function finLoad() {
   if (FIN.busy) return;
   FIN.busy = true;
@@ -3754,7 +3761,7 @@ function finRender() {
     ['骑手数', hrNum(ag.riders), '人', '有账单记录的骑手'],
     ['总单量', num(ag.orders), '单', '与下表「总单量」一致'],
     ['骑手总收入', finMoney(ag.totalIncome), '元', '各项收入求和，与下表「骑手总收入」一致'],
-    ['骑手收入单均', finMoney(ag.perOrder), '元', '骑手总收入 ÷ 总单量']
+    ['骑手收入单均', finMoney3(ag.perOrder), '元', '骑手总收入 ÷ 总单量']
   ];
   $('finCards').innerHTML = cards.map(function (c) {
     return '<div class="hr-card"><div class="hr-k">' + c[0] + '</div>' +
