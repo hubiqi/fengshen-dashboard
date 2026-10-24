@@ -3434,6 +3434,42 @@ function finSwitch(tab) {
   finRender();
 }
 
+// 三个维度共用的明细列（用户 2026-10-22：商圈片与整商必须和骑手口径一致）
+var FIN_COLS = [
+  ['排班内单量', 'inOrders', 'n', 'scheduleOrderCount'],
+  ['排班外单量', 'outOrders', 'n', 'noScheduleOrderCount'],
+  ['取分离单', 'pickOrders', 'n', 'specialOrderCountDetailList 里的「取分离」单量'],
+  ['送分离单', 'sendOrders', 'n', 'specialOrderCountDetailList 里的「送分离」单量'],
+  ['基础薪资', 'base', 'm', '排班内阶梯薪资 + 排班外基础薪资'],
+  ['一口价', 'fixed', 'm', 'fixedReward（取分离 / 送分离一口价合计）'],
+  ['长期激励', 'longTerm', 'm', 'longPeriodBonus'],
+  ['跑单奖励', 'runReward', 'm', '全勤 + 质保 + 段位(星级) + 时段 + 天气'],
+  ['难度奖励', 'hardReward', 'm', '重量 / 距离 / 跑单 / 1v1 / 接单等'],
+  ['推荐奖励', 'recommend', 'm', 'recommendationReward'],
+  ['活动收入', 'activity', 'm', 'activityBonus'],
+  ['总收入', 'totalIncome', 'm', '以上各项收入求和'],
+  ['收入单均', 'perOrder', 'm', '总收入 ÷ 总单量']
+];
+
+/* rows 每一行：{name, sub?, riders, orders, ...明细} */
+function finTable(rows, nameHead, subHead) {
+  return '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
+    '<th>' + nameHead + '</th>' +
+    (subHead ? '<th>' + subHead + '</th>' : '') +
+    '<th>骑手</th><th>总单量</th>' +
+    FIN_COLS.map(function (c) { return '<th title="' + esc(c[3]) + '">' + c[0] + '</th>'; }).join('') +
+    '</tr></thead><tbody>' +
+    rows.map(function (x) {
+      return '<tr><td>' + esc(x.name) + '</td>' +
+        (subHead ? '<td class="hr-dim">' + esc(x.sub || '') + '</td>' : '') +
+        '<td>' + hrNum(x.riders) + '</td><td>' + hrNum(x.orders) + '</td>' +
+        FIN_COLS.map(function (c) {
+          var v = x[c[1]];
+          return '<td>' + (c[2] === 'n' ? hrNum(v) : finMoney(v)) + '</td>';
+        }).join('') + '</tr>';
+    }).join('') + '</tbody></table></div>';
+}
+
 function finRender() {
   var d = FIN.data || {};
   var t = d.total || {};
@@ -3462,27 +3498,24 @@ function finRender() {
 
   var body = '';
   if (FIN.tab === 'agency') {
-    var rows = d.sites || [];
-    body = '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
-      '<th>站点</th><th>骑手</th><th>单量</th><th>实发(元)</th><th>应发(元)</th>' +
-      '<th>扣款(元)</th><th>人均</th></tr></thead><tbody>' +
-      rows.map(function (x) {
-        return '<tr><td>' + esc(x.team_name) + '</td><td>' + hrNum(x.riders) + '</td>' +
-          '<td>' + hrNum(x.orders) + '</td><td>' + finMoney(x.income) + '</td>' +
-          '<td>' + finMoney(x.reward) + '</td><td>' + finMoney(x.deduct) + '</td>' +
-          '<td>' + finMoney(x.perRider) + '</td></tr>';
-      }).join('') + '</tbody></table></div>';
+    // 整商 = 一行「全公司（整商）」+ 各站点明细，列与骑手维度完全一致
+    var ag = d.agency || {};
+    var list = [{name: ag.name || '全公司（整商）', riders: ag.riders, orders: ag.orders}];
+    FIN_COLS.forEach(function (c) { list[0][c[1]] = ag[c[1]]; });
+    (d.sites || []).forEach(function (x) {
+      var o = {name: x.team_name, riders: x.riders, orders: x.orders};
+      FIN_COLS.forEach(function (c) { o[c[1]] = x[c[1]]; });
+      list.push(o);
+    });
+    body = finTable(list, '站点');
   } else if (FIN.tab === 'district') {
-    var ds = d.districts || [];
-    body = '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
-      '<th>商圈片</th><th>下辖站点</th><th>骑手</th><th>单量</th><th>实发(元)</th>' +
-      '<th>人均</th><th>单均</th></tr></thead><tbody>' +
-      ds.map(function (x) {
-        return '<tr><td>' + esc(x.name) + '</td><td class="hr-dim">' +
-          esc((x.sites || []).join('、')) + '</td><td>' + hrNum(x.riders) + '</td>' +
-          '<td>' + hrNum(x.orders) + '</td><td>' + finMoney(x.income) + '</td>' +
-          '<td>' + finMoney(x.perRider) + '</td><td>' + finMoney(x.perOrder) + '</td></tr>';
-      }).join('') + '</tbody></table></div>';
+    var ds = (d.districts || []).map(function (x) {
+      var o = {name: x.name, sub: (x.sites || []).join('、'),
+               riders: x.riders, orders: x.orders};
+      FIN_COLS.forEach(function (c) { o[c[1]] = x[c[1]]; });
+      return o;
+    });
+    body = finTable(ds, '商圈片', '下辖站点');
   } else {
     var rs = d.riders || [];
     var kw = (FIN.kw || '').trim();
@@ -3494,7 +3527,8 @@ function finRender() {
       });
     }
     // ★ 2026-10-22：骑手维度按用户要求展开成明细宽表（横滑查看，首列姓名固定）
-    var COLS = [
+    var COLS = FIN_COLS;
+    var _unused = [
       ['排班内单量', 'inOrders', 'n', 'scheduleOrderCount'],
       ['排班外单量', 'outOrders', 'n', 'noScheduleOrderCount'],
       ['取分离单', 'pickOrders', 'n', 'specialOrderCountDetailList 里的「取分离」单量'],
