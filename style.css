@@ -700,11 +700,18 @@ button:focus-visible,select:focus-visible,input:focus-visible,
 .fr-price{width:92px;box-sizing:border-box}
 
 /* 财务宽表：二级表头（第一行分组，第二行列名；基础信息列跨两行） */
-.fin-tbl .fin-head th{position:sticky;z-index:2;height:32px;box-sizing:border-box}
-.fin-tbl .fin-head tr:nth-child(1) th{top:0}
-.fin-tbl .fin-head tr:nth-child(1) th[rowspan="2"]{z-index:3}
-.fin-tbl .fin-head tr:nth-child(2) th{top:32px}
+.fin-tbl .fin-head th{
+  position:sticky;z-index:2;height:34px;box-sizing:border-box;
+  font-size:13px;font-weight:600;text-align:center;
+  background:#eef1f7;color:#333a45;
+  border-bottom:1px solid var(--line);border-right:1px solid var(--line)}
+.fin-tbl .fin-head tr:nth-child(1) th{top:0;height:30px}
+.fin-tbl .fin-head tr:nth-child(1) th[rowspan="2"]{z-index:3;border-bottom:1px solid var(--line)}
+.fin-tbl .fin-head tr:nth-child(2) th{top:30px}
 .fin-tbl .fin-head .fin-grp{
-  /* ★ 必须左对齐：分组横跨很多列，居中的话文字会跑到横向滚动区外面看不见 */
-  text-align:left;font-weight:600;font-size:12px;color:var(--sub);
-  background:var(--card);border-left:1px solid var(--line)}
+  font-size:13px;font-weight:700;text-align:center;letter-spacing:.5px;
+  background:#e2e8f2;color:#1f2937;
+  border-left:1px solid var(--line);border-right:1px solid var(--line);
+  border-bottom:1px solid var(--line)}
+/* 表格正文也补上下竖线，和表头的分组对齐 */
+.fin-tbl tbody td{border-right:1px solid #f1f3f7}
