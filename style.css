@@ -636,8 +636,9 @@ body.noScroll{overflow:hidden}
 .hr-tbl{width:100%;border-collapse:collapse;font-size:12.5px;white-space:nowrap}
 .hr-tbl th,.hr-tbl td{border-bottom:1px solid var(--line,#30363d);padding:6px 8px;text-align:left}
 /* 扣款方案表单：违规类型不换行、不被截断（如「提前点送达不满意单」） */
-#finRuleForm .hr-tbl td:first-child{white-space:nowrap}
-#finRuleForm .hr-tbl td:first-child{min-width:9.5em}
+#finRuleForm .hr-tbl td:first-child{white-space:nowrap;width:1%;padding-right:14px}
+#finRuleForm .hr-tbl{min-width:100%}
+#finRuleForm .fr-price{width:88px}
 .hr-tbl th{position:sticky;top:0;background:var(--card,#161b22);z-index:1;font-weight:600}
 /* ★ 首列吸附（2026-10-17）：名册 7 列、线索 10 列，手机上必然要横滑。
    姓名列必须跟着走，否则滑到「身份证/留存天数」就不知道这行是谁。
@@ -685,3 +686,15 @@ button:focus-visible,select:focus-visible,input:focus-visible,
 @media (max-width:480px){
   body{padding-bottom:env(safe-area-inset-bottom,0)}
 }
+
+/* 扣款方案：档卡片 + 可多选的 chip */
+.fr-card{border:1px solid var(--line);border-radius:var(--r2);padding:12px;
+  margin-bottom:14px;background:var(--card)}
+.fr-card-hd{display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:10px;font-weight:600;font-size:13.5px}
+.fr-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
+.fr-lab{font-size:12px;color:var(--sub);min-width:4.8em;flex:0 0 auto}
+.chip{min-height:28px;padding:3px 11px;border-radius:999px;border:1px solid var(--line);
+  background:var(--card);color:var(--fg);font-size:12.5px;cursor:pointer}
+.chip.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.fr-price{width:92px;box-sizing:border-box}

@@ -2784,6 +2784,7 @@ $('finSync').onclick = function () { finSync(); };
 $('finRule').onclick = function () { finRuleOpen(); };
 $('finRuleClose').onclick = function () { finRuleClose(); };
 $('finRuleSave').onclick = function () { finRuleSave(); };
+$('finRuleAdd').onclick = function () { finRuleAdd(); };
 $('hrClose').onclick = function () { hrClose(); };
 $('hrSync').onclick = function () { hrSync(); };
 $('abnClose').onclick = function () { $('abnModal').hidden = true; };
@@ -3411,15 +3412,26 @@ function finLoad() {
 }
 
 /* ══ 扣款方案 ══════════════════════════════════════════════════════════
-   ★ 2026-10-24（用户要求）：违规单的单价由用户自己配，可以绑定
-   【骑手属性（全职/兼职）】或【骑手商圈片】。
-   同一类违规在多档都配了单价时，生效优先级：商圈片 > 属性 > 全部骑手。
+   ★ 2026-10-24 v2（用户要求）：绑定维度是【商圈片 × 骑手类型】组合，
+   两边都可以多选；都不选 = 全部骑手。
+   一档 = 一组维度 + 9 类违规单价。骑手命中多档时：
+     限定维度越多越优先（商圈片+类型 > 只限一个 > 都不限），同级别后配的赢。
    ★ 没配单价 = 不扣款（0），不会用任何默认值。 */
-var FRULE = {rules: [], vios: [], dim: 'all', key: '', loaded: false, busy: false};
+var FRULE = {tiers: [], vios: [], districts: [], loaded: false, busy: false};
 
 function finRuleOpen() {
   $('finRuleView').hidden = false;
   document.body.classList.add('noScroll');
+  // 事件委托：卡片是动态渲染的，绑在容器上一次即可（幂等）
+  $('finRuleForm').onclick = function (ev) {
+    var t = ev.target;
+    var b = (t && t.closest) ? t.closest('[data-act]') : null;
+    if (!b) return;
+    var act = b.getAttribute('data-act');
+    var i = parseInt(b.getAttribute('data-i'), 10);
+    if (act === 'del') finRuleDel(i);
+    else if (act === 'tog') finRuleToggle(i, b.getAttribute('data-kind'), b.getAttribute('data-v'));
+  };
   if (!FRULE.loaded) finRuleLoad(); else finRuleRender();
 }
 
@@ -3430,16 +3442,21 @@ function finRuleClose() {
 
 function finRuleLoad() {
   $('finRuleMeta').textContent = '加载中…';
+  var ds = ((FIN.data && FIN.data.districts) || []).map(function (d) {
+    return {id: String(d.id || ''), name: d.name || '未匹配商圈片', riders: d.riders || 0};
+  });
   api('/api/fin/rules?acct=' + encodeURIComponent(ACCT || ''))
     .then(function (j) {
       if (!j || j.ok === false) {
         $('finRuleMeta').textContent = (j && j.error) || '加载失败';
         return;
       }
-      FRULE.rules = (j.rules || []).map(function (r) {
-        return {dim: r.dim, key: r.key || '', vio: r.vio, price: r.price};
+      FRULE.tiers = (j.tiers || []).map(function (t) {
+        return {id: t.id, districts: t.districts || [], natures: t.natures || [],
+                prices: t.prices || {}};
       });
       FRULE.vios = j.vios || [];
+      FRULE.districts = ds;
       FRULE.loaded = true;
       $('finRuleMeta').textContent = '单价留空或 0 = 该类不扣款。改完点右上角「保存」。';
       finRuleRender();
@@ -3449,133 +3466,120 @@ function finRuleLoad() {
     });
 }
 
-function finRuleKeyOpts() {
-  if (FRULE.dim === 'district') {
-    var ds = (FIN.data && FIN.data.districts) || [];
-    var out = ds.map(function (d) {
-      return [String(d.id || ''), (d.name || '未匹配商圈片') + '（' + hrNum(d.riders) + ' 人）'];
-    });
-    return out.length ? out : [['', '（还没有商圈片数据）']];
+/* 把界面上已输入的单价收回到 FRULE（重渲染前必调，否则输入会丢） */
+function finRuleCollect() {
+  var cards = document.querySelectorAll('#finRuleForm .fr-card');
+  for (var i = 0; i < cards.length; i++) {
+    var t = FRULE.tiers[i];
+    if (!t) continue;
+    t.prices = t.prices || {};
+    var ins = cards[i].querySelectorAll('.fr-price');
+    for (var k = 0; k < ins.length; k++) {
+      var vio = ins[k].getAttribute('data-vio');
+      var v = parseFloat(ins[k].value);
+      if (!isNaN(v) && v > 0) t.prices[vio] = v; else delete t.prices[vio];
+    }
   }
-  if (FRULE.dim === 'nature') {
-    return [['全职', '全职骑手'], ['兼职', '兼职骑手']];
-  }
-  return [['', '全部骑手']];
 }
 
 function finRuleRender() {
-  var dims = [['all', '全部骑手'], ['nature', '按骑手属性'], ['district', '按骑手商圈片']];
-  var dimSel = $('finRuleDim');
-  dimSel.innerHTML = dims.map(function (d) {
-    return '<option value="' + d[0] + '"' + (FRULE.dim === d[0] ? ' selected' : '') + '>' +
-      d[1] + '</option>';
-  }).join('');
-
-  var keys = finRuleKeyOpts();
-  var cur = FRULE.key;
-  var has = false;
-  keys.forEach(function (k) { if (k[0] === cur) has = true; });
-  if (!has) cur = keys[0][0];
-  FRULE.key = cur;
-
-  var keySel = $('finRuleKey');
-  keySel.innerHTML = keys.map(function (k) {
-    return '<option value="' + esc(k[0]) + '"' + (k[0] === cur ? ' selected' : '') + '>' +
-      esc(k[1]) + '</option>';
-  }).join('');
-
-  function priceOf(vio) {
-    for (var i = 0; i < FRULE.rules.length; i++) {
-      var r = FRULE.rules[i];
-      if (r.dim === FRULE.dim && r.key === FRULE.key && r.vio === vio) return r.price;
-    }
-    return '';
-  }
-
-  $('finRuleForm').innerHTML =
-    '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
-      '<th>违规类型</th><th>单价（元 / 单）</th></tr></thead><tbody>' +
-      FRULE.vios.map(function (v) {
-        var p = priceOf(v.key);
-        return '<tr><td>' + esc(v.label) + '</td><td>' +
-          '<input class="lb-in fr-price" data-vio="' + v.key + '" inputmode="decimal" ' +
-          'value="' + (p === '' || p == null ? '' : p) + '" placeholder="0" ' +
-          'style="width:96px;box-sizing:border-box"></td></tr>';
-      }).join('') + '</tbody></table></div>';
-
-  finRuleListRender();
-
-  dimSel.onchange = function () {
-    FRULE.dim = dimSel.value;
-    FRULE.key = '';
-    finRuleRender();
-  };
-  keySel.onchange = function () {
-    FRULE.key = keySel.value;
-    finRuleRender();
-  };
-}
-
-function finRuleListRender() {
-  if (!FRULE.rules.length) {
-    $('finRuleList').innerHTML = '<div class="empty">还没有配置任何规则</div>';
+  var box = $('finRuleForm');
+  if (!FRULE.tiers.length) {
+    box.innerHTML = '<div class="empty">还没有配任何档。点右上角「+ 新增一档」开始；' +
+      '如果所有骑手一个标准，就加一档、两个都不选、直接填单价。</div>';
     return;
   }
-  var nameOf = {};
-  FRULE.vios.forEach(function (v) { nameOf[v.key] = v.label; });
-  var dname = {all: '全部骑手', nature: '属性', district: '商圈片'};
-  var dlabel = {};
-  ((FIN.data && FIN.data.districts) || []).forEach(function (d) { dlabel[String(d.id || '')] = d.name; });
-  var rows = FRULE.rules.slice().sort(function (a, b) {
-    if (a.dim !== b.dim) return a.dim < b.dim ? -1 : 1;
-    if (a.key !== b.key) return a.key < b.key ? -1 : 1;
-    return a.vio < b.vio ? -1 : 1;
-  });
-  $('finRuleList').innerHTML =
-    '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
-      '<th>维度</th><th>维度值</th><th>违规类型</th><th>单价（元）</th></tr></thead><tbody>' +
-      rows.map(function (r) {
-        var kv = r.dim === 'district' ? (dlabel[r.key] || r.key || '未匹配') : (r.key || '全部');
-        return '<tr><td>' + dname[r.dim] + '</td><td>' + esc(kv) + '</td>' +
-          '<td>' + esc(nameOf[r.vio] || r.vio) + '</td>' +
-          '<td>' + finMoney(r.price) + '</td></tr>';
-      }).join('') + '</tbody></table></div>';
+  var dOpts = [['', '全部商圈片']].concat(FRULE.districts.map(function (d) {
+    // 商圈片名去掉「福州仓山区」这类前缀，chip 才不会挤成一列
+    var nm = String(d.name || '').replace(/^.*?区/, '') || d.name;
+    return [d.id, nm + (d.riders ? '（' + hrNum(d.riders) + '）' : '')];
+  }));
+  var nOpts = [['', '全部类型'], ['全职', '全职'], ['兼职', '兼职']];
+
+  function chips(kind, idx, vals, opts) {
+    return opts.map(function (o) {
+      var on = o[0] === '' ? (!vals.length) : (vals.indexOf(o[0]) >= 0);
+      return '<button class="chip' + (on ? ' on' : '') + '" data-act="tog" data-kind="' + kind +
+        '" data-i="' + idx + '" data-v="' + esc(o[0]) + '">' + esc(o[1]) + '</button>';
+    }).join('');
+  }
+
+  box.innerHTML = FRULE.tiers.map(function (t, i) {
+    var prices = t.prices || {};
+    return '<div class="fr-card">' +
+      '<div class="fr-card-hd"><span>第 ' + (i + 1) + ' 档</span>' +
+        '<button class="hr-btn" data-act="del" data-i="' + i + '">删除</button></div>' +
+      '<div class="fr-row"><span class="fr-lab">商圈片</span>' +
+        chips('districts', i, t.districts || [], dOpts) + '</div>' +
+      '<div class="fr-row"><span class="fr-lab">骑手类型</span>' +
+        chips('natures', i, t.natures || [], nOpts) + '</div>' +
+      '<div class="daily-wrap"><table class="hr-tbl" style="margin-top:6px"><thead><tr>' +
+        '<th>违规类型</th><th>单价（元 / 单）</th></tr></thead><tbody>' +
+        FRULE.vios.map(function (v) {
+          var p = prices[v.key];
+          return '<tr><td>' + esc(v.label) + '</td><td>' +
+            '<input class="lb-in fr-price" data-vio="' + v.key + '" inputmode="decimal" ' +
+            'value="' + (p == null ? '' : p) + '" placeholder="0"></td></tr>';
+        }).join('') + '</tbody></table></div>' +
+      '</div>';
+  }).join('');
+}
+
+function finRuleAdd() {
+  finRuleCollect();
+  FRULE.tiers.push({districts: [], natures: [], prices: {}});
+  finRuleRender();
+}
+
+function finRuleToggle(i, kind, val) {
+  finRuleCollect();
+  var t = FRULE.tiers[i];
+  if (!t) return;
+  var arr = t[kind] || (t[kind] = []);
+  if (val === '') {
+    t[kind] = [];                       // 「全部」= 清空
+  } else {
+    var at = arr.indexOf(val);
+    if (at >= 0) arr.splice(at, 1); else arr.push(val);
+  }
+  finRuleRender();
+}
+
+function finRuleDel(i) {
+  finRuleCollect();
+  FRULE.tiers.splice(i, 1);
+  finRuleRender();
 }
 
 function finRuleSave() {
   if (FRULE.busy) return;
-  var ins = document.querySelectorAll('#finRuleForm .fr-price');
-  var vals = {};
-  for (var i = 0; i < ins.length; i++) {
-    var v = parseFloat(ins[i].value);
-    vals[ins[i].getAttribute('data-vio')] = (isNaN(v) || v < 0) ? 0 : v;
-  }
-  // 当前这一档的新值替换掉旧值，其它档保持不变（整批提交）
-  FRULE.rules = FRULE.rules.filter(function (r) {
-    return !(r.dim === FRULE.dim && r.key === FRULE.key);
-  });
-  Object.keys(vals).forEach(function (vio) {
-    if (vals[vio] > 0) FRULE.rules.push({dim: FRULE.dim, key: FRULE.key, vio: vio, price: vals[vio]});
+  finRuleCollect();
+  // 只提交有内容的档（价格全空且维度全空的不存）
+  var tiers = FRULE.tiers.filter(function (t) {
+    var hasPrice = false;
+    Object.keys(t.prices || {}).forEach(function (k) { if (t.prices[k] > 0) hasPrice = true; });
+    return hasPrice || (t.districts || []).length || (t.natures || []).length;
   });
 
   FRULE.busy = true;
   $('finRuleMeta').textContent = '保存中…';
   api('/api/fin/rules', {method: 'POST', headers: {'Content-Type': 'application/json'},
-                         body: JSON.stringify({acct: ACCT || '', rules: FRULE.rules})})
+                         body: JSON.stringify({acct: ACCT || '', tiers: tiers})})
     .then(function (j) {
       FRULE.busy = false;
       if (!j || j.ok === false) {
         $('finRuleMeta').textContent = (j && j.error) || '保存失败';
         return;
       }
-      $('finRuleMeta').textContent = '已保存 ' + (j.saved || 0) + ' 条规则，重算扣款…';
+      $('finRuleMeta').textContent = '已保存 ' + (j.saved || 0) + ' 档，正在重算扣款…';
+      FRULE.loaded = false;
       FIN.data = null;
       api('/api/fin?acct=' + encodeURIComponent(ACCT || ''))
         .then(function (d) {
           if (d && d.ok !== false) { FIN.data = d; finRender(); }
-          $('finRuleMeta').textContent = '已保存 ' + (j.saved || 0) + ' 条规则。';
+          $('finRuleMeta').textContent = '已保存 ' + (j.saved || 0) + ' 档。';
+          finRuleLoad();
         });
-      finRuleRender();
     })
     .catch(function (e) {
       FRULE.busy = false;
