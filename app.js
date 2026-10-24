@@ -13,19 +13,14 @@ var LS_USER = 'fs_user';
    ★ 必须是 https：github.io 是 https，调 http 接口会被浏览器按混合内容拦掉，
      这就是之前只能绕 Cloudflare 边缘网关的原因。直连少一跳，也不会遇到 CF 偶发卡死。 */
 function defaultApi() {
-  if (/github\.io$/i.test(location.hostname)) {
-    var saved = localStorage.getItem(LS_API);
-    return saved || 'https://158.178.244.142.sslip.io:8443';
-  }
-  return '';
+  // ★ 2026-10-24：服务器的 8443(https) 还没在云侧安全列表放行，外网连不上，
+  //   先回落到 CF 边缘网关（它能把 http 转成 https，绕过混合内容限制）。
+  //   等 8443 放行后把下面这行换成 'https://158.178.244.142.sslip.io:8443' 即可。
+  return /github\.io$/i.test(location.hostname) ? CF_ORIGIN : '';
 }
 var API = localStorage.getItem(LS_API);
 if (API === null) API = defaultApi();
-// 老版本存的是 CF 边缘网关地址 → 自动换到新的服务器直连（只换一次）
-if (API && /pages\.dev/i.test(API)) {
-  API = defaultApi();
-  try { localStorage.setItem(LS_API, API); } catch (e) {}
-}
+
 var TOKEN = localStorage.getItem(LS_TOKEN) || '';
 var APIKEY = localStorage.getItem(LS_KEY) || '';
 var USER = localStorage.getItem(LS_USER) || '';
