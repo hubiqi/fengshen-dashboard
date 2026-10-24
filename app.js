@@ -3696,8 +3696,13 @@ function finHeadHtml(nameHead, subHead) {
         g.name + '</th>';
     }).join('');
 
+  // ★ 第二行列名也按所属分组上色 —— 横向滚动后一级标题看不见时，
+  //   靠列名底色就能判断哪几列属于同一组。
+  var gi = -1, prev = null;
   var r2 = FIN_COLS.filter(function (c) { return c[4]; }).map(function (c) {
-    return '<th title="' + esc(c[3]) + '">' + c[0] + '</th>';
+    if (c[4] !== prev) { gi += 1; prev = c[4]; }
+    return '<th class="lg' + (gi % 4) + '" title="' + esc(c[3]) + '">' +
+      c[0] + '</th>';
   }).join('');
 
   return '<thead class="fin-head"><tr>' + r1 + '</tr><tr>' + r2 + '</tr></thead>';
