@@ -3666,7 +3666,8 @@ var FIN_COLS = [
   ['保险', 'insurance', 'm', '本月出勤天数 × 扣款方案里的保险单价', '扣款'],
   ['违规扣款', 'penalty', 'm', '各种违规单量 × 扣款方案里的对应单价', '扣款'],
   // ── 单均 ───────────────────────────────────────────────────────────────
-  ['骑手收入单均', 'perOrder', 'm', '骑手总收入 ÷ 总单量', '单均']
+  ['骑手收入单均', 'perOrder', 'm', '骑手总收入 ÷ 总单量', '单均'],
+  ['骑手到手单均', 'netPerOrder', 'm', '（总收入 − 索赔 − 保险 − 违规扣款）÷ 总单量', '单均']
 ];
 
 /* 二级表头：group 为空的列跨两行（基础信息），其余按 group 合并 colspan */
@@ -3690,8 +3691,9 @@ function finHeadHtml(nameHead, subHead) {
     spanCols.map(function (c) {
       return '<th rowspan="2" title="' + esc(c[3]) + '">' + c[0] + '</th>';
     }).join('') +
-    groups.map(function (g) {
-      return '<th colspan="' + g.n + '" class="fin-grp">' + g.name + '</th>';
+    groups.map(function (g, gi) {
+      return '<th colspan="' + g.n + '" class="fin-grp g' + (gi % 4) + '">' +
+        g.name + '</th>';
     }).join('');
 
   var r2 = FIN_COLS.filter(function (c) { return c[4]; }).map(function (c) {

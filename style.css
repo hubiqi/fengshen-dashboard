@@ -715,3 +715,9 @@ button:focus-visible,select:focus-visible,input:focus-visible,
   border-bottom:1px solid var(--line)}
 /* 表格正文也补上下竖线，和表头的分组对齐 */
 .fin-tbl tbody td{border-right:1px solid #f1f3f7}
+
+/* 一级表头（分组标题）颜色间隔 —— 4 色循环，相邻分组一眼能分开 */
+.fin-tbl .fin-head .fin-grp.g0{background:#dfe7f5;color:#1e3a8a}
+.fin-tbl .fin-head .fin-grp.g1{background:#e6ecf5;color:#1f4e79}
+.fin-tbl .fin-head .fin-grp.g2{background:#e9e5f5;color:#3b2f70}
+.fin-tbl .fin-head .fin-grp.g3{background:#e5f1ec;color:#1f5347}
