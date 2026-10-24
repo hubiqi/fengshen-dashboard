@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1f6feb">
 <title>风神考核看板</title>
-<link rel="stylesheet" href="style.css?v=1ef33a5722f5fd98">
-<link rel="stylesheet" href="todo.css?v=1ef33a5722f5fd98">
+<link rel="stylesheet" href="style.css?v=0c866962e954cbd6">
+<link rel="stylesheet" href="todo.css?v=0c866962e954cbd6">
 </head>
 <body>
 
@@ -36,6 +36,7 @@
     <h1>风神考核看板</h1>
     <div class="hero-btns">
       <button id="btnHr" class="ghost" title="骑手管理">👥</button>
+      <button id="btnFin" class="ghost" title="财务（薪资账单）">💰</button>
       <button id="btnPull" class="ghost" title="拉取缺失数据">↻</button>
       <button id="btnCfg" class="ghost" title="账号与设置">⚙</button>
     </div>
@@ -168,6 +169,29 @@
      ★ 做成整屏覆盖而不是第五个 tab：它的数据源（成员管理名册 + Quark 招聘报表）
        跟考核运单完全无关，塞进 level tab 会让「整商/商圈片/站点/骑手」的语义串味。
      内容：① 名册 ② 三方人资月维度（近12个月） ③ 线索明细。 -->
+<!-- ═══ 财务（骑手薪资账单）═══
+     数据源：风神「财务管理 → 骑手账单管家」的 zsSalaryBillQueryFs.pageQuerySalaryBill。
+     每天 09:00 由服务器 cron 导出最新月份，也可以点「导出」手动同步。
+     复用骑手管理的整屏样式（.hr-*），三个维度：整商 / 商圈片 / 骑手。 -->
+<div id="finView" class="hr-view" hidden>
+  <div class="hr-head">
+    <div class="hr-title">财务</div>
+    <div class="hr-btns">
+      <button id="finSync" class="hr-btn">导出</button>
+      <button id="finClose" class="hr-btn">关闭 ✕</button>
+    </div>
+  </div>
+  <div id="finMeta" class="hint hr-meta"></div>
+  <div id="finState" class="hint"></div>
+  <div id="finCards" class="hr-cards"></div>
+  <div class="tabs hr-tabs" id="finTabs">
+    <button data-t="agency" class="on" onclick="finSwitch('agency')">整商</button>
+    <button data-t="district" onclick="finSwitch('district')">商圈片</button>
+    <button data-t="rider" onclick="finSwitch('rider')">骑手</button>
+  </div>
+  <div id="finBody" class="hr-body"></div>
+</div>
+
 <div id="hrView" class="hr-view" hidden>
   <div class="hr-head">
     <div class="hr-title">骑手管理</div>
@@ -255,8 +279,8 @@
   </div>
 </div>
 
-<script src="html2canvas.min.js?v=1ef33a5722f5fd98"></script>
-<script src="export_img.js?v=1ef33a5722f5fd98"></script>
-<script src="app.js?v=1ef33a5722f5fd98"></script>
+<script src="html2canvas.min.js?v=0c866962e954cbd6"></script>
+<script src="export_img.js?v=0c866962e954cbd6"></script>
+<script src="app.js?v=0c866962e954cbd6"></script>
 </body>
 </html>

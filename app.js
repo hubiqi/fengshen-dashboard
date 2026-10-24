@@ -2778,6 +2778,9 @@ $('btnCfg').onclick = function () {
 $('btnClose').onclick = function () { $('cfgModal').hidden = true; };
 /* ★ 骑手管理（见文件末尾模块）：整屏覆盖，打开时按需拉 /api/hr */
 $('btnHr').onclick = function () { hrOpen(); };
+$('btnFin').onclick = function () { finOpen(); };
+$('finClose').onclick = function () { finClose(); };
+$('finSync').onclick = function () { finSync(); };
 $('hrClose').onclick = function () { hrClose(); };
 $('hrSync').onclick = function () { hrSync(); };
 $('abnClose').onclick = function () { $('abnModal').hidden = true; };
@@ -3357,4 +3360,161 @@ function hrRenderLeads(d) {
     kwEl.oninput = function () { clearTimeout(t); t = setTimeout(hrApplyLeads, 500); };
   }
   if (btn) btn.onclick = hrApplyLeads;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   财务模块（2026-10-22）
+   ───────────────────────────────────────────────────────────────────────────
+   数据源：风神「财务管理 → 骑手账单管家」的 xTop 接口
+     xtop.lpd.price.mng.zsSalaryBillQueryFs.pageQuerySalaryBill
+   后端 backend/finance.py 每天 09:00 由 cron 导出最新月份入库，
+   前端点「导出」= POST /api/fin/sync 手动再抓一次。
+   三个维度：整商 / 商圈片 / 骑手。
+═══════════════════════════════════════════════════════════════════════════ */
+var FIN = {tab: 'agency', data: null, busy: false, kw: ''};
+
+function finOpen() {
+  $('finView').hidden = false;
+  if (!FIN.data) finLoad(); else finRender();
+}
+function finClose() { $('finView').hidden = true; }
+
+function finMoney(v) {
+  if (v == null || isNaN(v)) return '—';
+  return Number(v).toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function finLoad() {
+  if (FIN.busy) return;
+  FIN.busy = true;
+  $('finState').textContent = '加载中…';
+  api('/api/fin?acct=' + encodeURIComponent(ACCT || ''))
+    .then(function (j) {
+      FIN.busy = false;
+      if (!j || j.ok === false) {
+        $('finState').textContent = j && j.error ? j.error : '加载失败';
+        return;
+      }
+      FIN.data = j;
+      $('finState').textContent = '';
+      finRender();
+    })
+    .catch(function (e) {
+      FIN.busy = false;
+      $('finState').textContent = '加载失败：' + ((e && e.message) || e);
+    });
+}
+
+function finSync() {
+  if (FIN.busy) return;
+  FIN.busy = true;
+  $('finState').textContent = '已触发导出，正在从风神拉取账单（约 10~30 秒）…';
+  api('/api/fin/sync', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({acct: ACCT || ''})})
+    .then(function () {
+      setTimeout(function () {
+        FIN.busy = false;
+        $('finState').textContent = '';
+        FIN.data = null;
+        finLoad();
+      }, 20000);
+    })
+    .catch(function (e) {
+      FIN.busy = false;
+      $('finState').textContent = '导出失败：' + ((e && e.message) || e);
+    });
+}
+
+function finSwitch(tab) {
+  FIN.tab = tab;
+  Array.prototype.forEach.call($('finTabs').querySelectorAll('button'), function (b) {
+    b.className = b.getAttribute('data-t') === tab ? 'on' : '';
+  });
+  finRender();
+}
+
+function finRender() {
+  var d = FIN.data || {};
+  var t = d.total || {};
+  if (!d.ym) {
+    $('finMeta').textContent = '';
+    $('finCards').innerHTML = '';
+    $('finBody').innerHTML = '<div class="empty">还没有账单数据，点右上角「导出」从风神拉一次</div>';
+    return;
+  }
+  $('finMeta').innerHTML = '账单月份 <b>' + esc(d.ym) + '</b> · ' +
+    esc(String(t.riders || 0)) + ' 名骑手 · 口径：实发=骑手到手，应发=税前，扣款含预支/索赔/个税';
+
+  var cards = [
+    ['骑手数', hrNum(t.riders), '人', '有账单记录的骑手'],
+    ['总单量', hrNum(t.orders), '单', '账单合计单量'],
+    ['实发总额', finMoney(t.income), '元', '骑手到手合计'],
+    ['人均实发', finMoney(t.perRider), '元', '实发 ÷ 骑手数'],
+    ['单均成本', finMoney(t.perOrder), '元', '实发 ÷ 总单量'],
+    ['扣款合计', finMoney(t.deduct), '元', '预支 / 索赔 / 个税等']
+  ];
+  $('finCards').innerHTML = cards.map(function (c) {
+    return '<div class="hr-card"><div class="hr-k">' + c[0] + '</div>' +
+      '<div class="hr-v">' + c[1] + '<span class="hr-u">' + c[2] + '</span></div>' +
+      '<div class="hr-s">' + c[3] + '</div></div>';
+  }).join('');
+
+  var body = '';
+  if (FIN.tab === 'agency') {
+    var rows = d.sites || [];
+    body = '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
+      '<th>站点</th><th>骑手</th><th>单量</th><th>实发(元)</th><th>应发(元)</th>' +
+      '<th>扣款(元)</th><th>人均</th></tr></thead><tbody>' +
+      rows.map(function (x) {
+        return '<tr><td>' + esc(x.team_name) + '</td><td>' + hrNum(x.riders) + '</td>' +
+          '<td>' + hrNum(x.orders) + '</td><td>' + finMoney(x.income) + '</td>' +
+          '<td>' + finMoney(x.reward) + '</td><td>' + finMoney(x.deduct) + '</td>' +
+          '<td>' + finMoney(x.perRider) + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  } else if (FIN.tab === 'district') {
+    var ds = d.districts || [];
+    body = '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
+      '<th>商圈片</th><th>下辖站点</th><th>骑手</th><th>单量</th><th>实发(元)</th>' +
+      '<th>人均</th><th>单均</th></tr></thead><tbody>' +
+      ds.map(function (x) {
+        return '<tr><td>' + esc(x.name) + '</td><td class="hr-dim">' +
+          esc((x.sites || []).join('、')) + '</td><td>' + hrNum(x.riders) + '</td>' +
+          '<td>' + hrNum(x.orders) + '</td><td>' + finMoney(x.income) + '</td>' +
+          '<td>' + finMoney(x.perRider) + '</td><td>' + finMoney(x.perOrder) + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  } else {
+    var rs = d.riders || [];
+    var kw = (FIN.kw || '').trim();
+    if (kw) {
+      rs = rs.filter(function (r) {
+        return (r.knight_name || '').indexOf(kw) >= 0 ||
+               (r.team_name || '').indexOf(kw) >= 0 ||
+               String(r.knight_id || '').indexOf(kw) >= 0;
+      });
+    }
+    body = '<div class="hr-filter">' +
+      '<input id="finKw" placeholder="姓名 / 站点 / 骑手ID" value="' + esc(FIN.kw) + '">' +
+      '<span class="hint" id="finSMsg">显示 <b>' + rs.length + '</b> 人</span></div>' +
+      '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
+      '<th>骑手</th><th>站点</th><th>单量</th><th>实发(元)</th><th>应发(元)</th><th>扣款(元)</th>' +
+      '</tr></thead><tbody>' +
+      rs.map(function (x) {
+        return '<tr><td>' + esc(x.knight_name) + '</td><td>' + esc(x.team_name) + '</td>' +
+          '<td>' + hrNum(x.order_count) + '</td><td>' + finMoney(x.income) + '</td>' +
+          '<td>' + finMoney(x.reward) + '</td><td>' + finMoney(x.deduct) + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+  $('finBody').innerHTML = body;
+
+  var kwEl = $('finKw');
+  if (kwEl) {
+    kwEl.addEventListener('input', function () {
+      FIN.kw = kwEl.value;
+      var pos = kwEl.selectionStart;
+      finRender();
+      var el2 = $('finKw');
+      if (el2) { el2.focus(); try { el2.setSelectionRange(pos, pos); } catch (e) {} }
+    });
+  }
 }
