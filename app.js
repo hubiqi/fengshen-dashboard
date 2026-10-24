@@ -2781,6 +2781,9 @@ $('btnHr').onclick = function () { hrOpen(); };
 $('btnFin').onclick = function () { finOpen(); };
 $('finClose').onclick = function () { finClose(); };
 $('finSync').onclick = function () { finSync(); };
+$('finRule').onclick = function () { finRuleOpen(); };
+$('finRuleClose').onclick = function () { finRuleClose(); };
+$('finRuleSave').onclick = function () { finRuleSave(); };
 $('hrClose').onclick = function () { hrClose(); };
 $('hrSync').onclick = function () { hrSync(); };
 $('abnClose').onclick = function () { $('abnModal').hidden = true; };
@@ -3407,6 +3410,179 @@ function finLoad() {
     });
 }
 
+/* ══ 扣款方案 ══════════════════════════════════════════════════════════
+   ★ 2026-10-24（用户要求）：违规单的单价由用户自己配，可以绑定
+   【骑手属性（全职/兼职）】或【骑手商圈片】。
+   同一类违规在多档都配了单价时，生效优先级：商圈片 > 属性 > 全部骑手。
+   ★ 没配单价 = 不扣款（0），不会用任何默认值。 */
+var FRULE = {rules: [], vios: [], dim: 'all', key: '', loaded: false, busy: false};
+
+function finRuleOpen() {
+  $('finRuleView').hidden = false;
+  document.body.classList.add('noScroll');
+  if (!FRULE.loaded) finRuleLoad(); else finRuleRender();
+}
+
+function finRuleClose() {
+  $('finRuleView').hidden = true;
+  document.body.classList.remove('noScroll');
+}
+
+function finRuleLoad() {
+  $('finRuleMeta').textContent = '加载中…';
+  api('/api/fin/rules?acct=' + encodeURIComponent(ACCT || ''))
+    .then(function (j) {
+      if (!j || j.ok === false) {
+        $('finRuleMeta').textContent = (j && j.error) || '加载失败';
+        return;
+      }
+      FRULE.rules = (j.rules || []).map(function (r) {
+        return {dim: r.dim, key: r.key || '', vio: r.vio, price: r.price};
+      });
+      FRULE.vios = j.vios || [];
+      FRULE.loaded = true;
+      $('finRuleMeta').textContent = '单价留空或 0 = 该类不扣款。改完点右上角「保存」。';
+      finRuleRender();
+    })
+    .catch(function (e) {
+      $('finRuleMeta').textContent = '加载失败：' + ((e && e.message) || e);
+    });
+}
+
+function finRuleKeyOpts() {
+  if (FRULE.dim === 'district') {
+    var ds = (FIN.data && FIN.data.districts) || [];
+    var out = ds.map(function (d) {
+      return [String(d.id || ''), (d.name || '未匹配商圈片') + '（' + hrNum(d.riders) + ' 人）'];
+    });
+    return out.length ? out : [['', '（还没有商圈片数据）']];
+  }
+  if (FRULE.dim === 'nature') {
+    return [['全职', '全职骑手'], ['兼职', '兼职骑手']];
+  }
+  return [['', '全部骑手']];
+}
+
+function finRuleRender() {
+  var dims = [['all', '全部骑手'], ['nature', '按骑手属性'], ['district', '按骑手商圈片']];
+  var dimSel = $('finRuleDim');
+  dimSel.innerHTML = dims.map(function (d) {
+    return '<option value="' + d[0] + '"' + (FRULE.dim === d[0] ? ' selected' : '') + '>' +
+      d[1] + '</option>';
+  }).join('');
+
+  var keys = finRuleKeyOpts();
+  var cur = FRULE.key;
+  var has = false;
+  keys.forEach(function (k) { if (k[0] === cur) has = true; });
+  if (!has) cur = keys[0][0];
+  FRULE.key = cur;
+
+  var keySel = $('finRuleKey');
+  keySel.innerHTML = keys.map(function (k) {
+    return '<option value="' + esc(k[0]) + '"' + (k[0] === cur ? ' selected' : '') + '>' +
+      esc(k[1]) + '</option>';
+  }).join('');
+
+  function priceOf(vio) {
+    for (var i = 0; i < FRULE.rules.length; i++) {
+      var r = FRULE.rules[i];
+      if (r.dim === FRULE.dim && r.key === FRULE.key && r.vio === vio) return r.price;
+    }
+    return '';
+  }
+
+  $('finRuleForm').innerHTML =
+    '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
+      '<th>违规类型</th><th>单价（元 / 单）</th></tr></thead><tbody>' +
+      FRULE.vios.map(function (v) {
+        var p = priceOf(v.key);
+        return '<tr><td>' + esc(v.label) + '</td><td>' +
+          '<input class="lb-in fr-price" data-vio="' + v.key + '" inputmode="decimal" ' +
+          'value="' + (p === '' || p == null ? '' : p) + '" placeholder="0" ' +
+          'style="width:96px;box-sizing:border-box"></td></tr>';
+      }).join('') + '</tbody></table></div>';
+
+  finRuleListRender();
+
+  dimSel.onchange = function () {
+    FRULE.dim = dimSel.value;
+    FRULE.key = '';
+    finRuleRender();
+  };
+  keySel.onchange = function () {
+    FRULE.key = keySel.value;
+    finRuleRender();
+  };
+}
+
+function finRuleListRender() {
+  if (!FRULE.rules.length) {
+    $('finRuleList').innerHTML = '<div class="empty">还没有配置任何规则</div>';
+    return;
+  }
+  var nameOf = {};
+  FRULE.vios.forEach(function (v) { nameOf[v.key] = v.label; });
+  var dname = {all: '全部骑手', nature: '属性', district: '商圈片'};
+  var dlabel = {};
+  ((FIN.data && FIN.data.districts) || []).forEach(function (d) { dlabel[String(d.id || '')] = d.name; });
+  var rows = FRULE.rules.slice().sort(function (a, b) {
+    if (a.dim !== b.dim) return a.dim < b.dim ? -1 : 1;
+    if (a.key !== b.key) return a.key < b.key ? -1 : 1;
+    return a.vio < b.vio ? -1 : 1;
+  });
+  $('finRuleList').innerHTML =
+    '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
+      '<th>维度</th><th>维度值</th><th>违规类型</th><th>单价（元）</th></tr></thead><tbody>' +
+      rows.map(function (r) {
+        var kv = r.dim === 'district' ? (dlabel[r.key] || r.key || '未匹配') : (r.key || '全部');
+        return '<tr><td>' + dname[r.dim] + '</td><td>' + esc(kv) + '</td>' +
+          '<td>' + esc(nameOf[r.vio] || r.vio) + '</td>' +
+          '<td>' + finMoney(r.price) + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+}
+
+function finRuleSave() {
+  if (FRULE.busy) return;
+  var ins = document.querySelectorAll('#finRuleForm .fr-price');
+  var vals = {};
+  for (var i = 0; i < ins.length; i++) {
+    var v = parseFloat(ins[i].value);
+    vals[ins[i].getAttribute('data-vio')] = (isNaN(v) || v < 0) ? 0 : v;
+  }
+  // 当前这一档的新值替换掉旧值，其它档保持不变（整批提交）
+  FRULE.rules = FRULE.rules.filter(function (r) {
+    return !(r.dim === FRULE.dim && r.key === FRULE.key);
+  });
+  Object.keys(vals).forEach(function (vio) {
+    if (vals[vio] > 0) FRULE.rules.push({dim: FRULE.dim, key: FRULE.key, vio: vio, price: vals[vio]});
+  });
+
+  FRULE.busy = true;
+  $('finRuleMeta').textContent = '保存中…';
+  api('/api/fin/rules', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                         body: JSON.stringify({acct: ACCT || '', rules: FRULE.rules})})
+    .then(function (j) {
+      FRULE.busy = false;
+      if (!j || j.ok === false) {
+        $('finRuleMeta').textContent = (j && j.error) || '保存失败';
+        return;
+      }
+      $('finRuleMeta').textContent = '已保存 ' + (j.saved || 0) + ' 条规则，重算扣款…';
+      FIN.data = null;
+      api('/api/fin?acct=' + encodeURIComponent(ACCT || ''))
+        .then(function (d) {
+          if (d && d.ok !== false) { FIN.data = d; finRender(); }
+          $('finRuleMeta').textContent = '已保存 ' + (j.saved || 0) + ' 条规则。';
+        });
+      finRuleRender();
+    })
+    .catch(function (e) {
+      FRULE.busy = false;
+      $('finRuleMeta').textContent = '保存失败：' + ((e && e.message) || e);
+    });
+}
+
 function finSync() {
   if (FIN.busy) return;
   FIN.busy = true;
@@ -3466,7 +3642,9 @@ var FIN_COLS = [
   ['轻度超时单', 'vioOtLight', 'n', '超时类型=轻度超时'],
   ['普通超时单', 'vioOtNormal', 'n', '超时类型=普通超时'],
   ['严重超时单', 'vioOtHeavy', 'n', '超时类型=严重超时'],
-  ['配送节点伪造单', 'vioForge', 'n', '配送节点伪造（风神该字段当前全为 0）']
+  ['配送节点伪造单', 'vioForge', 'n', '配送节点伪造（风神该字段当前全为 0）'],
+  // ★ 2026-10-24（用户要求）：违规扣款 = Σ(违规单量 × 扣款方案里的单价)
+  ['违规扣款', 'penalty', 'm', '按「扣款方案」计算：各种违规单量 × 对应单价']
 ];
 
 /* rows 每一行：{name, sub?, riders, orders, ...明细} */

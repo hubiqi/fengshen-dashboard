@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1f6feb">
 <title>风神考核看板</title>
-<link rel="stylesheet" href="style.css?v=7c162f72e954cbd6">
-<link rel="stylesheet" href="todo.css?v=7c162f72e954cbd6">
+<link rel="stylesheet" href="style.css?v=8114bb121db5d544">
+<link rel="stylesheet" href="todo.css?v=8114bb121db5d544">
 </head>
 <body>
 
@@ -177,6 +177,7 @@
   <div class="hr-head">
     <div class="hr-title">财务</div>
     <div class="hr-btns">
+      <button id="finRule" class="hr-btn">扣款方案</button>
       <button id="finSync" class="hr-btn">导出</button>
       <button id="finClose" class="hr-btn">关闭 ✕</button>
     </div>
@@ -190,6 +191,26 @@
     <button data-t="rider" onclick="finSwitch('rider')">骑手</button>
   </div>
   <div id="finBody" class="hr-body"></div>
+
+  <!-- ★ 2026-10-24：扣款方案（违规单单价，可绑「骑手属性」或「骑手商圈片」） -->
+  <div id="finRuleView" class="hr-view" hidden>
+    <div class="hr-head">
+      <div class="hr-title">扣款方案</div>
+      <div class="hr-btns">
+        <button id="finRuleSave" class="hr-btn">保存</button>
+        <button id="finRuleClose" class="hr-btn">返回 ✕</button>
+      </div>
+    </div>
+    <div id="finRuleMeta" class="hint hr-meta"></div>
+    <div class="hr-filter">
+      <select id="finRuleDim"></select>
+      <select id="finRuleKey"></select>
+      <span class="hint">同一类违规若在多档都配了，生效优先级：商圈片 &gt; 属性 &gt; 全部骑手</span>
+    </div>
+    <div id="finRuleForm" class="hr-body"></div>
+    <div class="hint hr-meta" style="margin-top:14px">已配置的规则</div>
+    <div id="finRuleList" class="hr-body"></div>
+  </div>
 </div>
 
 <div id="hrView" class="hr-view" hidden>
@@ -279,8 +300,8 @@
   </div>
 </div>
 
-<script src="html2canvas.min.js?v=7c162f72e954cbd6"></script>
-<script src="export_img.js?v=7c162f72e954cbd6"></script>
-<script src="app.js?v=7c162f72e954cbd6"></script>
+<script src="html2canvas.min.js?v=8114bb121db5d544"></script>
+<script src="export_img.js?v=8114bb121db5d544"></script>
+<script src="app.js?v=8114bb121db5d544"></script>
 </body>
 </html>
