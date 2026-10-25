@@ -2805,14 +2805,20 @@ $('finPlanAdd').onclick = function () {
   finPlanRender();
 };
 $('finPlanSave').onclick = function () { finPlanSave(); };
-$('finBindNone').onclick = function () {
-  FPLAN.sel = {};
-  finBindRender();
-};
+
 $('finBindDo').onclick = function () { finBindDo(false); };
 $('finBindClear').onclick = function () { finBindDo(true); };
+// ★ 全选 / 取消全选 合并成一个按钮：当前筛选结果全勾上时就变成「取消全选」
 $('finBindAll').onclick = function () {
-  finBindRows().forEach(function (r) { FPLAN.sel[String(r.knight_id || '')] = 1; });
+  var rows = finBindRows();
+  var allSel = rows.length > 0 && rows.every(function (r) {
+    return FPLAN.sel[String(r.knight_id || '')];
+  });
+  if (allSel) {
+    FPLAN.sel = {};
+  } else {
+    rows.forEach(function (r) { FPLAN.sel[String(r.knight_id || '')] = 1; });
+  }
   finBindRender();
 };
 ['finBindDist', 'finBindNature', 'finBindOld'].forEach(function (id) {
@@ -3873,6 +3879,13 @@ function fn__bindFiltersOnce() {
 function finBindMsg() {
   var n = Object.keys(FPLAN.sel).length;
   $('finBindMsg').textContent = '已选 ' + n + ' 人';
+  // 当前筛选结果是否已全选 → 决定按钮文案
+  var rows = finBindRows();
+  var allSel = rows.length > 0 && rows.every(function (r) {
+    return FPLAN.sel[String(r.knight_id || '')];
+  });
+  var btn = $('finBindAll');
+  if (btn) btn.textContent = allSel ? '取消全选' : '全选筛选结果';
 }
 
 function finBindRender() {
