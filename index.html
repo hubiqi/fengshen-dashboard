@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1f6feb">
 <title>风神考核看板</title>
-<link rel="stylesheet" href="style.css?v=1f3c14d77ae8e6b6">
-<link rel="stylesheet" href="todo.css?v=1f3c14d77ae8e6b6">
+<link rel="stylesheet" href="style.css?v=b06745aff777c4c2">
+<link rel="stylesheet" href="todo.css?v=b06745aff777c4c2">
 </head>
 <body>
 
@@ -177,6 +177,7 @@
   <div class="hr-head">
     <div class="hr-title">财务</div>
     <div class="hr-btns">
+      <button id="finPlan" class="hr-btn">薪资方案</button>
       <button id="finRule" class="hr-btn">扣款方案</button>
       <button id="finSync" class="hr-btn">导出</button>
       <button id="finClose" class="hr-btn">关闭 ✕</button>
@@ -208,6 +209,36 @@
       都不选 = 全部骑手。限定得越具体越优先；同级别的后配的档优先。
     </div>
     <div id="finRuleForm" class="hr-body"></div>
+  </div>
+
+  <!-- ★ 2026-10-24：薪资方案（手动配单价，绑到骑手后按方案重算） -->
+  <div id="finPlanView" class="hr-view" hidden>
+    <div class="hr-head">
+      <div class="hr-title">薪资方案</div>
+      <div class="hr-btns">
+        <button id="finPlanAdd" class="hr-btn">+ 新增方案</button>
+        <button id="finPlanSave" class="hr-btn">保存</button>
+        <button id="finPlanClose" class="hr-btn">返回 ✕</button>
+      </div>
+    </div>
+    <div id="finPlanMeta" class="hint hr-meta"></div>
+    <div id="finPlanForm" class="hr-body"></div>
+
+    <div class="hint hr-meta" style="margin-top:16px">绑定骑手到方案</div>
+    <div class="hr-filter">
+      <select id="finBindPlan"></select>
+      <select id="finBindDist"></select>
+      <select id="finBindNature"></select>
+      <select id="finBindOld"></select>
+      <input id="finBindKw" placeholder="姓名 / 骑手ID">
+    </div>
+    <div class="hr-filter">
+      <button id="finBindAll" class="hr-btn">全选筛选结果</button>
+      <button id="finBindDo" class="hr-btn">绑定选中</button>
+      <button id="finBindClear" class="hr-btn">解绑选中</button>
+      <span class="hint" id="finBindMsg"></span>
+    </div>
+    <div id="finBindList" class="hr-body"></div>
   </div>
 </div>
 
@@ -298,8 +329,8 @@
   </div>
 </div>
 
-<script src="html2canvas.min.js?v=1f3c14d77ae8e6b6"></script>
-<script src="export_img.js?v=1f3c14d77ae8e6b6"></script>
-<script src="app.js?v=1f3c14d77ae8e6b6"></script>
+<script src="html2canvas.min.js?v=b06745aff777c4c2"></script>
+<script src="export_img.js?v=b06745aff777c4c2"></script>
+<script src="app.js?v=b06745aff777c4c2"></script>
 </body>
 </html>

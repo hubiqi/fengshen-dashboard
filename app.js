@@ -2797,6 +2797,25 @@ $('finClose').onclick = function () { finClose(); };
 $('finSync').onclick = function () { finSync(); };
 $('finRule').onclick = function () { finRuleOpen(); };
 $('finRuleClose').onclick = function () { finRuleClose(); };
+$('finPlan').onclick = function () { finPlanOpen(); };
+$('finPlanClose').onclick = function () { finPlanClose(); };
+$('finPlanAdd').onclick = function () {
+  finPlanCollect();
+  FPLAN.plans.push({name: '', inPrice: 0, outPrice: 0, pickPrice: 0, sendPrice: 0, useHard: true});
+  finPlanRender();
+};
+$('finPlanSave').onclick = function () { finPlanSave(); };
+$('finBindDo').onclick = function () { finBindDo(false); };
+$('finBindClear').onclick = function () { finBindDo(true); };
+$('finBindAll').onclick = function () {
+  finBindRows().forEach(function (r) { FPLAN.sel[String(r.knight_id || '')] = 1; });
+  finBindRender();
+};
+['finBindDist', 'finBindNature', 'finBindOld'].forEach(function (id) {
+  var el = $(id);
+  if (el) el.onchange = finBindRender;
+});
+$('finBindKw').oninput = function () { finBindRender(); };
 $('finRuleSave').onclick = function () { finRuleSave(); };
 $('finRuleAdd').onclick = function () { finRuleAdd(); };
 $('hrClose').onclick = function () { hrClose(); };
@@ -3621,6 +3640,245 @@ function finRuleSave() {
     });
 }
 
+/* ══ 薪资方案 ══════════════════════════════════════════════════════════
+   ★ 2026-10-24（用户要求）：手动配 4 个单价，绑到骑手后按方案重算薪资。
+     基础薪资 = 排班内单量 × 排班内单价 + 排班外单量 × 排班外单价
+     一口价   = 取分离单量 × 取分离单价 + 送分离单量 × 送分离单价
+     跑单奖励 / 长期激励 / 活动收入 → 0；推荐奖励不变；
+     难度奖励 → 勾了「用系统难度奖励」就保留原值，否则 0。 */
+var FPLAN = {plans: [], ym: '', busy: false, sel: {}, loaded: false};
+
+function finPlanOpen() {
+  $('finPlanView').hidden = false;
+  document.body.classList.add('noScroll');
+  $('finPlanForm').onclick = function (ev) {
+    var t = ev.target, b = (t && t.closest) ? t.closest('[data-pp]') : null;
+    if (!b) return;
+    var i = parseInt(b.getAttribute('data-i'), 10);
+    if (b.getAttribute('data-pp') === 'del') {
+      finPlanCollect();
+      FPLAN.plans.splice(i, 1);
+      finPlanRender();
+    }
+  };
+  $('finBindList').onchange = function (ev) {
+    var cb = ev.target;
+    if (cb && cb.getAttribute && cb.getAttribute('data-kid')) {
+      var kid = cb.getAttribute('data-kid');
+      if (cb.checked) FPLAN.sel[kid] = 1; else delete FPLAN.sel[kid];
+      finBindMsg();
+    }
+  };
+  finPlanLoad();
+}
+
+function finPlanClose() {
+  $('finPlanView').hidden = true;
+  document.body.classList.remove('noScroll');
+}
+
+function finPlanLoad() {
+  FPLAN.ym = (FIN.data && FIN.data.ym) || '';
+  $('finPlanMeta').textContent = '加载中…';
+  api('/api/fin/plans?acct=' + encodeURIComponent(ACCT || '') +
+      '&ym=' + encodeURIComponent(FPLAN.ym))
+    .then(function (j) {
+      if (!j || j.ok === false) {
+        $('finPlanMeta').textContent = (j && j.error) || '加载失败';
+        return;
+      }
+      FPLAN.plans = (j.plans || []).map(function (x) { return x; });
+      FPLAN.loaded = true;
+      FPLAN.sel = {};
+      $('finPlanMeta').textContent = '改完点右上角「保存」；绑定按账单月份生效（当前 ' +
+        (FPLAN.ym || '未选') + '）。';
+      finPlanRender();
+      finBindRender();
+    })
+    .catch(function (e) {
+      $('finPlanMeta').textContent = '加载失败：' + ((e && e.message) || e);
+    });
+}
+
+function finPlanCollect() {
+  var cards = document.querySelectorAll('#finPlanForm .fr-card');
+  for (var i = 0; i < cards.length; i++) {
+    var t = FPLAN.plans[i];
+    if (!t) continue;
+    t.name = (cards[i].querySelector('.fp-name') || {}).value || '';
+    ['inPrice', 'outPrice', 'pickPrice', 'sendPrice'].forEach(function (k) {
+      var el = cards[i].querySelector('[data-pk="' + k + '"]');
+      if (el) {
+        var v = parseFloat(el.value);
+        t[k] = isNaN(v) ? 0 : v;
+      }
+    });
+    var uh = cards[i].querySelector('[data-pk="useHard"]');
+    if (uh) t.useHard = uh.checked;
+  }
+}
+
+function finPlanRender() {
+  var box = $('finPlanForm');
+  if (!FPLAN.plans.length) {
+    box.innerHTML = '<div class="empty">还没有薪资方案。点右上角「+ 新增方案」，' +
+      '填好 4 个单价保存后，再在下面把骑手绑上去。</div>';
+    return;
+  }
+  box.innerHTML = FPLAN.plans.map(function (t, i) {
+    return '<div class="fr-card">' +
+      '<div class="fr-card-hd"><span>方案 ' + (i + 1) + '</span>' +
+        '<button class="hr-btn" data-pp="del" data-i="' + i + '">删除</button></div>' +
+      '<div class="fr-row"><span class="fr-lab">方案名称</span>' +
+        '<input class="lb-in fp-name" value="' + esc(t.name || '') +
+        '" placeholder="如：全职A档" style="min-width:180px"></div>' +
+      '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
+        '<th>项目</th><th>单价（元 / 单）</th></tr></thead><tbody>' +
+        finPlanRow('排班内单价', 'inPrice', t.inPrice) +
+        finPlanRow('排班外单价', 'outPrice', t.outPrice) +
+        finPlanRow('取分离单价', 'pickPrice', t.pickPrice) +
+        finPlanRow('送分离单价', 'sendPrice', t.sendPrice) +
+        '</tbody></table></div>' +
+      '<div class="fr-row" style="margin-top:10px">' +
+        '<label class="hint" style="display:flex;gap:6px;align-items:center">' +
+        '<input type="checkbox" data-pk="useHard"' + (t.useHard ? ' checked' : '') + '>' +
+        '难度奖励用系统账单（不勾则难度奖励归 0）</label></div>' +
+      (t.bound ? '<div class="hint">已绑定 ' + hrNum(t.bound) + ' 人</div>' : '') +
+      '</div>';
+  }).join('');
+}
+
+function finPlanRow(label, key, val) {
+  return '<tr><td>' + label + '</td><td>' +
+    '<input class="lb-in fr-price" data-pk="' + key + '" inputmode="decimal" ' +
+    'value="' + (val == null || val === 0 ? '' : val) + '" placeholder="0"></td></tr>';
+}
+
+/* ── 绑定区 ───────────────────────────────────────────────────────── */
+function finBindFilters() {
+  var d = (FIN.data && FIN.data.districts) || [];
+  $('finBindDist').innerHTML = '<option value="">全部商圈片</option>' +
+    d.map(function (x) {
+      return '<option value="' + esc(String(x.id || '')) + '">' + esc(x.name || '') + '</option>';
+    }).join('');
+  $('finBindNature').innerHTML = '<option value="">全部属性</option>' +
+    '<option value="全职">全职</option><option value="兼职">兼职</option>' +
+    '<option value="__none">未匹配</option>';
+  $('finBindOld').innerHTML = '<option value="">全部方案</option>' +
+    '<option value="__none">未绑定方案</option>' +
+    FPLAN.plans.map(function (p_) {
+      return '<option value="' + p_.id + '">' + esc(p_.name || ('方案' + p_.id)) + '</option>';
+    }).join('');
+  $('finBindPlan').innerHTML = FPLAN.plans.length
+    ? FPLAN.plans.map(function (p_) {
+        return '<option value="' + p_.id + '">' + esc(p_.name || ('方案' + p_.id)) + '</option>';
+      }).join('')
+    : '<option value="">（先新增方案）</option>';
+}
+
+function finBindRows() {
+  var rs = (FIN.data && FIN.data.riders) || [];
+  var dist = $('finBindDist').value;
+  var nat = $('finBindNature').value;
+  var old = $('finBindOld').value;
+  var kw = ($('finBindKw').value || '').trim();
+  return rs.filter(function (r) {
+    if (dist && String(r.district_id || '') !== dist) return false;
+    if (nat === '__none') { if (r.nature) return false; }
+    else if (nat && r.nature !== nat) return false;
+    if (old === '__none') { if (r.planId) return false; }
+    else if (old && String(r.planId || '') !== old) return false;
+    if (kw) {
+      var hay = (r.knight_name || '') + ' ' + (r.knight_id || '') + ' ' + (r.team_name || '');
+      if (hay.indexOf(kw) < 0) return false;
+    }
+    return true;
+  });
+}
+
+function finBindMsg() {
+  var n = Object.keys(FPLAN.sel).length;
+  $('finBindMsg').textContent = '已选 ' + n + ' 人';
+}
+
+function finBindRender() {
+  finBindFilters();
+  var rows = finBindRows();
+  $('finBindList').innerHTML = rows.length
+    ? '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
+      '<th style="width:40px">选</th><th>骑手</th><th>站点</th><th>属性</th><th>现方案</th>' +
+      '</tr></thead><tbody>' +
+      rows.map(function (r) {
+        var kid = String(r.knight_id || '');
+        return '<tr><td><input type="checkbox" data-kid="' + esc(kid) + '"' +
+          (FPLAN.sel[kid] ? ' checked' : '') + '></td>' +
+          '<td>' + esc(r.knight_name || '') + '</td>' +
+          '<td class="hr-dim">' + esc(r.team_name || '') + '</td>' +
+          '<td>' + esc(r.nature || '—') + '</td>' +
+          '<td>' + esc(r.planName || '—') + '</td></tr>';
+      }).join('') + '</tbody></table></div>'
+    : '<div class="empty">没有符合条件的骑手</div>';
+  finBindMsg();
+}
+
+function finPlanSave() {
+  if (FPLAN.busy) return;
+  finPlanCollect();
+  var plans = FPLAN.plans.filter(function (t) { return (t.name || '').trim(); });
+  if (!plans.length) { $('finPlanMeta').textContent = '至少填一个方案名称'; return; }
+  FPLAN.busy = true;
+  $('finPlanMeta').textContent = '保存中…';
+  api('/api/fin/plans', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                         body: JSON.stringify({acct: ACCT || '', plans: plans})})
+    .then(function (j) {
+      FPLAN.busy = false;
+      if (!j || j.ok === false) {
+        $('finPlanMeta').textContent = (j && j.error) || '保存失败';
+        return;
+      }
+      $('finPlanMeta').textContent = '已保存 ' + (j.saved || 0) + ' 个方案';
+      FIN.data = null;
+      api('/api/fin?acct=' + encodeURIComponent(ACCT || '')).then(function (d) {
+        if (d && d.ok !== false) { FIN.data = d; finRender(); }
+        finPlanLoad();
+      });
+    })
+    .catch(function (e) {
+      FPLAN.busy = false;
+      $('finPlanMeta').textContent = '保存失败：' + ((e && e.message) || e);
+    });
+}
+
+function finBindDo(unbind) {
+  if (FPLAN.busy) return;
+  var ids = Object.keys(FPLAN.sel);
+  if (!ids.length) { $('finBindMsg').textContent = '先勾选骑手'; return; }
+  var planId = $('finBindPlan').value;
+  if (!unbind && !planId) { $('finBindMsg').textContent = '先选方案'; return; }
+  FPLAN.busy = true;
+  $('finBindMsg').textContent = '提交中…';
+  api('/api/fin/plans/bind', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({acct: ACCT || '', ym: FPLAN.ym, planId: planId,
+                            knightIds: ids, unbind: !!unbind})})
+    .then(function (j) {
+      FPLAN.busy = false;
+      if (!j || j.ok === false) {
+        $('finBindMsg').textContent = (j && j.error) || '失败';
+        return;
+      }
+      FPLAN.sel = {};
+      FIN.data = null;
+      api('/api/fin?acct=' + encodeURIComponent(ACCT || '')).then(function (d) {
+        if (d && d.ok !== false) { FIN.data = d; finRender(); }
+        finPlanLoad();
+      });
+    })
+    .catch(function (e) {
+      FPLAN.busy = false;
+      $('finBindMsg').textContent = '失败：' + ((e && e.message) || e);
+    });
+}
+
 function finSync() {
   if (FIN.busy) return;
   FIN.busy = true;
@@ -3669,7 +3927,7 @@ var FIN_COLS = [
   ['难度奖励', 'hardReward', 'm', '难度补贴(starRating) + 重量 / 距离 / 跑单 / 1v1 / 接单 / 天气', '收入明细'],
   ['推荐奖励', 'recommend', 'm', 'recommendationReward', '收入明细'],
   ['活动收入', 'activity', 'm', 'activityBonus', '收入明细'],
-  ['骑手总收入', 'totalIncome', 'm', '以上各项收入求和', '收入明细'],
+  ['骑手总支出', 'totalIncome', 'm', '以上各项收入求和（对代理商来说是支出）', '收入明细'],
   // ── 违规单量 ───────────────────────────────────────────────────────────
   //   每类在【扣款方案】里配单价，单量 × 单价 = 违规扣款。
   //   口径：只算物流商(代理商)责任；统计全部运单（物流责取消单本来就没送达）。
@@ -3687,7 +3945,7 @@ var FIN_COLS = [
   ['保险', 'insurance', 'm', '本月出勤天数 × 扣款方案里的保险单价', '扣款'],
   ['违规扣款', 'penalty', 'm', '各种违规单量 × 扣款方案里的对应单价', '扣款'],
   // ── 单均 ───────────────────────────────────────────────────────────────
-  ['骑手收入单均', 'perOrder', 'm3', '骑手总收入 ÷ 总单量', '单均'],
+  ['骑手支出单均', 'perOrder', 'm3', '骑手总支出 ÷ 总单量', '单均'],
   ['骑手到手单均', 'netPerOrder', 'm3', '（总收入 − 索赔 − 保险 − 违规扣款）÷ 总单量', '单均']
 ];
 
@@ -3774,8 +4032,8 @@ function finRender() {
   var cards = [
     ['骑手数', hrNum(ag.riders), '人', '有账单记录的骑手'],
     ['总单量', num(ag.orders), '单', '与下表「总单量」一致'],
-    ['骑手总收入', finMoney(ag.totalIncome), '元', '各项收入求和，与下表「骑手总收入」一致'],
-    ['骑手收入单均', finMoney3(ag.perOrder), '元', '骑手总收入 ÷ 总单量']
+    ['骑手总支出', finMoney(ag.totalIncome), '元', '各项收入求和（代理商口径是支出），与下表「骑手总支出」一致'],
+    ['骑手支出单均', finMoney3(ag.perOrder), '元', '骑手总支出 ÷ 总单量']
   ];
   $('finCards').innerHTML = cards.map(function (c) {
     return '<div class="hr-card"><div class="hr-k">' + c[0] + '</div>' +
