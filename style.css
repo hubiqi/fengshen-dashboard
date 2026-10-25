@@ -743,3 +743,12 @@ button:focus-visible,select:focus-visible,input:focus-visible,
 /* 财务宽表：数据值也居中 */
 .fin-tbl tbody td{text-align:center}
 .fin-tbl tbody td:first-child{text-align:left}
+
+/* ★ 2026-10-24 薪资方案：折叠卡片 */
+.fp-fold { padding: 10px 12px !important; }
+.fp-fold .fr-card-hd { margin: 0; align-items: center; }
+.fp-sum { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.fp-sum b { font-size: 14px; }
+.fp-sum .hint { font-size: 11px; color: #6b7280; line-height: 1.5; white-space: normal; }
+.fp-acts { display: flex; gap: 6px; flex-shrink: 0; }
+.fp-acts .hr-btn { padding: 4px 10px; font-size: 12px; }

@@ -2805,6 +2805,10 @@ $('finPlanAdd').onclick = function () {
   finPlanRender();
 };
 $('finPlanSave').onclick = function () { finPlanSave(); };
+$('finBindNone').onclick = function () {
+  FPLAN.sel = {};
+  finBindRender();
+};
 $('finBindDo').onclick = function () { finBindDo(false); };
 $('finBindClear').onclick = function () { finBindDo(true); };
 $('finBindAll').onclick = function () {
@@ -3646,18 +3650,33 @@ function finRuleSave() {
      一口价   = 取分离单量 × 取分离单价 + 送分离单量 × 送分离单价
      跑单奖励 / 长期激励 / 活动收入 → 0；推荐奖励不变；
      难度奖励 → 勾了「用系统难度奖励」就保留原值，否则 0。 */
-var FPLAN = {plans: [], ym: '', busy: false, sel: {}, loaded: false};
+var FPLAN = {plans: [], ym: '', busy: false, sel: {}, loaded: false, open: {}};
 
 function finPlanOpen() {
   $('finPlanView').hidden = false;
   document.body.classList.add('noScroll');
+  if (!FIN.data || !FIN.data.ym) {
+    $('finPlanMeta').textContent = '加载财务数据…';
+    api('/api/fin?acct=' + encodeURIComponent(ACCT || '')).then(function (d) {
+      if (d && d.ok !== false) FIN.data = d;
+      finPlanLoad();
+    }).catch(function () { finPlanLoad(); });
+    return;
+  }
   $('finPlanForm').onclick = function (ev) {
     var t = ev.target, b = (t && t.closest) ? t.closest('[data-pp]') : null;
     if (!b) return;
     var i = parseInt(b.getAttribute('data-i'), 10);
-    if (b.getAttribute('data-pp') === 'del') {
+    var act = b.getAttribute('data-pp');
+    if (act === 'del') {
       finPlanCollect();
       FPLAN.plans.splice(i, 1);
+      FPLAN.open = {};
+      finPlanRender();
+    } else if (act === 'toggle') {
+      finPlanCollect();
+      var key = finPlanKey(FPLAN.plans[i], i);
+      if (FPLAN.open[key]) delete FPLAN.open[key]; else FPLAN.open[key] = 1;
       finPlanRender();
     }
   };
@@ -3689,6 +3708,8 @@ function finPlanLoad() {
       }
       FPLAN.plans = (j.plans || []).map(function (x) { return x; });
       FPLAN.loaded = true;
+      FPLAN.open = {};
+      fn__bindFiltersOnce.done = 0;
       FPLAN.sel = {};
       $('finPlanMeta').textContent = '改完点右上角「保存」；绑定按账单月份生效（当前 ' +
         (FPLAN.ym || '未选') + '）。';
@@ -3718,6 +3739,13 @@ function finPlanCollect() {
   }
 }
 
+function finPlanKey(t, i) { return t.id ? 'p' + t.id : 'n' + i; }
+
+function finPriceTxt(t) {
+  return '排班内 ' + hrNum(t.inPrice || 0) + ' / 排班外 ' + hrNum(t.outPrice || 0) +
+    ' / 取分离 ' + hrNum(t.pickPrice || 0) + ' / 送分离 ' + hrNum(t.sendPrice || 0);
+}
+
 function finPlanRender() {
   var box = $('finPlanForm');
   if (!FPLAN.plans.length) {
@@ -3726,9 +3754,28 @@ function finPlanRender() {
     return;
   }
   box.innerHTML = FPLAN.plans.map(function (t, i) {
+    var key = finPlanKey(t, i);
+    // ★ 已保存的方案默认折叠（新增的展开编辑）
+    var open = !!FPLAN.open[key] || !t.id;
+    if (!open) {
+      return '<div class="fr-card fp-fold">' +
+        '<div class="fr-card-hd">' +
+          '<div class="fp-sum"><b>' + esc(t.name || ('方案 ' + (i + 1))) + '</b>' +
+            '<span class="hint">' + finPriceTxt(t) + (t.useHard ? '' : ' · 难度归0') +
+            (t.bound ? ' · 已绑 ' + hrNum(t.bound) + ' 人' : '') + '</span></div>' +
+          '<div class="fp-acts">' +
+            '<button class="hr-btn" data-pp="toggle" data-i="' + i + '">展开</button>' +
+            '<button class="hr-btn" data-pp="del" data-i="' + i + '">删除</button>' +
+          '</div>' +
+        '</div></div>';
+    }
     return '<div class="fr-card">' +
-      '<div class="fr-card-hd"><span>方案 ' + (i + 1) + '</span>' +
-        '<button class="hr-btn" data-pp="del" data-i="' + i + '">删除</button></div>' +
+      '<div class="fr-card-hd">' +
+        '<span>方案 ' + (i + 1) + (t.id ? '（已保存）' : '（未保存）') + '</span>' +
+        '<div class="fp-acts">' +
+          (t.id ? '<button class="hr-btn" data-pp="toggle" data-i="' + i + '">收起</button>' : '') +
+          '<button class="hr-btn" data-pp="del" data-i="' + i + '">删除</button>' +
+        '</div></div>' +
       '<div class="fr-row"><span class="fr-lab">方案名称</span>' +
         '<input class="lb-in fp-name" value="' + esc(t.name || '') +
         '" placeholder="如：全职A档" style="min-width:180px"></div>' +
@@ -3756,6 +3803,12 @@ function finPlanRow(label, key, val) {
 
 /* ── 绑定区 ───────────────────────────────────────────────────────── */
 function finBindFilters() {
+  // 保留当前选择，重建 option 后恢复
+  var keep = {dist: '', nat: '', old: '', plan: ''};
+  ['finBindDist', 'finBindNature', 'finBindOld', 'finBindPlan'].forEach(function (id, k) {
+    var el = $(id);
+    if (el) keep[['dist', 'nat', 'old', 'plan'][k]] = el.value;
+  });
   var d = (FIN.data && FIN.data.districts) || [];
   $('finBindDist').innerHTML = '<option value="">全部商圈片</option>' +
     d.map(function (x) {
@@ -3770,10 +3823,24 @@ function finBindFilters() {
       return '<option value="' + p_.id + '">' + esc(p_.name || ('方案' + p_.id)) + '</option>';
     }).join('');
   $('finBindPlan').innerHTML = FPLAN.plans.length
-    ? FPLAN.plans.map(function (p_) {
+    ? FPLAN.plans.filter(function (p_) { return p_.id; }).map(function (p_) {
         return '<option value="' + p_.id + '">' + esc(p_.name || ('方案' + p_.id)) + '</option>';
-      }).join('')
+      }).join('') || '<option value="">（先保存方案）</option>'
     : '<option value="">（先新增方案）</option>';
+  // ★ 恢复选择 + 重绑事件（innerHTML 重建后原来的 onchange 会丢）
+  [['finBindDist', keep.dist], ['finBindNature', keep.nat],
+   ['finBindOld', keep.old], ['finBindPlan', keep.plan]].forEach(function (kv) {
+    var el = $(kv[0]);
+    if (!el) return;
+    if (kv[1]) {
+      var ok = false;
+      for (var j = 0; j < el.options.length; j++) {
+        if (el.options[j].value === kv[1]) { ok = true; break; }
+      }
+      if (ok) el.value = kv[1];
+    }
+    el.onchange = finBindRender;   // 每次重建都重绑
+  });
 }
 
 function finBindRows() {
@@ -3796,13 +3863,20 @@ function finBindRows() {
   });
 }
 
+function fn__bindFiltersOnce() {
+  if (!fn__bindFiltersOnce.done) {
+    fn__bindFiltersOnce.done = 1;
+    finBindFilters();
+  }
+}
+
 function finBindMsg() {
   var n = Object.keys(FPLAN.sel).length;
   $('finBindMsg').textContent = '已选 ' + n + ' 人';
 }
 
 function finBindRender() {
-  finBindFilters();
+  fn__bindFiltersOnce();
   var rows = finBindRows();
   $('finBindList').innerHTML = rows.length
     ? '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
