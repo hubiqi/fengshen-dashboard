@@ -3676,6 +3676,12 @@ function finPlanOpen() {
     var act = b.getAttribute('data-pp');
     if (act === 'del') {
       finPlanCollect();
+      var t0 = FPLAN.plans[i];
+      if (t0 && t0.bound) {
+        var msg = '「' + (t0.name || ('方案 ' + (i + 1))) + '」已绑定 ' + t0.bound +
+          ' 名骑手。\n\n删除后这些骑手的绑定会一并解除，薪资恢复成系统账单口径。\n\n确定删除？';
+        if (!window.confirm(msg)) return;
+      }
       FPLAN.plans.splice(i, 1);
       FPLAN.open = {};
       finPlanRender();
@@ -3730,9 +3736,14 @@ function finPlanLoad() {
 function finPlanCollect() {
   var cards = document.querySelectorAll('#finPlanForm .fr-card');
   for (var i = 0; i < cards.length; i++) {
-    var t = FPLAN.plans[i];
+    // ★ 折叠的卡片没有输入框，跳过（否则会把已保存方案的名称/单价清空，
+    //   保存时被 filter 掉 —— 这就是「只能保存一个方案」的根因）
+    var nameEl = cards[i].querySelector('.fp-name');
+    if (!nameEl) continue;
+    var idx = cards[i].getAttribute('data-idx');
+    var t = FPLAN.plans[idx == null ? i : parseInt(idx, 10)];
     if (!t) continue;
-    t.name = (cards[i].querySelector('.fp-name') || {}).value || '';
+    t.name = nameEl.value || '';
     ['inPrice', 'outPrice', 'pickPrice', 'sendPrice'].forEach(function (k) {
       var el = cards[i].querySelector('[data-pk="' + k + '"]');
       if (el) {
@@ -3764,7 +3775,7 @@ function finPlanRender() {
     // ★ 已保存的方案默认折叠（新增的展开编辑）
     var open = !!FPLAN.open[key] || !t.id;
     if (!open) {
-      return '<div class="fr-card fp-fold">' +
+      return '<div class="fr-card fp-fold" data-idx="' + i + '">' +
         '<div class="fr-card-hd">' +
           '<div class="fp-sum"><b>' + esc(t.name || ('方案 ' + (i + 1))) + '</b>' +
             '<span class="hint">' + finPriceTxt(t) + (t.useHard ? '' : ' · 难度归0') +
@@ -3775,7 +3786,7 @@ function finPlanRender() {
           '</div>' +
         '</div></div>';
     }
-    return '<div class="fr-card">' +
+    return '<div class="fr-card" data-idx="' + i + '">' +
       '<div class="fr-card-hd">' +
         '<span>方案 ' + (i + 1) + (t.id ? '（已保存）' : '（未保存）') + '</span>' +
         '<div class="fp-acts">' +
