@@ -3904,7 +3904,8 @@ function finBindRender() {
   var rows = finBindRows();
   $('finBindList').innerHTML = rows.length
     ? '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
-      '<th style="width:40px">选</th><th>骑手</th><th>站点</th><th>属性</th><th>现方案</th>' +
+      '<th style="width:40px">选</th><th>骑手</th><th>站点</th><th>属性</th>' +
+      '<th>账单中方案</th><th>现方案</th>' +
       '</tr></thead><tbody>' +
       rows.map(function (r) {
         var kid = String(r.knight_id || '');
@@ -3913,7 +3914,10 @@ function finBindRender() {
           '<td>' + esc(r.knight_name || '') + '</td>' +
           '<td class="hr-dim">' + esc(r.team_name || '') + '</td>' +
           '<td>' + esc(r.nature || '—') + '</td>' +
-          '<td>' + esc(r.planName || '—') + '</td></tr>';
+          '<td>' + esc(r.baseRuleName || '—') +
+            (r.baseRuleId ? '<span class="hr-dim" style="font-size:11px"> ·' + r.baseRuleId + '</span>' : '') +
+          '</td>' +
+          '<td>' + (r.planName ? esc(r.planName) : '<span class="hr-dim">未绑定</span>') + '</td></tr>';
       }).join('') + '</tbody></table></div>'
     : '<div class="empty">没有符合条件的骑手</div>';
   finBindMsg();
@@ -4008,6 +4012,7 @@ function finSwitch(tab) {
 // 三个维度共用的明细列（用户 2026-10-22：商圈片与整商必须和骑手口径一致）
 var FIN_COLS = [
   // ── 基础信息（group 为空 → 表头跨两行）────────────────────────────────
+  ['账单中方案', 'baseRuleName', 's', '平台账单里骑手原本的薪资方案（手动绑定后也不变）', ''],
   ['薪资方案', 'planName', 's', '手动绑定的薪资方案（空=按系统账单）', ''],
   ['骑手', 'riders', 'n', '该行的骑手人数', ''],
   ['属性', 'nature', 's', 'HR 名册工作性质（风神 workType：0=全职 1=兼职）', ''],
