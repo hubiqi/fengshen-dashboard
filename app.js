@@ -570,7 +570,8 @@ function drawChart() {
   // 同趋势图：容器宽与点数所需宽取大者，宽屏铺满、窄屏才滚动
   var sbAvail = Math.max(320, (($('sbChart') || {}).clientWidth || 360) - 2);
   var W = Math.max(sbAvail, rows.length * 42 + 90), H = 190;
-  var pad = { l: 34, r: 10, t: 10, b: 24 };
+  // 顶部留白加大：主线数值标签画在点上方，最高点也要留得住
+  var pad = { l: 34, r: 10, t: 20, b: 24 };
   var iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
   var SER = [
     { k: 'dayNet', c: '#1f6feb', w: 2.4, dash: '', name: '大网质量得分' },
@@ -605,6 +606,16 @@ function drawChart() {
       if (r[sr.k] == null) return;
       out.push('<circle cx="' + X(i) + '" cy="' + Y(r[sr.k]) + '" r="' + (sr.dash ? 1.8 : 2.6) +
         '" fill="' + sr.c + '"><title>' + r.date + ' ' + sr.name + ' ' + fmt1(r[sr.k]) + '</title></circle>');
+      // ★ 2026-10-27（用户要求）：每个日期的顶点都标数值（只标主线，4 条线全标会糊）
+      if (!sr.dash) {
+        var lab = fmt1(r[sr.k]);
+        var lx2 = X(i), anc = 'middle';
+        if (i === 0) { anc = 'start'; lx2 = Math.max(lx2, pad.l); }
+        else if (i === rows.length - 1) { anc = 'end'; lx2 = Math.min(lx2, W - pad.r); }
+        out.push('<text x="' + lx2 + '" y="' + (Y(r[sr.k]) - 6) + '" font-size="9" fill="' + sr.c +
+          '" text-anchor="' + anc + '" font-weight="600" stroke="#fff" stroke-width="2.4" ' +
+          'paint-order="stroke">' + lab + '</text>');
+      }
     });
   });
   out.push('</svg>');
@@ -1967,7 +1978,8 @@ function drawTrend(label) {
   // ★ 点 + tooltip + 【每点数值标签】
   //   点少时全标；点多时隔点标，避免挤成一团互相遮挡。
   //   标签画在点的【正上方】，折线不会压住文字；且用白描边保证叠在网格线上也清晰。
-  var stepLbl = pts.length <= 12 ? 1 : Math.ceil(pts.length / 10);
+  // ★ 2026-10-27（用户要求）：每个日期的点都要有数值标注，不再隔点省略。
+  var stepLbl = 1;
   pts.forEach(function (p, i) {
     var v = p[m.f]; if (v == null) return;
     out.push('<circle cx="' + X(i) + '" cy="' + Y(v) + '" r="2.6" fill="#1f6feb">' +
