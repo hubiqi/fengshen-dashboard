@@ -4017,7 +4017,7 @@ function boardUsersRender(users, me) {
     if (!b) return;
     var name = b.getAttribute('data-del');
     if (!confirm('删除账号「' + name + '」后它就不能再登录了，确定？')) return;
-    api('/api/users', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    api('/api/auth/users', {method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({op: 'delete', username: name})})
       .then(function (j) {
         if (!j || j.ok === false) { $('userMsg').textContent = (j && j.error) || '删除失败'; return; }
@@ -4029,7 +4029,7 @@ function boardUsersRender(users, me) {
 }
 
 function boardUsersLoad() {
-  api('/api/users', {method: 'POST', headers: {'Content-Type': 'application/json'},
+  api('/api/auth/users', {method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({op: 'list'})})
     .then(function (j) {
       if (!j || j.ok === false) {
@@ -4049,7 +4049,7 @@ function boardUserAdd() {
   if (u.length < 3) { $('userMsg').textContent = '账号至少 3 位'; return; }
   if (p.length < 6) { $('userMsg').textContent = '密码至少 6 位'; return; }
   $('userMsg').textContent = '提交中…';
-  api('/api/users', {method: 'POST', headers: {'Content-Type': 'application/json'},
+  api('/api/auth/users', {method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({op: 'add', username: u, password: p})})
     .then(function (j) {
       if (!j || j.ok === false) { $('userMsg').textContent = (j && j.error) || '新增失败'; return; }
