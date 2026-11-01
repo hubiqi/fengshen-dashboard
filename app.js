@@ -2809,6 +2809,8 @@ $('finClose').onclick = function () { finClose(); };
 $('finSync').onclick = function () { finSync(); };
 $('finRule').onclick = function () { finRuleOpen(); };
 $('finRuleClose').onclick = function () { finRuleClose(); };
+$('btnAddUser').onclick = function () { boardUserAdd(); };
+$('btnCfg').addEventListener('click', function () { setTimeout(boardUsersLoad, 300); });
 $('finPlan').onclick = function () { finPlanOpen(); };
 $('finPlanClose').onclick = function () { finPlanClose(); };
 $('finPlanAdd').onclick = function () {
@@ -3991,6 +3993,71 @@ function finBindDo(unbind) {
       FPLAN.busy = false;
       $('finBindMsg').textContent = '失败：' + ((e && e.message) || e);
     });
+}
+
+
+/* ══ 看板账号管理（后台多账号）══════════════════════════════════════
+   ★ 2026-11-01（用户要求）：后台能新增账号密码，多个账号都能登录看板。
+   服务端 config.json 的 users 列表；只有管理员能增删。 */
+function boardUsersRender(users, me) {
+  var box = $('userList');
+  if (!box) return;
+  box.innerHTML = (users || []).map(function (u) {
+    var isMe = u.user === me;
+    return '<div class="acct-item">' +
+      '<div class="acct-name">' + esc(u.user) +
+        (u.admin ? ' <span class="tag">管理员</span>' : '') +
+        (isMe ? ' <span class="tag">当前</span>' : '') + '</div>' +
+      '<div class="acct-acts">' +
+        (isMe ? '' : '<button class="mini" data-del="' + esc(u.user) + '">删除</button>') +
+      '</div></div>';
+  }).join('') || '<div class="sub">还没有账号</div>';
+  box.onclick = function (ev) {
+    var t = ev.target, b = t && t.closest ? t.closest('[data-del]') : null;
+    if (!b) return;
+    var name = b.getAttribute('data-del');
+    if (!confirm('删除账号「' + name + '」后它就不能再登录了，确定？')) return;
+    api('/api/users', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({op: 'delete', username: name})})
+      .then(function (j) {
+        if (!j || j.ok === false) { $('userMsg').textContent = (j && j.error) || '删除失败'; return; }
+        $('userMsg').textContent = '已删除';
+        boardUsersRender(j.users, me);
+      })
+      .catch(function (e) { $('userMsg').textContent = '删除失败：' + ((e && e.message) || e); });
+  };
+}
+
+function boardUsersLoad() {
+  api('/api/users', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({op: 'list'})})
+    .then(function (j) {
+      if (!j || j.ok === false) {
+        $('userMsg').textContent = (j && j.error) || '读取账号失败';
+        return;
+      }
+      boardUsersRender(j.users, j.me);
+    })
+    .catch(function (e) {
+      var m = $('userMsg'); if (m) m.textContent = '读取账号失败：' + ((e && e.message) || e);
+    });
+}
+
+function boardUserAdd() {
+  var u = ($('newUserName').value || '').trim();
+  var p = $('newUserPw').value || '';
+  if (u.length < 3) { $('userMsg').textContent = '账号至少 3 位'; return; }
+  if (p.length < 6) { $('userMsg').textContent = '密码至少 6 位'; return; }
+  $('userMsg').textContent = '提交中…';
+  api('/api/users', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({op: 'add', username: u, password: p})})
+    .then(function (j) {
+      if (!j || j.ok === false) { $('userMsg').textContent = (j && j.error) || '新增失败'; return; }
+      $('userMsg').textContent = '已新增 ' + u;
+      $('newUserName').value = ''; $('newUserPw').value = '';
+      boardUsersRender(j.users, USER);
+    })
+    .catch(function (e) { $('userMsg').textContent = '新增失败：' + ((e && e.message) || e); });
 }
 
 function finSync() {
