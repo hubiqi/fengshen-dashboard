@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1f6feb">
 <title>风神考核看板</title>
-<link rel="stylesheet" href="style.css?v=58ef74b46bf8846f">
-<link rel="stylesheet" href="todo.css?v=58ef74b46bf8846f">
+<link rel="stylesheet" href="style.css?v=cb2f7e829c00f540">
+<link rel="stylesheet" href="todo.css?v=cb2f7e829c00f540">
 </head>
 <body>
 
@@ -289,12 +289,14 @@
     <div class="hint" id="progText"></div>
     <!-- 正在跑的拉取任务：显示是哪些日期、跑了多久，并可取消 -->
 
-    <div class="sec-title">④ 看板账号（谁能登录这个看板）</div>
-    <div id="userList" class="acct-list"></div>
-    <label>新账号<input id="newUserName" placeholder="账号（至少 3 位）" autocomplete="off"></label>
-    <label>新密码<input id="newUserPw" type="password" placeholder="密码（至少 6 位）" autocomplete="new-password"></label>
-    <div class="row"><button id="btnAddUser" class="primary">新增账号</button>
-      <span class="sub" id="userMsg"></span></div>
+    <div id="userAdminSec">
+      <div class="sec-title">④ 看板账号（谁能登录这个看板）</div>
+      <div id="userList" class="acct-list"></div>
+      <label>新账号<input id="newUserName" placeholder="账号（至少 3 位）" autocomplete="off"></label>
+      <label>新密码<input id="newUserPw" type="password" placeholder="密码（至少 6 位）" autocomplete="new-password"></label>
+      <div class="row"><button id="btnAddUser" class="primary">新增账号</button>
+        <span class="sub" id="userMsg"></span></div>
+    </div>
 
     <details class="adv">
       <summary>高级</summary>
@@ -336,8 +338,8 @@
   </div>
 </div>
 
-<script src="html2canvas.min.js?v=58ef74b46bf8846f"></script>
-<script src="export_img.js?v=58ef74b46bf8846f"></script>
-<script src="app.js?v=58ef74b46bf8846f"></script>
+<script src="html2canvas.min.js?v=cb2f7e829c00f540"></script>
+<script src="export_img.js?v=cb2f7e829c00f540"></script>
+<script src="app.js?v=cb2f7e829c00f540"></script>
 </body>
 </html>

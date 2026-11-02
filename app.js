@@ -4033,9 +4033,15 @@ function boardUsersLoad() {
     body: JSON.stringify({op: 'list'})})
     .then(function (j) {
       if (!j || j.ok === false) {
-        $('userMsg').textContent = (j && j.error) || '读取账号失败';
+        var m0 = $('userMsg');
+        if (m0) m0.textContent = (j && j.error) || '读取账号失败';
         return;
       }
+      // ★ 2026-11-01（用户要求）：只有管理员能管理账号，子账号整块隐藏
+      var sec = document.getElementById('userAdminSec');
+      var isAdmin = (j.isAdmin === true) || (j.me === 'hubiqi');
+      if (sec && !isAdmin) { sec.hidden = true; return; }
+      if (sec) sec.hidden = false;
       boardUsersRender(j.users, j.me);
     })
     .catch(function (e) {
