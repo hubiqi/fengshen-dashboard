@@ -56,6 +56,9 @@ function api(path, opt) {
   var h = Object.assign({}, opt.headers || {});
   if (TOKEN) h['Authorization'] = 'Bearer ' + TOKEN;
   if (APIKEY) h['X-Api-Key'] = APIKEY;
+  // ★ 2026-11-02：直连入口（GH Pages → 8081）没有 CF 网关，后端拿不到登录名，
+  //   会把所有人都当成 webUser（= 管理员）→ 子账号能看主账号数据。这里显式带上。
+  if (USER) h['X-FS-User'] = USER;
   opt.headers = h;
   // ★ 2026-10-18：CF 边缘节点偶发 30 秒无响应（实测同一接口连打 3 次，
   //   1 次 000、1 次 1.1s、1 次 9.9s），手机上就表现成「无法连接接口：Failed to fetch」。
