@@ -109,6 +109,15 @@ function api(path, opt) {
 var MODE = 'login';
 function showLogin(needSetup) {
   MODE = needSetup ? 'setup' : 'login';
+  // ★★ 2026-11-03（用户反馈「退出后还残留」）：
+  //   弹窗 modal 都挂在 body 上、不在 appView 里，只隐藏 appView 的话
+  //   设置框/异常单框/验证码框会盖在登录页上，看起来像没退出去。
+  ['cfgModal', 'abnModal', 'capModal', 'trendBox'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.hidden = true;
+  });
+  try { document.body.classList.remove('noScroll'); } catch (e) {}
+  try { window.__toLogin = 0; } catch (e) {}
   $('appView').hidden = true;
   $('loginView').hidden = false;
   $('setupTip').hidden = !needSetup;
@@ -134,6 +143,8 @@ function forceLogin() {
 function enterApp() {
   $('loginView').hidden = true;
   $('appView').hidden = false;
+  var _w = document.getElementById('whoName');
+  if (_w) _w.textContent = USER || '—';
   $('d1').value = today(); $('d2').value = today();
   $('pFrom').value = today(); $('pTo').value = today();
   // ★ 2026-10-18：原来 loadAccounts() 是前置串行 —— 首屏白白多等一个 RTT
@@ -2908,8 +2919,16 @@ $('btnPw').onclick = function () {
     .catch(function (e) { $('cfgStatus').textContent = '✗ ' + e.message; });
 };
 $('btnLogout').onclick = function () {
+  if (!confirm('退出登录？')) return;
   api('/api/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
-    .catch(function () {}).then(function () { logoutLocal(); showLogin(false); });
+    .catch(function () {}).then(function () {
+      logoutLocal();
+      try { FIN.data = null; SB.districts = []; } catch (e) {}
+      try { localStorage.removeItem(LS_ACCT); } catch (e) {}
+      $('lgPwd').value = '';
+      showLogin(false);
+      $('lgMsg').textContent = '已退出登录';
+    });
 };
 $('btnPull2').onclick = function () { startPull($('pFrom').value || today(), $('pTo').value || today()); };
 /* ★ 顶部「立即刷新」= 刷新【今日运单增量】，不是补历史日期。

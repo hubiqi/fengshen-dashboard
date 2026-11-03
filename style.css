@@ -752,3 +752,13 @@ button:focus-visible,select:focus-visible,input:focus-visible,
 .fp-sum .hint { font-size: 11px; color: #6b7280; line-height: 1.5; white-space: normal; }
 .fp-acts { display: flex; gap: 6px; flex-shrink: 0; }
 .fp-acts .hr-btn { padding: 4px 10px; font-size: 12px; }
+
+
+/* ★ 2026-11-03：退出登录按钮 —— 手机上好点（原来藏在「高级」里，几乎找不到） */
+.logout-btn{
+  padding:9px 14px;min-height:36px;border-radius:9px;
+  border:1px solid #e2b7b2;color:#b3372c;background:#fff7f6;
+  font-size:13px;font-weight:600;white-space:nowrap;
+}
+.logout-btn:active{background:#fdeceb}
+.who-line{font-size:12px;color:var(--muted);margin:-4px 0 10px}
