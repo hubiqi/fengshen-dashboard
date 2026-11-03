@@ -107,6 +107,30 @@ function api(path, opt) {
 
 /* ── 登录 ─────────────────────────────────────────────────────────── */
 var MODE = 'login';
+
+/* ══ 切换风神账号：彻底清空前端状态 ══════════════════════════════════
+   ★★ 2026-11-03（用户要求「完全隔离，单独运行」）：
+   原来切换只清了 S.key，看板/财务/趋势/方案都还留着上一个账号的数据，
+   切过去看到的是混合内容。这里统一重置所有缓存与选择。 */
+function resetForAccount() {
+  try { S.level = 'agency'; S.key = ''; S.keyName = ''; S.quick = 'today'; } catch (e) {}
+  try { SB.districts = []; SB.sel = null; } catch (e) {}
+  try { TREND = { key: null, points: null, metric: null, loading: false }; } catch (e) {}
+  try { FIN.data = null; FIN.tab = 'agency'; FIN.kw = ''; } catch (e) {}
+  try { FRULE = { tiers: [], vios: [], districts: [], loaded: false, busy: false }; } catch (e) {}
+  try { FPLAN = { plans: [], ym: '', busy: false, sel: {}, loaded: false, open: {} }; } catch (e) {}
+  // 关掉所有可能还开着的浮层
+  ['cfgModal', 'abnModal', 'capModal', 'trendBox'].forEach(function (id) {
+    var el = document.getElementById(id); if (el) el.hidden = true;
+  });
+  try { document.body.classList.remove('noScroll'); } catch (e) {}
+  // 页面上的表格先清空，避免"旧数据一闪而过"
+  ['sbChart', 'sbTable', 'finTable', 'finBody', 'groupWrap'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+}
+
 function showLogin(needSetup) {
   MODE = needSetup ? 'setup' : 'login';
   // ★★ 2026-11-03（用户反馈「退出后还残留」）：
@@ -3088,8 +3112,12 @@ function renderAcctList() {
       var act = b.getAttribute('data-act'), id = b.getAttribute('data-id');
       if (act === 'use') {
         api('/api/accounts/active', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id }) })
-          .then(function () { ACCT = id; localStorage.setItem(LS_ACCT, id); return loadAccounts(); })
-          .then(function () { S.key = ''; loadAll(); });
+          .then(function () {
+            ACCT = id; localStorage.setItem(LS_ACCT, id);
+            resetForAccount();     // ★ 完全隔离：先清空上一个账号的所有前端状态
+            return loadAccounts();
+          })
+          .then(function () { loadAll(); });
       } else if (act === 'login') {
         var a = ACC.list.filter(function (x) { return x.id === id; })[0];
         // ★ 2026-10-18：从旧配置恢复出来的账号可能【没有密码】(hasPassword=false)，
