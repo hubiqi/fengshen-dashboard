@@ -116,6 +116,8 @@ function resetForAccount() {
   try { S.level = 'agency'; S.key = ''; S.keyName = ''; S.quick = 'today'; } catch (e) {}
   try { SB.districts = []; SB.sel = null; } catch (e) {}
   try { TREND = { key: null, points: null, metric: null, loading: false }; } catch (e) {}
+  // ★ 2026-11-04：罗盘缓存也要清，否则切换完商还显示上一个公司的实时值
+  try { RT_PLAT = {}; RT_ERR = ''; MOM = {}; } catch (e) {}
   try { FIN.data = null; FIN.tab = 'agency'; FIN.kw = ''; } catch (e) {}
   try { FRULE = { tiers: [], vios: [], districts: [], loaded: false, busy: false }; } catch (e) {}
   try { FPLAN = { plans: [], ym: '', busy: false, sel: {}, loaded: false, open: {} }; } catch (e) {}
