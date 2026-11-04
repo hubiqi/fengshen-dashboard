@@ -4180,13 +4180,13 @@ function schedLoad() {
 function schedRenderDetail(j, ms) {
   var c = j.count || {};
   var head = '<div class="card" style="margin-bottom:12px">' +
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(74px,1fr));gap:12px 10px">' +
-      '<div><div class="hint">日期</div><b>' + esc(j.date) + '</b></div>' +
-      '<div><div class="hint">已排班</div><b style="color:#1f6feb">' + (c.on || 0) + '</b></div>' +
-      '<div><div class="hint">休息</div><b>' + (c.off || 0) + '</b></div>' +
-      '<div><div class="hint">未排班</div><b style="color:#b3372c">' + (c.none || 0) + '</b></div>' +
-      '<div><div class="hint">合计</div><b>' + (j.riders || []).length + ' 人</b></div>' +
-      '<div class="hint">' + (ms / 1000).toFixed(1) + 's</div>' +
+    '<div style="display:flex;gap:14px;flex-wrap:wrap">' +
+      '<div style="flex:1 1 70px"><div class="hint">日期</div><b>' + esc(j.date) + '</b></div>' +
+      '<div style="flex:1 1 70px"><div class="hint">已排班</div><b style="color:#1f6feb">' + (c.on || 0) + '</b></div>' +
+      '<div style="flex:1 1 70px"><div class="hint">休息</div><b>' + (c.off || 0) + '</b></div>' +
+      '<div style="flex:1 1 70px"><div class="hint">未排班</div><b style="color:#b3372c">' + (c.none || 0) + '</b></div>' +
+      '<div style="flex:1 1 70px"><div class="hint">合计</div><b>' + (j.riders || []).length + ' 人</b></div>' +
+      '<div style="flex:0 0 auto;align-self:flex-end" class="hint">' + (ms / 1000).toFixed(1) + 's</div>' +
     '</div></div>';
 
   var byTeam = {};
@@ -4217,13 +4217,13 @@ function schedRenderDetail(j, ms) {
 function schedRenderAttend(j, ms) {
   var t = j.total || {};
   var head = '<div class="card" style="margin-bottom:12px">' +
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(74px,1fr));gap:12px 10px">' +
-      '<div><div class="hint">日期</div><b>' + esc(j.date) + '</b></div>' +
-      '<div><div class="hint">应排</div><b>' + t.plan + '</b></div>' +
-      '<div><div class="hint">实到</div><b>' + t.actual + '</b></div>' +
-      '<div><div class="hint">达成率</div><b style="color:' + (t.rate >= 90 ? '#12855a' : '#b3372c') +
+    '<div style="display:flex;gap:14px;flex-wrap:wrap">' +
+      '<div style="flex:1 1 70px"><div class="hint">日期</div><b>' + esc(j.date) + '</b></div>' +
+      '<div style="flex:1 1 70px"><div class="hint">应排</div><b>' + t.plan + '</b></div>' +
+      '<div style="flex:1 1 70px"><div class="hint">实到</div><b>' + t.actual + '</b></div>' +
+      '<div style="flex:1 1 70px"><div class="hint">达成率</div><b style="color:' + (t.rate >= 90 ? '#12855a' : '#b3372c') +
         '">' + t.rate + '%</b></div>' +
-      '<div class="hint">' + (ms / 1000).toFixed(1) + 's</div>' +
+      '<div style="flex:0 0 auto;align-self:flex-end" class="hint">' + (ms / 1000).toFixed(1) + 's</div>' +
     '</div></div>';
 
   var body = (j.teams || []).map(function (x) {
