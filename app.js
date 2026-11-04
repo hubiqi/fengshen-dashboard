@@ -4291,6 +4291,8 @@ function schedRenderMatrix(j, ms) {
   var tip = '<div class="sched-tip">' +
     '<div class="hint">' + esc(j.date) + ' · 每格三行：缺口 / 达成率 / 已排÷应排（' +
     (ms / 1000).toFixed(1) + 's）</div>' +
+    '<div class="hint" style="margin-top:2px">4排班占比 = 排满≥4班人数 ÷ 已排班人数；' +
+    '时段排班出勤率 = Σ(min(实排/应排,100%) × 时段权重)，权重见官方口径</div>' +
     (j.errors && j.errors.length ? '<div class="hint" style="color:#b3372c">部分站点失败：' + esc(j.errors[0]) + '</div>' : '') +
     '</div>';
 
