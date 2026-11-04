@@ -4260,6 +4260,7 @@ function schedRenderMatrix(j, ms, mode) {
     return;
   }
 
+  var isAttend = (mode === 'attend');
   function cell(c) {
     if (!c) return '<td class="mx-c"><div class="mx-g mx-gray">—</div></td>';
     var g = c.gap || 0;
@@ -4272,38 +4273,52 @@ function schedRenderMatrix(j, ms, mode) {
     else rc = 'mx-down';
     var rate = (c.rate === null || c.rate === undefined) ? '—' : (c.rate.toFixed(1) + '%');
     var frac = Math.round(c.actual || 0) + '/' + Math.round(c.plan || 0);
+    if (isAttend) {
+      // ★ 出勤达成（参照 App）：只有两行 —— 达成率 + 实排÷应排
+      return '<td class="mx-c">' +
+        '<div class="mx-r ' + rc + '" style="font-size:15px">' + rate + '</div>' +
+        '<div class="mx-f">' + frac + '</div></td>';
+    }
     return '<td class="mx-c">' +
       '<div class="mx-g ' + gc + '">' + gtxt + '</div>' +
       '<div class="mx-r ' + rc + '">' + rate + '</div>' +
       '<div class="mx-f">' + frac + '</div></td>';
   }
 
-  var head = '<tr><th class="mx-n">' + (SCHED.level === 'site' ? '站点' : '商圈片') + '</th>' +
+  var head = '<tr><th class="mx-n">' + (isAttend ? '团队名称'
+      : (SCHED.level === 'site' ? '站点' : '商圈片')) + '</th>' +
     cols.map(function (c) { return '<th>' + esc(c.name) + '</th>'; }).join('') +
-    '<th>4排班占比</th><th>时段排班出勤率</th></tr>';
+    (isAttend ? '' : '<th>4排班占比</th><th>时段排班出勤率</th>') + '</tr>';
 
   var body = rows.map(function (r) {
     return '<tr><td class="mx-n">' + esc(r.name) + '</td>' +
       (r.cells || []).map(cell).join('') +
-      schedSfxCell(r.fourRate, r.fourTot ? (r.fourNum + '/' + r.fourTot) : '') +
-      schedSfxCell(r.attendRate) + '</tr>';
+      (isAttend ? '' : schedSfxCell(r.fourRate, r.fourTot ? (r.fourNum + '/' + r.fourTot) : '') +
+        schedSfxCell(r.attendRate)) + '</tr>';
   }).join('');
 
   if (tot) {
     body += '<tr class="mx-tot"><td class="mx-n">总计</td>' +
       (tot.cells || []).map(cell).join('') +
-      schedSfxCell(tot.fourRate, tot.fourTot ? (tot.fourNum + '/' + tot.fourTot) : '') +
-      schedSfxCell(tot.attendRate) + '</tr>';
+      (isAttend ? '' : schedSfxCell(tot.fourRate, tot.fourTot ? (tot.fourNum + '/' + tot.fourTot) : '') +
+        schedSfxCell(tot.attendRate)) + '</tr>';
   }
 
-  var lvlBtn = '<div class="sched-lvl">' +
+  var attBtn = isAttend
+    ? '<div class="sched-lvl" style="padding-bottom:0">' +
+      '<button class="on">应排达成</button>' +
+      '<button disabled title="需要真实上线出勤（考勤导出），暂未接入" ' +
+      'style="opacity:.45;cursor:not-allowed">实排达成</button></div>'
+    : '';
+  var lvlBtn = attBtn + '<div class="sched-lvl">' +
     '<button data-lv="site" class="' + (SCHED.level === 'site' ? 'on' : '') + '">站点</button>' +
     '<button data-lv="district" class="' + (SCHED.level === 'district' ? 'on' : '') + '">商圈片</button>' +
     '</div>';
 
   var tip = '<div class="sched-tip">' +
-    '<div class="hint">' + esc(j.date) + ' · 每格三行：缺口 / 达成率 / 已排÷应排（' +
-    (ms / 1000).toFixed(1) + 's）</div>' +
+    '<div class="hint">' + esc(j.date) + ' · ' +
+    (isAttend ? '每格：达成率 / 已排÷应排' : '每格三行：缺口 / 达成率 / 已排÷应排') +
+    '（' + (ms / 1000).toFixed(1) + 's）</div>' +
     (mode === 'attend'
       ? '<div class="hint" style="margin-top:2px">达成率 = 已排班 ÷ 应排；' +
         '真实上线出勤需接考勤导出，暂未接入</div>'
