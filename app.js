@@ -4233,7 +4233,13 @@ function schedRenderDetail(j, ms) {
           '<td>' + esc(r.statusName) + '</td><td class="hint">' + sh + '</td></tr>';
       }).join('') + '</tbody></table></div></div>';
   }).join('');
-  $('schedBody').innerHTML = head + (body || '<div class="empty">当天没有排班记录</div>');
+  var errTip = (j.errors && j.errors.length)
+    ? '<div class="hint" style="color:#b3372c;padding:0 2px 8px">⚠ ' +
+      j.errors.length + ' 个站点取数失败（' + esc(j.errors.slice(0, 2).join('；')) +
+      '），表格里缺这些站</div>'
+    : '';
+  $('schedBody').innerHTML = head + errTip +
+    (body || '<div class="empty">当天没有排班记录</div>');
 }
 
 function schedSfxCell(v, sub) {
