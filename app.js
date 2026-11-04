@@ -66,13 +66,17 @@ function api(path, opt) {
   // ★ 2026-10-18 第二版：重试 2 次 → 1 次。页面首屏同时发 6~8 个请求，
   //   每个都重试两次的话，CF 一抖动就会堆出十几秒白屏（用户反馈"刷新变慢"）。
   //   一次重试已能把 10% 的偶发失败压到 1%。
-  var _tries = String(opt.method || 'GET').toUpperCase() === 'GET' ? 1 : 0;
+  // ★ 自带长超时的请求（排班等重型接口）不重试 —— 否则最坏要等两轮
+  var _tries = (opt.timeout ? 0 : (String(opt.method || 'GET').toUpperCase() === 'GET' ? 1 : 0));
   function _go(n) {
     // 每次尝试最多等 9 秒：CF 那边卡住时要 30 秒才断，不设超时就是干等
     var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var o = opt;
     if (ctl) { o = Object.assign({}, opt, { signal: ctl.signal }); }
-    var tid = ctl ? setTimeout(function () { ctl.abort(); }, 7000) : 0;
+    // ★ 2026-11-05：默认 7 秒，但排班矩阵要遍历每个站点（20~35 秒），
+    //   用默认超时必然 abort（"signal is aborted without reason"）。
+    var _to = opt.timeout || 7000;
+    var tid = ctl ? setTimeout(function () { ctl.abort(); }, _to) : 0;
     function done() { if (tid) clearTimeout(tid); }
     return fetch(url, o).then(function (r) { done(); return r; }, function (e) { done(); throw e; })
       .catch(function (e) {
@@ -4176,7 +4180,8 @@ function schedLoad() {
   var uq = '/api/schedule?type=' + SCHED.tab + '&date=' + encodeURIComponent(SCHED.date) +
       '&acct=' + encodeURIComponent(ACCT || '');
   if (SCHED.tab === 'matrix') uq += '&level=' + SCHED.level;
-  api(uq)
+  // 排班要遍历所有站点，单站要 2~4 秒，矩阵还要再拉一次明细 → 给足 120 秒
+  api(uq, { timeout: 120000 })
     .then(function (j) {
       SCHED.busy = false;
       if (!j || j.ok === false) {
