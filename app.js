@@ -4177,9 +4177,11 @@ function schedLoad() {
   SCHED.busy = true;
   $('schedBody').innerHTML = '<div class="empty">加载中…（每个站点要单独查一次，约 10~30 秒）</div>';
   var t0 = Date.now();
-  var uq = '/api/schedule?type=' + SCHED.tab + '&date=' + encodeURIComponent(SCHED.date) +
+  // ★ 2026-11-05：出勤达成也用排班矩阵的数据（团队×时段），只是呈现侧重不同
+  var _ty = (SCHED.tab === 'attend') ? 'matrix' : SCHED.tab;
+  var uq = '/api/schedule?type=' + _ty + '&date=' + encodeURIComponent(SCHED.date) +
       '&acct=' + encodeURIComponent(ACCT || '');
-  if (SCHED.tab === 'matrix') uq += '&level=' + SCHED.level;
+  if (SCHED.tab === 'matrix' || SCHED.tab === 'attend') uq += '&level=' + SCHED.level;
   // 排班要遍历所有站点，单站要 2~4 秒，矩阵还要再拉一次明细 → 给足 120 秒
   api(uq, { timeout: 120000 })
     .then(function (j) {
@@ -4249,7 +4251,7 @@ function schedSfxCell(v, sub) {
     (sub ? '<div class="mx-f">' + sub + '</div>' : '') + '</td>';
 }
 
-function schedRenderMatrix(j, ms) {
+function schedRenderMatrix(j, ms, mode) {
   var cols = j.cols || [];
   var rows = (j.rows || []).slice();
   var tot = j.total || null;
@@ -4302,8 +4304,11 @@ function schedRenderMatrix(j, ms) {
   var tip = '<div class="sched-tip">' +
     '<div class="hint">' + esc(j.date) + ' · 每格三行：缺口 / 达成率 / 已排÷应排（' +
     (ms / 1000).toFixed(1) + 's）</div>' +
-    '<div class="hint" style="margin-top:2px">4排班占比 = 排满≥4班人数 ÷ 已排班人数；' +
-    '时段排班出勤率 = Σ(min(实排/应排,100%) × 时段权重)，权重见官方口径</div>' +
+    (mode === 'attend'
+      ? '<div class="hint" style="margin-top:2px">达成率 = 已排班 ÷ 应排；' +
+        '真实上线出勤需接考勤导出，暂未接入</div>'
+      : '<div class="hint" style="margin-top:2px">4排班占比 = 排满≥4班人数 ÷ 已排班人数；' +
+        '时段排班出勤率 = Σ(min(实排/应排,100%) × 时段权重)，权重见官方口径</div>') +
     (j.errors && j.errors.length ? '<div class="hint" style="color:#b3372c">部分站点失败：' + esc(j.errors[0]) + '</div>' : '') +
     '</div>';
 
@@ -4321,36 +4326,13 @@ function schedRenderMatrix(j, ms) {
 }
 
 function schedRenderAttend(j, ms) {
-  var t = j.total || {};
-  var head = '<div class="card" style="margin-bottom:12px">' +
-    '<div style="display:flex;gap:14px;flex-wrap:wrap">' +
-      '<div style="flex:1 1 70px"><div class="hint">日期</div><b>' + esc(j.date) + '</b></div>' +
-      '<div style="flex:1 1 70px"><div class="hint">应排</div><b>' + t.plan + '</b></div>' +
-      '<div style="flex:1 1 70px"><div class="hint">实到</div><b>' + t.actual + '</b></div>' +
-      '<div style="flex:1 1 70px"><div class="hint">达成率</div><b style="color:' + (t.rate >= 90 ? '#12855a' : '#b3372c') +
-        '">' + t.rate + '%</b></div>' +
-      '<div style="flex:0 0 auto;align-self:flex-end" class="hint">' + (ms / 1000).toFixed(1) + 's</div>' +
-    '</div></div>';
-
-  var body = (j.teams || []).map(function (x) {
-    var color = x.rate >= 90 ? '#12855a' : (x.rate >= 70 ? '#b7791f' : '#b3372c');
-    return '<div class="card" style="margin-bottom:12px">' +
-      '<div class="card-head" style="margin-bottom:6px">' +
-        '<b>' + esc(x.team) + '</b>' +
-        '<span class="hint">应排 ' + x.plan + ' · 实到 ' + x.actual +
-        ' · <b style="color:' + color + '">' + x.rate + '%</b></span></div>' +
-      '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
-        '<th>时段</th><th>时间</th><th>应排</th><th>实到</th><th>达成</th></tr></thead><tbody>' +
-      (x.rows || []).map(function (r) {
-        var cc = r.rate >= 90 ? '#12855a' : (r.rate >= 70 ? '#b7791f' : '#b3372c');
-        return '<tr><td>' + esc(r.name) + '</td>' +
-          '<td class="hint">' + esc(r.start || '') + '-' + esc(r.end || '') + '</td>' +
-          '<td>' + r.plan + '</td><td>' + r.actual + '</td>' +
-          '<td style="color:' + cc + '">' + r.rate + '%</td></tr>';
-      }).join('') + '</tbody></table></div></div>';
-  }).join('');
-  $('schedBody').innerHTML = head + (body || '<div class="empty">当天没有排班数据</div>');
+  // ★ 2026-11-05（用户要求，参照 App 的「出勤达成」页）：
+  //   改成和排班查询同样的矩阵：团队名称 × 时段，每格 = 达成率 + 实排÷应排。
+  //   ⚠ 现在的「实」是【已排班人数】，不是真实上线的出勤 ——
+  //     真实出勤要走考勤导出（exportAttendance），后续再接。
+  return schedRenderMatrix(j, ms, 'attend');
 }
+
 
 
 function finSync() {
