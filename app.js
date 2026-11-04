@@ -2847,6 +2847,21 @@ $('finClose').onclick = function () { finClose(); };
 $('finSync').onclick = function () { finSync(); };
 $('finRule').onclick = function () { finRuleOpen(); };
 $('finRuleClose').onclick = function () { finRuleClose(); };
+$('btnSched').onclick = function () { schedOpen(); };
+$('schedClose').onclick = function () { schedClose(); };
+$('schedDate').onchange = function (e) {
+  SCHED.date = e.target.value; SCHED.data = null; schedLoad();
+};
+$('schedTabs').onclick = function (e) {
+  var b = e.target.closest('button[data-st]');
+  if (!b) return;
+  SCHED.tab = b.getAttribute('data-st');
+  Array.prototype.forEach.call($('schedTabs').querySelectorAll('button'), function (x) {
+    x.classList.toggle('on', x === b);
+  });
+  SCHED.data = null;
+  schedLoad();
+};
 $('btnAddUser').onclick = function () { boardUserAdd(); };
 $('btnCfg').addEventListener('click', function () { setTimeout(boardUsersLoad, 300); });
 $('finPlan').onclick = function () { finPlanOpen(); };
@@ -4115,6 +4130,122 @@ function boardUserAdd() {
     })
     .catch(function (e) { $('userMsg').textContent = '新增失败：' + ((e && e.message) || e); });
 }
+
+
+/* ══ 排班模块 ══════════════════════════════════════════════════════════
+   ★ 2026-11-04（用户要求）：排班详情 + 出勤达成，都可选日期。
+   数据来自 xtop.fs.special.schedule.listSchedule / listScheduleStatistics。 */
+var SCHED = { tab: 'detail', date: '', busy: false, data: null };
+
+function schedOpen() {
+  $('schedView').hidden = false;
+  document.body.classList.add('noScroll');
+  if (!SCHED.date) {
+    var t = new Date();
+    SCHED.date = t.getFullYear() + '-' + ('0' + (t.getMonth() + 1)).slice(-2) + '-' +
+      ('0' + t.getDate()).slice(-2);
+  }
+  $('schedDate').value = SCHED.date;
+  schedLoad();
+}
+
+function schedClose() {
+  $('schedView').hidden = true;
+  document.body.classList.remove('noScroll');
+}
+
+function schedLoad() {
+  if (SCHED.busy) return;
+  SCHED.busy = true;
+  $('schedBody').innerHTML = '<div class="empty">加载中…（每个站点要单独查一次，约 10~30 秒）</div>';
+  var t0 = Date.now();
+  api('/api/schedule?type=' + SCHED.tab + '&date=' + encodeURIComponent(SCHED.date) +
+      '&acct=' + encodeURIComponent(ACCT || ''))
+    .then(function (j) {
+      SCHED.busy = false;
+      if (!j || j.ok === false) {
+        $('schedBody').innerHTML = '<div class="empty">' + esc((j && j.error) || '加载失败') + '</div>';
+        return;
+      }
+      SCHED.data = j;
+      if (SCHED.tab === 'detail') schedRenderDetail(j, Date.now() - t0);
+      else schedRenderAttend(j, Date.now() - t0);
+    })
+    .catch(function (e) {
+      SCHED.busy = false;
+      $('schedBody').innerHTML = '<div class="empty">加载失败：' + esc((e && e.message) || e) + '</div>';
+    });
+}
+
+function schedRenderDetail(j, ms) {
+  var c = j.count || {};
+  var head = '<div class="card" style="margin-bottom:12px">' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(74px,1fr));gap:12px 10px">' +
+      '<div><div class="hint">日期</div><b>' + esc(j.date) + '</b></div>' +
+      '<div><div class="hint">已排班</div><b style="color:#1f6feb">' + (c.on || 0) + '</b></div>' +
+      '<div><div class="hint">休息</div><b>' + (c.off || 0) + '</b></div>' +
+      '<div><div class="hint">未排班</div><b style="color:#b3372c">' + (c.none || 0) + '</b></div>' +
+      '<div><div class="hint">合计</div><b>' + (j.riders || []).length + ' 人</b></div>' +
+      '<div class="hint">' + (ms / 1000).toFixed(1) + 's</div>' +
+    '</div></div>';
+
+  var byTeam = {};
+  (j.riders || []).forEach(function (r) {
+    (byTeam[r.team] = byTeam[r.team] || []).push(r);
+  });
+  var body = Object.keys(byTeam).map(function (tm) {
+    var list = byTeam[tm];
+    var on = list.filter(function (x) { return x.status === 2; }).length;
+    return '<div class="card" style="margin-bottom:12px">' +
+      '<div class="card-head" style="margin-bottom:6px">' +
+        '<b>' + esc(tm) + '</b>' +
+        '<span class="hint">' + list.length + ' 人 · 已排 ' + on + '</span></div>' +
+      '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
+        '<th>骑手</th><th>状态</th><th>班次</th></tr></thead><tbody>' +
+      list.map(function (r) {
+        var cls = r.status === 2 ? '' : (r.status === 1 ? 'hr-dim' : '');
+        var sh = (r.shifts || []).map(function (x) {
+          return esc(x.name) + (x.start ? ' ' + x.start + '-' + x.end : '');
+        }).join('、') || '—';
+        return '<tr class="' + cls + '"><td>' + esc(r.name) + '</td>' +
+          '<td>' + esc(r.statusName) + '</td><td class="hint">' + sh + '</td></tr>';
+      }).join('') + '</tbody></table></div></div>';
+  }).join('');
+  $('schedBody').innerHTML = head + (body || '<div class="empty">当天没有排班记录</div>');
+}
+
+function schedRenderAttend(j, ms) {
+  var t = j.total || {};
+  var head = '<div class="card" style="margin-bottom:12px">' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(74px,1fr));gap:12px 10px">' +
+      '<div><div class="hint">日期</div><b>' + esc(j.date) + '</b></div>' +
+      '<div><div class="hint">应排</div><b>' + t.plan + '</b></div>' +
+      '<div><div class="hint">实到</div><b>' + t.actual + '</b></div>' +
+      '<div><div class="hint">达成率</div><b style="color:' + (t.rate >= 90 ? '#12855a' : '#b3372c') +
+        '">' + t.rate + '%</b></div>' +
+      '<div class="hint">' + (ms / 1000).toFixed(1) + 's</div>' +
+    '</div></div>';
+
+  var body = (j.teams || []).map(function (x) {
+    var color = x.rate >= 90 ? '#12855a' : (x.rate >= 70 ? '#b7791f' : '#b3372c');
+    return '<div class="card" style="margin-bottom:12px">' +
+      '<div class="card-head" style="margin-bottom:6px">' +
+        '<b>' + esc(x.team) + '</b>' +
+        '<span class="hint">应排 ' + x.plan + ' · 实到 ' + x.actual +
+        ' · <b style="color:' + color + '">' + x.rate + '%</b></span></div>' +
+      '<div class="daily-wrap"><table class="hr-tbl"><thead><tr>' +
+        '<th>时段</th><th>时间</th><th>应排</th><th>实到</th><th>达成</th></tr></thead><tbody>' +
+      (x.rows || []).map(function (r) {
+        var cc = r.rate >= 90 ? '#12855a' : (r.rate >= 70 ? '#b7791f' : '#b3372c');
+        return '<tr><td>' + esc(r.name) + '</td>' +
+          '<td class="hint">' + esc(r.start || '') + '-' + esc(r.end || '') + '</td>' +
+          '<td>' + r.plan + '</td><td>' + r.actual + '</td>' +
+          '<td style="color:' + cc + '">' + r.rate + '%</td></tr>';
+      }).join('') + '</tbody></table></div></div>';
+  }).join('');
+  $('schedBody').innerHTML = head + (body || '<div class="empty">当天没有排班数据</div>');
+}
+
 
 function finSync() {
   if (FIN.busy) return;
