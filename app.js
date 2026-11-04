@@ -2548,9 +2548,12 @@ function renderTodo() {
         + '</span>' : '');
 
   if (!items.length) {
+    // ★ 2026-11-05：后端没有缓存时会先返回 pending，后台在拉 —— 这里说明清楚，
+    //   不要让用户以为"没有待办"或"又失败了"。
     box.innerHTML = '<div class="empty">' +
-      (errs.length ? ('待办拉取失败：' + esc(Object.values(TODO.errors)[0]))
-                   : '暂无待办（任务已全部完成 / 离职已审完）') + '</div>';
+      (TODO.pending ? '正在后台获取待办…（首次可能需要 10 秒，拉好后自动显示）'
+       : (errs.length ? ('待办拉取失败：' + esc(Object.values(TODO.errors)[0]))
+                      : '暂无待办（任务已全部完成 / 离职已审完）')) + '</div>';
     $('todoTip').textContent = '';
     return;
   }
@@ -2645,18 +2648,27 @@ function renderTodo() {
   });
 }
 
-function loadTodo(force) {
+function loadTodo(force, silent) {
   var aq = ACCT ? '?acct=' + q(ACCT) + (force ? '&force=1' : '') : (force ? '?force=1' : '');
   // ★ 先把上次的结果画出来，别让用户盯着「加载中…」
   //   后端已改成 stale-while-revalidate：命中过期缓存会【立即返回旧的】+ 后台刷，
   //   所以这里正常情况下是毫秒级返回，不会再有 10 秒空窗。
   if (TODO.loaded && TODO.items.length) { TODO.loading = false; renderTodo(); }
-  else $('todoStat').textContent = '加载中…';
+  else if (!silent) $('todoStat').textContent = '加载中…';
   api('/api/todo' + aq).then(function (j) {
     TODO.items = j.items || []; TODO.errors = j.errors || {};
     TODO.summary = j.summary || {}; TODO.fetchedAt = j.fetchedAt || 0; TODO.loaded = true;
     TODO.stale = !!j.stale; TODO.ageSec = j.ageSec || 0; TODO.loading = false;
-    TODO.needRelogin = !!j.needRelogin; if (j.ok) TODO.errMsg = '';
+    TODO.needRelogin = !!j.needRelogin; TODO.pending = !!j.pending; if (j.ok) TODO.errMsg = '';
+    // ★ 2026-11-05（用户要求）：前端只读缓存。后端没有缓存时立刻返回 pending，
+    //   并起后台线程去拉 —— 这里 6 秒后静默再取一次，一拿到就自动上屏。
+    if (j.pending) {
+      renderTodo();
+      clearTimeout(TODO.pendTimer);
+      TODO.pendTimer = setTimeout(function () { loadTodo(false, true); }, 6000);
+      return;
+    }
+    clearTimeout(TODO.pendTimer);
     renderTodo();
   }).catch(function (e) {
     // ★ 已有旧数据时不要清空 —— 后端抖动不该让看板变空
