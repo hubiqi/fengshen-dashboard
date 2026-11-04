@@ -4137,7 +4137,7 @@ function boardUserAdd() {
 /* ══ 排班模块 ══════════════════════════════════════════════════════════
    ★ 2026-11-04（用户要求）：排班详情 + 出勤达成，都可选日期。
    数据来自 xtop.fs.special.schedule.listSchedule / listScheduleStatistics。 */
-var SCHED = { tab: 'detail', date: '', busy: false, data: null };
+var SCHED = { tab: 'matrix', date: '', level: 'district', busy: false, data: null };
 
 function schedOpen() {
   $('schedView').hidden = false;
@@ -4161,8 +4161,10 @@ function schedLoad() {
   SCHED.busy = true;
   $('schedBody').innerHTML = '<div class="empty">加载中…（每个站点要单独查一次，约 10~30 秒）</div>';
   var t0 = Date.now();
-  api('/api/schedule?type=' + SCHED.tab + '&date=' + encodeURIComponent(SCHED.date) +
-      '&acct=' + encodeURIComponent(ACCT || ''))
+  var uq = '/api/schedule?type=' + SCHED.tab + '&date=' + encodeURIComponent(SCHED.date) +
+      '&acct=' + encodeURIComponent(ACCT || '');
+  if (SCHED.tab === 'matrix') uq += '&level=' + SCHED.level;
+  api(uq)
     .then(function (j) {
       SCHED.busy = false;
       if (!j || j.ok === false) {
@@ -4171,6 +4173,7 @@ function schedLoad() {
       }
       SCHED.data = j;
       if (SCHED.tab === 'detail') schedRenderDetail(j, Date.now() - t0);
+      else if (SCHED.tab === 'matrix') schedRenderMatrix(j, Date.now() - t0);
       else schedRenderAttend(j, Date.now() - t0);
     })
     .catch(function (e) {
@@ -4214,6 +4217,82 @@ function schedRenderDetail(j, ms) {
       }).join('') + '</tbody></table></div></div>';
   }).join('');
   $('schedBody').innerHTML = head + (body || '<div class="empty">当天没有排班记录</div>');
+}
+
+function schedSfxCell(v, sub) {
+  if (v === null || v === undefined) return '<td class="mx-c"><div class="mx-r mx-gray">—</div></td>';
+  var c = v >= 100 ? 'mx-up' : (v >= 90 ? 'mx-mid' : 'mx-down');
+  return '<td class="mx-c"><div class="mx-r ' + c + '">' + v.toFixed(1) + '%</div>' +
+    (sub ? '<div class="mx-f">' + sub + '</div>' : '') + '</td>';
+}
+
+function schedRenderMatrix(j, ms) {
+  var cols = j.cols || [];
+  var rows = (j.rows || []).slice();
+  var tot = j.total || null;
+  if (!rows.length) {
+    $('schedBody').innerHTML = '<div class="empty">这一天没有排班数据</div>';
+    return;
+  }
+
+  function cell(c) {
+    if (!c) return '<td class="mx-c"><div class="mx-g mx-gray">—</div></td>';
+    var g = c.gap || 0;
+    var gc = g > 0 ? 'mx-up' : (g < 0 ? 'mx-down' : 'mx-zero');
+    var gtxt = g > 0 ? ('+' + Math.round(g)) : (g < 0 ? String(Math.round(g)) : '0');
+    var rc = '';
+    if (c.rate === null || c.rate === undefined) rc = 'mx-gray';
+    else if (c.rate >= 100) rc = 'mx-up';
+    else if (c.rate >= 90) rc = 'mx-mid';
+    else rc = 'mx-down';
+    var rate = (c.rate === null || c.rate === undefined) ? '—' : (c.rate.toFixed(1) + '%');
+    var frac = Math.round(c.actual || 0) + '/' + Math.round(c.plan || 0);
+    return '<td class="mx-c">' +
+      '<div class="mx-g ' + gc + '">' + gtxt + '</div>' +
+      '<div class="mx-r ' + rc + '">' + rate + '</div>' +
+      '<div class="mx-f">' + frac + '</div></td>';
+  }
+
+  var head = '<tr><th class="mx-n">' + (SCHED.level === 'site' ? '站点' : '商圈片') + '</th>' +
+    cols.map(function (c) { return '<th>' + esc(c.name) + '</th>'; }).join('') +
+    '<th>4排班占比</th><th>时段排班出勤率</th></tr>';
+
+  var body = rows.map(function (r) {
+    return '<tr><td class="mx-n">' + esc(r.name) + '</td>' +
+      (r.cells || []).map(cell).join('') +
+      schedSfxCell(r.fourRate, r.fourTot ? (r.fourNum + '/' + r.fourTot) : '') +
+      schedSfxCell(r.attendRate) + '</tr>';
+  }).join('');
+
+  if (tot) {
+    body += '<tr class="mx-tot"><td class="mx-n">总计</td>' +
+      (tot.cells || []).map(cell).join('') +
+      schedSfxCell(tot.fourRate, tot.fourTot ? (tot.fourNum + '/' + tot.fourTot) : '') +
+      schedSfxCell(tot.attendRate) + '</tr>';
+  }
+
+  var lvlBtn = '<div class="sched-lvl">' +
+    '<button data-lv="site" class="' + (SCHED.level === 'site' ? 'on' : '') + '">站点</button>' +
+    '<button data-lv="district" class="' + (SCHED.level === 'district' ? 'on' : '') + '">商圈片</button>' +
+    '</div>';
+
+  var tip = '<div class="sched-tip">' +
+    '<div class="hint">' + esc(j.date) + ' · 每格三行：缺口 / 达成率 / 已排÷应排（' +
+    (ms / 1000).toFixed(1) + 's）</div>' +
+    (j.errors && j.errors.length ? '<div class="hint" style="color:#b3372c">部分站点失败：' + esc(j.errors[0]) + '</div>' : '') +
+    '</div>';
+
+  $('schedBody').innerHTML = lvlBtn + tip +
+    '<div class="mx-wrap"><table class="mx-tbl"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>';
+
+  Array.prototype.forEach.call($('schedBody').querySelectorAll('.sched-lvl button'), function (b) {
+    b.onclick = function () {
+      var v = b.getAttribute('data-lv');
+      if (v === SCHED.level) return;
+      SCHED.level = v;
+      schedLoad();
+    };
+  });
 }
 
 function schedRenderAttend(j, ms) {
