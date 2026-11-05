@@ -2668,7 +2668,8 @@ function loadTodo(force, silent) {
   //   所以这里正常情况下是毫秒级返回，不会再有 10 秒空窗。
   if (TODO.loaded && TODO.items.length) { TODO.loading = false; renderTodo(); }
   else if (!silent) $('todoStat').textContent = '加载中…';
-  api('/api/todo' + aq).then(function (j) {
+  // ★ force（点 ↻）后端会同步去平台拉，8~15 秒，超时给足
+  api('/api/todo' + aq, force ? { timeout: 60000 } : {}).then(function (j) {
     TODO.items = j.items || []; TODO.errors = j.errors || {};
     TODO.summary = j.summary || {}; TODO.fetchedAt = j.fetchedAt || 0; TODO.loaded = true;
     TODO.stale = !!j.stale; TODO.ageSec = j.ageSec || 0; TODO.loading = false;
@@ -4283,10 +4284,15 @@ function schedRenderMatrix(j, ms, mode) {
     var rate = (c.rate === null || c.rate === undefined) ? '—' : (c.rate.toFixed(1) + '%');
     var frac = Math.round(c.actual || 0) + '/' + Math.round(c.plan || 0);
     if (isAttend) {
-      // ★ 出勤达成（参照 App）：只有两行 —— 达成率 + 实排÷应排
+      // ★★ 2026-11-05（用户指出）：分子必须是【排班有效出勤的骑手】，
+      //   不是已排班人数。有效出勤来自 listSchedule 的 effectiveType。
+      var er = (c.effRate === undefined) ? null : c.effRate;
+      var rc2 = (er === null) ? 'mx-gray' : (er >= 90 ? 'mx-up' : (er >= 70 ? 'mx-mid' : 'mx-down'));
+      var rt2 = (er === null) ? '—' : (er.toFixed(1) + '%');
+      var f2 = Math.round(c.eff || 0) + '/' + Math.round(c.plan || 0);
       return '<td class="mx-c">' +
-        '<div class="mx-r ' + rc + '" style="font-size:15px">' + rate + '</div>' +
-        '<div class="mx-f">' + frac + '</div></td>';
+        '<div class="mx-r ' + rc2 + '" style="font-size:15px">' + rt2 + '</div>' +
+        '<div class="mx-f">' + f2 + '</div></td>';
     }
     return '<td class="mx-c">' +
       '<div class="mx-g ' + gc + '">' + gtxt + '</div>' +
@@ -4316,7 +4322,7 @@ function schedRenderMatrix(j, ms, mode) {
   var attBtn = isAttend
     ? '<div class="sched-lvl" style="padding-bottom:0">' +
       '<button class="on">应排达成</button>' +
-      '<button disabled title="需要真实上线出勤（考勤导出），暂未接入" ' +
+      '<button disabled title="实排达成 = 有效出勤 ÷ 已排班人数，暂未提供" ' +
       'style="opacity:.45;cursor:not-allowed">实排达成</button></div>'
     : '';
   var lvlBtn = attBtn + '<div class="sched-lvl">' +
@@ -4329,8 +4335,8 @@ function schedRenderMatrix(j, ms, mode) {
     (isAttend ? '每格：达成率 / 已排÷应排' : '每格三行：缺口 / 达成率 / 已排÷应排') +
     '（' + (ms / 1000).toFixed(1) + 's）</div>' +
     (mode === 'attend'
-      ? '<div class="hint" style="margin-top:2px">达成率 = 已排班 ÷ 应排；' +
-        '真实上线出勤需接考勤导出，暂未接入</div>'
+      ? '<div class="hint" style="margin-top:2px">达成率 = <b>排班有效出勤骑手数</b> ÷ 应排人数；' +
+        '有效出勤取 listSchedule 的 effectiveType</div>'
       : '<div class="hint" style="margin-top:2px">4排班占比 = 排满≥4班人数 ÷ 已排班人数；' +
         '时段排班出勤率 = Σ(min(实排/应排,100%) × 时段权重)，权重见官方口径</div>') +
     (j.errors && j.errors.length ? '<div class="hint" style="color:#b3372c">部分站点失败：' + esc(j.errors[0]) + '</div>' : '') +
