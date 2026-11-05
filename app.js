@@ -125,6 +125,14 @@ function resetForAccount() {
   try { FIN.data = null; FIN.tab = 'agency'; FIN.kw = ''; } catch (e) {}
   try { FRULE = { tiers: [], vios: [], districts: [], loaded: false, busy: false }; } catch (e) {}
   try { FPLAN = { plans: [], ym: '', busy: false, sel: {}, loaded: false, open: {} }; } catch (e) {}
+  // ★ 2026-11-05（用户「待办任务有时候不随切换商刷新」）：
+  //   原来切账号没清待办缓存，也没重新拉 —— 一直显示上一个代理商的待办。
+  try {
+    TODO = { items: [], errors: {}, summary: {}, fetchedAt: 0, loaded: false };
+    clearTimeout(TODO.pendTimer);
+    var tb = $('todoChart'); if (tb) tb.innerHTML = '';
+    var ts = $('todoStat'); if (ts) ts.textContent = '加载中…';
+  } catch (e) {}
   // 关掉所有可能还开着的浮层
   ['cfgModal', 'abnModal', 'capModal', 'trendBox'].forEach(function (id) {
     var el = document.getElementById(id); if (el) el.hidden = true;
@@ -188,9 +196,9 @@ function enterApp() {
     $('heroState').textContent = '后端不可用：' + e.message;
   });
   if (_needAcct) {
-    _accP.then(function () { loadState(); loadAll(); requestRefresh(); loadTodo(); });
+    _accP.then(function () { loadState(); loadAll(); requestRefresh(); });
   } else {
-    loadState(); loadAll(); requestRefresh(); loadTodo();
+    loadState(); loadAll(); requestRefresh();
   }
   // ★ 进入看板就要显示同步条。
   //   原来 syncTick 只在【手动拉取】时才被调用，正常打开页面从不调用 ——
@@ -2131,6 +2139,7 @@ function loadAll() {
   loadCards(r[0], r[1], true);
   loadScore();
   loadRt();
+  loadTodo();          // ★ 2026-11-05：切账号/换日期都要重拉待办
   // ★ 预取得分：/api/trend 顺带返回「当日 + 月度」得分（约 60ms），
   //   比等 /api/scoreboard 快一个数量级，卡片上的大网得分不用再空着。
   prefetchScore(r[0], r[1]);
