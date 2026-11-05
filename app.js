@@ -4192,6 +4192,9 @@ function schedLoad() {
   var uq = '/api/schedule?type=' + _ty + '&date=' + encodeURIComponent(SCHED.date) +
       '&acct=' + encodeURIComponent(ACCT || '');
   if (SCHED.tab === 'matrix' || SCHED.tab === 'attend') uq += '&level=' + SCHED.level;
+  // ★ 2026-11-06：出勤达成用【真实有效出勤】（UB 考核的第 11 列），
+  //   而不是排班明细的 effectiveType。
+  if (SCHED.tab === 'attend') uq += '&real=1';
   // 排班要遍历所有站点，单站要 2~4 秒，矩阵还要再拉一次明细 → 给足 120 秒
   api(uq, { timeout: 120000 })
     .then(function (j) {
