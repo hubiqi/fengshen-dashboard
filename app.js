@@ -2876,6 +2876,25 @@ $('finSync').onclick = function () { finSync(); };
 $('finRule').onclick = function () { finRuleOpen(); };
 $('finRuleClose').onclick = function () { finRuleClose(); };
 $('btnSched').onclick = function () { schedOpen(); };
+// ★ 2026-11-06：直接用 APK 的原生界面（取数逻辑也是 APK 的），
+//   iframe 里跑 /apk/index.html，由 boot.js 把请求代理到 /api/xtop（后端带 cookie 代发）
+$('btnApk').onclick = function () {
+  var k = localStorage.getItem(LS_KEY) || '';
+  var page = (typeof APK_PAGE !== 'undefined' && APK_PAGE) ? APK_PAGE : 'schedule';
+  // APK 前端只在后端服务器上（含 /api/xtop 代理），CF/GH 上没有 → 用绝对地址
+  var APK_BASE = 'https://158.178.244.142.sslip.io:8081/apk/index.html';
+  var url = APK_BASE + '?acct=' + encodeURIComponent(ACCT) + '&k=' + encodeURIComponent(k) + '&page=' + page;
+  var f = $('apkFrame');
+  if (f.getAttribute('data-src') !== url) { f.src = url; f.setAttribute('data-src', url); }
+  $('apkAcct').textContent = ACCT || '';
+  $('apkView').style.display = 'flex';
+  document.body.classList.add('noScroll');
+};
+$('apkBack').onclick = function () {
+  $('apkView').style.display = 'none';
+  document.body.classList.remove('noScroll');
+};
+var APK_PAGE = '';
 $('schedClose').onclick = function () { schedClose(); };
 $('schedDate').onchange = function (e) {
   SCHED.date = e.target.value; SCHED.data = null; schedLoad();

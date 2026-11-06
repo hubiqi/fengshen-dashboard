@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1f6feb">
 <title>风神考核看板</title>
-<link rel="stylesheet" href="style.css?v=c89eef7a940a92be">
-<link rel="stylesheet" href="todo.css?v=c89eef7a940a92be">
+<link rel="stylesheet" href="style.css?v=e573a497beca312f">
+<link rel="stylesheet" href="todo.css?v=e573a497beca312f">
 </head>
 <body>
 
@@ -38,6 +38,7 @@
       <button id="btnHr" class="ghost" title="骑手管理">👥</button>
       <button id="btnFin" class="ghost" title="财务（薪资账单）">💰</button>
       <button id="btnSched" class="ghost" title="排班">📅</button>
+      <button id="btnApk" class="ghost" title="排班 · APK 原生界面">🅰</button>
       <button id="btnPull" class="ghost" title="拉取缺失数据">↻</button>
       <button id="btnCfg" class="ghost" title="账号与设置">⚙</button>
     </div>
@@ -362,8 +363,17 @@
   </div>
 </div>
 
-<script src="html2canvas.min.js?v=c89eef7a940a92be"></script>
-<script src="export_img.js?v=c89eef7a940a92be"></script>
-<script src="app.js?v=c89eef7a940a92be"></script>
+<div id="apkView" style="display:none;position:fixed;inset:0;z-index:9999;background:#fff;flex-direction:column">
+  <div style="flex:0 0 44px;display:flex;align-items:center;gap:10px;padding:0 10px;background:#1f6feb;color:#fff;font-size:15px">
+    <button id="apkBack" style="background:rgba(255,255,255,.16);border:0;color:#fff;padding:7px 12px;border-radius:8px;font-size:14px">← 看板</button>
+    <span style="font-weight:600">排班 · APK 原生</span>
+    <span style="margin-left:auto;font-size:12px;opacity:.85" id="apkAcct"></span>
+  </div>
+  <iframe id="apkFrame" style="flex:1 1 auto;width:100%;border:0;display:block"></iframe>
+</div>
+
+<script src="html2canvas.min.js?v=e573a497beca312f"></script>
+<script src="export_img.js?v=e573a497beca312f"></script>
+<script src="app.js?v=e573a497beca312f"></script>
 </body>
 </html>
