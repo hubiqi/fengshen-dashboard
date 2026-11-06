@@ -2880,6 +2880,23 @@ $('schedClose').onclick = function () { schedClose(); };
 $('schedDate').onchange = function (e) {
   SCHED.date = e.target.value; SCHED.data = null; schedLoad();
 };
+function schedShiftDay(n) {
+  var d = new Date(SCHED.date + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  SCHED.date = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' +
+    ('0' + d.getDate()).slice(-2);
+  $('schedDate').value = SCHED.date;
+  SCHED.data = null;
+  schedLoad();
+}
+$('schedPrev').onclick = function () { schedShiftDay(-1); };
+$('schedNext').onclick = function () { schedShiftDay(1); };
+$('schedRefresh').onclick = function () {
+  if (SCHED.busy) return;
+  SCHED.force = true;
+  SCHED.data = null;
+  schedLoad();
+};
 $('schedTabs').onclick = function (e) {
   var b = e.target.closest('button[data-st]');
   if (!b) return;
@@ -4185,7 +4202,6 @@ function schedClose() {
 function schedLoad() {
   if (SCHED.busy) return;
   SCHED.busy = true;
-  $('schedBody').innerHTML = '<div class="empty">加载中…（每个站点要单独查一次，约 10~30 秒）</div>';
   var t0 = Date.now();
   // ★ 2026-11-05：出勤达成也用排班矩阵的数据（团队×时段），只是呈现侧重不同
   var _ty = (SCHED.tab === 'attend') ? 'matrix' : SCHED.tab;
@@ -4196,10 +4212,15 @@ function schedLoad() {
   //   而不是排班明细的 effectiveType。
   // ★ 2026-11-06：出勤达成和排班详情都走 UB 考核口径（一次全公司，不用逐站）
   if (SCHED.tab === 'attend' || SCHED.tab === 'detail') uq += '&real=1';
+  // ★ 2026-11-06（用户要求）：默认只读服务器缓存；只有点 ↻ 才重新拉平台
+  if (SCHED.force) uq += '&refresh=1';
+  var _ms = SCHED.force ? '正在从平台重新拉取…（可能要 1~2 分钟）' : '加载中（读缓存，通常 1 秒）…';
+  $('schedBody').innerHTML = '<div class="empty">' + _ms + '</div>';
   // 排班要遍历所有站点，单站要 2~4 秒，矩阵还要再拉一次明细 → 给足 120 秒
-  api(uq, { timeout: 120000 })
+  api(uq, { timeout: 180000 })
     .then(function (j) {
       SCHED.busy = false;
+      SCHED.force = false;
       if (!j || j.ok === false) {
         $('schedBody').innerHTML = '<div class="empty">' + esc((j && j.error) || '加载失败') + '</div>';
         return;
@@ -4211,6 +4232,7 @@ function schedLoad() {
     })
     .catch(function (e) {
       SCHED.busy = false;
+      SCHED.force = false;
       $('schedBody').innerHTML = '<div class="empty">加载失败：' + esc((e && e.message) || e) + '</div>';
     });
 }

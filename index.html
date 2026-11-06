@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1f6feb">
 <title>风神考核看板</title>
-<link rel="stylesheet" href="style.css?v=e3f95a1d47ec0f41">
-<link rel="stylesheet" href="todo.css?v=e3f95a1d47ec0f41">
+<link rel="stylesheet" href="style.css?v=c89eef7a940a92be">
+<link rel="stylesheet" href="todo.css?v=c89eef7a940a92be">
 </head>
 <body>
 
@@ -267,8 +267,11 @@
   <div class="hr-head">
     <div class="hr-title">排班</div>
     <div class="hr-btns">
-      <input type="date" id="schedDate" class="hr-btn" style="padding:6px 10px">
-      <button id="schedClose" class="hr-btn">返回 ✕</button>
+      <button id="schedPrev" class="hr-btn" title="前一天">‹</button>
+      <input type="date" id="schedDate" class="hr-btn" style="padding:6px 8px;max-width:132px">
+      <button id="schedNext" class="hr-btn" title="后一天">›</button>
+      <button id="schedRefresh" class="hr-btn" title="重新从平台拉取">↻</button>
+      <button id="schedClose" class="hr-btn">✕</button>
     </div>
   </div>
   <div class="tabs hr-tabs" id="schedTabs">
@@ -359,8 +362,8 @@
   </div>
 </div>
 
-<script src="html2canvas.min.js?v=e3f95a1d47ec0f41"></script>
-<script src="export_img.js?v=e3f95a1d47ec0f41"></script>
-<script src="app.js?v=e3f95a1d47ec0f41"></script>
+<script src="html2canvas.min.js?v=c89eef7a940a92be"></script>
+<script src="export_img.js?v=c89eef7a940a92be"></script>
+<script src="app.js?v=c89eef7a940a92be"></script>
 </body>
 </html>
