@@ -4194,7 +4194,8 @@ function schedLoad() {
   if (SCHED.tab === 'matrix' || SCHED.tab === 'attend') uq += '&level=' + SCHED.level;
   // ★ 2026-11-06：出勤达成用【真实有效出勤】（UB 考核的第 11 列），
   //   而不是排班明细的 effectiveType。
-  if (SCHED.tab === 'attend') uq += '&real=1';
+  // ★ 2026-11-06：出勤达成和排班详情都走 UB 考核口径（一次全公司，不用逐站）
+  if (SCHED.tab === 'attend' || SCHED.tab === 'detail') uq += '&real=1';
   // 排班要遍历所有站点，单站要 2~4 秒，矩阵还要再拉一次明细 → 给足 120 秒
   api(uq, { timeout: 120000 })
     .then(function (j) {
@@ -4292,7 +4293,9 @@ function schedRenderMatrix(j, ms, mode) {
       var er = (c.effRate === undefined) ? null : c.effRate;
       var rc2 = (er === null) ? 'mx-gray' : (er >= 90 ? 'mx-up' : (er >= 70 ? 'mx-mid' : 'mx-down'));
       var rt2 = (er === null) ? '—' : (er.toFixed(1) + '%');
-      var f2 = Math.round(c.eff || 0) + '/' + Math.round(c.plan || 0);
+      // ★ 分母用 UB 考核自己的「排班人数」(realPlan)，不要混排班统计的 predictNum
+      var _den = (c.realPlan != null) ? c.realPlan : c.plan;
+      var f2 = Math.round(c.eff || 0) + '/' + Math.round(_den || 0);
       return '<td class="mx-c">' +
         '<div class="mx-r ' + rc2 + '" style="font-size:15px">' + rt2 + '</div>' +
         '<div class="mx-f">' + f2 + '</div></td>';
