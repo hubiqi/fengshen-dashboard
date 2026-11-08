@@ -44,7 +44,7 @@
         var BASE = 'https://hubiqi.github.io/fengshen-dashboard/app/';
         var PIN = 'fengshen_fe_version';      // 用户选定的版本（空=最新）
         var SKIP = 'fengshen_fe_skip';        // 用户跳过的版本号
-        var BUILTIN = '56.1.95';              // 安装包内置的前端版本
+        var BUILTIN = '56.1.96';              // 安装包内置的前端版本
         var TIMEOUT = 8000;
 
         var state = { list: null, current: '', loading: false };
@@ -80,6 +80,7 @@
 
         function pickVersion(arr) {
           var pin = localStorage.getItem(PIN) || '';
+          if (pin === 'builtin') return null;
           if (pin) {
             for (var i = 0; i < arr.length; i++) if (arr[i].version === pin) return arr[i];
           }
@@ -141,7 +142,7 @@
           openSheet('<h3>前端版本</h3><div class="sub">加载中…</div>');
           fetchIndex().then(function (arr) {
             if (!arr.length) { openSheet('<h3>前端版本</h3><div class="sub">暂时取不到版本列表（可能离线）</div>'); return; }
-            var cur = localStorage.getItem(PIN) || arr[0].version;
+            var cur = localStorage.getItem(PIN) || arr[0].version;   // 'builtin' 表示用内置
             var html = '<h3>前端版本</h3><div class="sub">选一个版本使用；出问题可随时切回旧版</div>';
             html += '<div class="ver' + (('builtin' === cur) ? ' cur' : '') + '" data-v="builtin">' +
                     '<div><div class="n">内置版本 ' + BUILTIN + '</div><div class="d">安装包自带，离线也能用</div></div>' +
@@ -165,8 +166,7 @@
         }
 
         function switchTo(ver) {
-          if (ver === 'builtin') localStorage.removeItem(PIN);
-          else localStorage.setItem(PIN, ver);
+          localStorage.setItem(PIN, ver);   // 'builtin' 也是合法值：强制用安装包自带的前端
           localStorage.removeItem(SKIP);
           closeSheet();
           setTimeout(function () { location.reload(); }, 120);
@@ -179,7 +179,7 @@
 
           fetchIndex().then(function (arr) {
             var v = pickVersion(arr);
-            if (!v) throw new Error('无可用版本');
+            if (!v) { var e0 = new Error('已选择内置版本'); e0.builtin = true; throw e0; }
             state.current = v.version;
             try { window.__loader = { source: 'remote', version: v.version, base_ver: BUILTIN }; } catch (e) {}
             return bootRemote(v);
@@ -202,6 +202,7 @@
               if (!latest) return;
               if (latest.version === state.current) return;
               if (localStorage.getItem(PIN) === latest.version) return;
+              if (state.current === BUILTIN && localStorage.getItem(PIN) === 'builtin') { /* 仍提示新版 */ }
               if (localStorage.getItem(SKIP) === latest.version) return;
               setTimeout(function () { askUpdate(latest); }, 1200);
             }).catch(function () {});
