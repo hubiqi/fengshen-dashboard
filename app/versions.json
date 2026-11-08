@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "56.1.98",
+   "entry": "v/56.1.98/assets/index-DpvE-AlK.js",
+   "css": "v/56.1.98/assets/index-SgcNJQPd.css",
+   "date": "2026-11-09",
+   "notes": "看板异常骑手：补字段归一化（下划线/驼峰），修复姓名与电话为空"
+  },
+  {
    "version": "56.1.97",
    "entry": "v/56.1.97/assets/index-DpvE-AlK.js",
    "css": "v/56.1.97/assets/index-SgcNJQPd.css",
