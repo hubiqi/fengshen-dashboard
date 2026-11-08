@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "56.1.99",
+   "entry": "v/56.1.99/assets/index-DpvE-AlK.js",
+   "css": "v/56.1.99/assets/index-SgcNJQPd.css",
+   "date": "2026-11-09",
+   "notes": "看板姓名/电话字段兼容 name/riderName/id，修异常骑手姓名空白"
+  },
+  {
    "version": "56.1.98",
    "entry": "v/56.1.98/assets/index-DpvE-AlK.js",
    "css": "v/56.1.98/assets/index-SgcNJQPd.css",
