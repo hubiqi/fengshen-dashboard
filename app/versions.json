@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "56.1.97",
+   "entry": "v/56.1.97/assets/index-DpvE-AlK.js",
+   "css": "v/56.1.97/assets/index-SgcNJQPd.css",
+   "date": "2026-11-09",
+   "notes": "修复看板异常骑手姓名不显示（姓名列过窄被电话图标挤掉），改为点姓名直接拨号"
+  },
+  {
    "version": "56.1.96",
    "entry": "v/56.1.96/assets/index-DpvE-AlK.js",
    "css": "v/56.1.96/assets/index-SgcNJQPd.css",
