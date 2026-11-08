@@ -9,8 +9,89 @@
     <script>/* 默认预警参数预置（只填空，不覆盖已保存的值） */
 (function(){try{var D=[["fengshen_duty_enabled","1"],["fengshen_interval_allday_order","30"],["fengshen_interval_allday_duration","30"],["fengshen_interval_current_order","5"],["fengshen_interval_current_duration","5"],["fengshen_duty_threshold_current","15"],["fengshen_duty_threshold_allday","60"],["fengshen_order_lead_current","30"],["fengshen_order_lead_allday","3"],["fengshen_updater_repo","hubiqi/fengshen-attendance"]];for(var i=0;i<D.length;i++){if(localStorage.getItem(D[i][0])===null)localStorage.setItem(D[i][0],D[i][1]);}}catch(e){}})();
 </script>
-    <script type="module" crossorigin src="assets/index-DpvE-AlK.js"></script>
-    <link rel="stylesheet" crossorigin href="assets/index-SgcNJQPd.css">
+    <script type="module">
+      /* ============================================================
+         热更新引导器（loader）
+         App 自己的页面（origin = https://localhost），真正的界面代码
+        从线上按 manifest.json 动态 import —— 跨域模块在该页面上下文里执行，
+        所以 localStorage/Cookie/原生桥接全部保持原样，跟"内置前端"跑法一致。
+
+         取不到线上（离线 / 发布中）就回落到安装包里自带的那份。
+         ============================================================ */
+      (function () {
+        var REMOTE = 'https://hubiqi.github.io/fengshen-dashboard/app/';
+        var LOCAL = './';
+        var TIMEOUT = 6000;
+        var started = false;
+
+        function withTimeout(p, ms, tag) {
+          return Promise.race([
+            p,
+            new Promise(function (_, rej) {
+              setTimeout(function () { rej(new Error(tag + ' 超时')); }, ms);
+            })
+          ]);
+        }
+
+        function loadCss(href) {
+          return new Promise(function (resolve) {
+            var l = document.createElement('link');
+            l.rel = 'stylesheet';
+            l.href = href;
+            l.onload = resolve;
+            l.onerror = resolve;   // CSS 失败不阻塞启动
+            document.head.appendChild(l);
+          });
+        }
+
+        function boot(base, tag) {
+          return withTimeout(
+            fetch(base + 'manifest.json', { cache: 'no-store' }).then(function (r) {
+              if (!r.ok) throw new Error('manifest HTTP ' + r.status);
+              return r.json();
+            }),
+            TIMEOUT, tag + ' manifest'
+          ).then(function (m) {
+            if (!m || !m.entry) throw new Error('manifest 内容无效');
+            var v = encodeURIComponent(m.version || '');
+            return loadCss(base + m.css + (v ? '?v=' + v : '')).then(function () {
+              return withTimeout(import(base + m.entry + (v ? '?v=' + v : '')), TIMEOUT, tag + ' 入口');
+            });
+          });
+        }
+
+        function start() {
+          if (started) return;
+          started = true;
+          var host = document.getElementById('app');
+          if (host && host.firstChild) return;   // 已经挂载，避免重复渲染
+
+          boot(REMOTE, '线上前端').catch(function (e) {
+            try {
+              window.__loader = { remoteFailed: String(e && e.message) };
+              console.warn('[loader] 线上前端不可用，回落到内置版本：', e && e.message);
+            } catch (_) {}
+            return boot(LOCAL, '内置前端');
+          }).catch(function (e) {
+            // 两边都失败：给出可见提示，而不是白屏
+            try {
+              document.body.innerHTML =
+                '<div style="padding:24px;font:15px/1.7 system-ui;color:#323233">' +
+                '<h3 style="margin:0 0 8px">页面加载失败</h3>' +
+                '<p style="color:#969799;margin:0 0 12px">' + String((e && e.message) || e) + '</p>' +
+                '<p style="color:#969799;margin:0">请检查网络后重新打开 App。</p>' +
+                '</div>';
+            } catch (_) {}
+          });
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', start);
+        } else {
+          start();
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>
