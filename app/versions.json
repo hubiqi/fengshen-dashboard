@@ -1,0 +1,11 @@
+{
+ "versions": [
+  {
+   "version": "56.1.95",
+   "entry": "v/56.1.95/assets/index-DpvE-AlK.js",
+   "css": "v/56.1.95/assets/index-SgcNJQPd.css",
+   "date": "2026-11-08",
+   "notes": "首个支持版本回退的前端"
+  }
+ ]
+}

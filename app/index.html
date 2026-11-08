@@ -9,87 +9,220 @@
     <script>/* 默认预警参数预置（只填空，不覆盖已保存的值） */
 (function(){try{var D=[["fengshen_duty_enabled","1"],["fengshen_interval_allday_order","30"],["fengshen_interval_allday_duration","30"],["fengshen_interval_current_order","5"],["fengshen_interval_current_duration","5"],["fengshen_duty_threshold_current","15"],["fengshen_duty_threshold_allday","60"],["fengshen_order_lead_current","30"],["fengshen_order_lead_allday","3"],["fengshen_updater_repo","hubiqi/fengshen-attendance"]];for(var i=0;i<D.length;i++){if(localStorage.getItem(D[i][0])===null)localStorage.setItem(D[i][0],D[i][1]);}}catch(e){}})();
 </script>
+    <style>
+      #fe-mask{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:99999}
+      #fe-mask.show{display:flex}
+      #fe-sheet{width:100%;max-height:78vh;overflow:auto;background:#fff;border-radius:16px 16px 0 0;padding:18px 16px 24px;
+        font:15px/1.6 -apple-system,system-ui,"PingFang SC","Microsoft YaHei",sans-serif;color:#323233;
+        transform:translateY(100%);transition:transform .22s ease}
+      #fe-mask.show #fe-sheet{transform:translateY(0)}
+      #fe-sheet h3{margin:0 0 4px;font-size:17px}
+      #fe-sheet .sub{color:#969799;font-size:13px;margin-bottom:12px}
+      #fe-sheet .ver{display:flex;align-items:center;justify-content:space-between;gap:10px;
+        padding:11px 12px;border:1px solid #ebedf0;border-radius:10px;margin-bottom:8px;cursor:pointer}
+      #fe-sheet .ver:active{background:#f7f8fa}
+      #fe-sheet .ver.cur{border-color:#1989fa;background:#ecf5ff}
+      #fe-sheet .ver .n{font-weight:600}
+      #fe-sheet .ver .d{color:#969799;font-size:12px}
+      #fe-sheet .tag{font-size:11px;padding:1px 6px;border-radius:8px;background:#1989fa;color:#fff;margin-left:6px}
+      #fe-sheet .tag.builtin{background:#969799}
+      #fe-sheet .row{display:flex;gap:10px;margin-top:14px}
+      #fe-sheet button{flex:1;height:44px;border:0;border-radius:10px;font-size:15px;font-weight:600}
+      #fe-sheet .primary{background:#1989fa;color:#fff}
+      #fe-sheet .ghost{background:#f2f3f5;color:#323233}
+    </style>
     <script type="module">
       /* ============================================================
-         热更新引导器（loader）
-         App 自己的页面（origin = https://localhost），真正的界面代码
-        从线上按 manifest.json 动态 import —— 跨域模块在该页面上下文里执行，
-        所以 localStorage/Cookie/原生桥接全部保持原样，跟"内置前端"跑法一致。
-
-         取不到线上（离线 / 发布中）就回落到安装包里自带的那份。
+         前端版本管理器（loader）
+         · App 自带一份前端（安装包里的 assets），作为"内置版本"兜底
+         · 线上按 版本目录 归档：app/v/<版本>/...   （只增不删，可随时回退）
+         · 启动：用用户选定的版本（默认最新）；取不到 → 内置版本
+         · 检查：版本列表与当前不一致 → 弹窗让用户确认后再切换
+         · 跨域 import 在本地页面上下文执行，localStorage/桥接都不变
          ============================================================ */
       (function () {
-        var REMOTE = 'https://hubiqi.github.io/fengshen-dashboard/app/';
-        var LOCAL = './';
-        var TIMEOUT = 6000;
-        var started = false;
+        var BASE = 'https://hubiqi.github.io/fengshen-dashboard/app/';
+        var PIN = 'fengshen_fe_version';      // 用户选定的版本（空=最新）
+        var SKIP = 'fengshen_fe_skip';        // 用户跳过的版本号
+        var BUILTIN = '56.1.95';              // 安装包内置的前端版本
+        var TIMEOUT = 8000;
+
+        var state = { list: null, current: '', loading: false };
+
+        function $(id) { return document.getElementById(id); }
 
         function withTimeout(p, ms, tag) {
-          return Promise.race([
-            p,
-            new Promise(function (_, rej) {
-              setTimeout(function () { rej(new Error(tag + ' 超时')); }, ms);
-            })
-          ]);
+          return Promise.race([p, new Promise(function (_, rej) {
+            setTimeout(function () { rej(new Error(tag + ' 超时')); }, ms);
+          })]);
         }
 
         function loadCss(href) {
-          return new Promise(function (resolve) {
+          return new Promise(function (res) {
             var l = document.createElement('link');
-            l.rel = 'stylesheet';
-            l.href = href;
-            l.onload = resolve;
-            l.onerror = resolve;   // CSS 失败不阻塞启动
+            l.rel = 'stylesheet'; l.href = href;
+            l.onload = res; l.onerror = res;
             document.head.appendChild(l);
           });
         }
 
-        function boot(base, tag) {
-          return withTimeout(
-            fetch(base + 'manifest.json', { cache: 'no-store' }).then(function (r) {
-              if (!r.ok) throw new Error('manifest HTTP ' + r.status);
-              return r.json();
-            }),
-            TIMEOUT, tag + ' manifest'
-          ).then(function (m) {
-            if (!m || !m.entry) throw new Error('manifest 内容无效');
-            var v = encodeURIComponent(m.version || '');
-            return loadCss(base + m.css + (v ? '?v=' + v : '')).then(function () {
-              return withTimeout(import(base + m.entry + (v ? '?v=' + v : '')), TIMEOUT, tag + ' 入口');
+        function fetchIndex() {
+          if (state.list) return Promise.resolve(state.list);
+          return withTimeout(fetch(BASE + 'versions.json', { cache: 'no-store' }).then(function (r) {
+            if (!r.ok) throw new Error('versions HTTP ' + r.status);
+            return r.json();
+          }), TIMEOUT, '版本清单').then(function (j) {
+            var arr = (j && j.versions) || [];
+            state.list = arr;
+            return arr;
+          });
+        }
+
+        function pickVersion(arr) {
+          var pin = localStorage.getItem(PIN) || '';
+          if (pin) {
+            for (var i = 0; i < arr.length; i++) if (arr[i].version === pin) return arr[i];
+          }
+          return arr[0] || null;
+        }
+
+        function bootRemote(v) {
+          var q = '?v=' + encodeURIComponent(v.version);
+          return loadCss(BASE + v.css + q).then(function () {
+            return withTimeout(import(BASE + v.entry + q), TIMEOUT, '前端入口');
+          });
+        }
+
+        function bootBuiltin() {
+          return fetch('./manifest.json', { cache: 'no-store' })
+            .then(function (r) { return r.json(); })
+            .then(function (m) {
+              return loadCss(m.css).then(function () {
+                return import('./' + m.entry);
+              });
+            })
+            .catch(function () {
+              return loadCss('./assets/index-SgcNJQPd.css').then(function () {
+                return import('./assets/index-DpvE-AlK.js');
+              });
             });
+        }
+
+        /* ---------- 界面 ---------- */
+        function ensureSheet() {
+          if ($('fe-mask')) return;
+          var w = document.createElement('div');
+          w.id = 'fe-mask';
+          w.innerHTML = '<div id="fe-sheet"></div>';
+          w.addEventListener('click', function (e) { if (e.target === w) closeSheet(); });
+          document.body.appendChild(w);
+        }
+        function openSheet(html) {
+          ensureSheet();
+          $('fe-sheet').innerHTML = html;
+          $('fe-mask').classList.add('show');
+        }
+        function closeSheet() { var m = $('fe-mask'); if (m) m.classList.remove('show'); }
+
+        function askUpdate(v) {
+          openSheet(
+            '<h3>发现前端更新</h3>' +
+            '<div class="sub">当前 ' + (state.current || '内置 ' + BUILTIN) + ' → 新版本 ' + v.version + '</div>' +
+            (v.notes ? '<div style="color:#646566;font-size:14px;margin-bottom:12px">' + v.notes + '</div>' : '') +
+            '<div class="row"><button class="ghost" id="fe-later">稍后</button>' +
+            '<button class="primary" id="fe-now">立即更新</button></div>'
+          );
+          $('fe-later').onclick = function () { localStorage.setItem(SKIP, v.version); closeSheet(); };
+          $('fe-now').onclick = function () { switchTo(v.version); };
+        }
+
+        function openPicker() {
+          ensureSheet();
+          openSheet('<h3>前端版本</h3><div class="sub">加载中…</div>');
+          fetchIndex().then(function (arr) {
+            if (!arr.length) { openSheet('<h3>前端版本</h3><div class="sub">暂时取不到版本列表（可能离线）</div>'); return; }
+            var cur = localStorage.getItem(PIN) || arr[0].version;
+            var html = '<h3>前端版本</h3><div class="sub">选一个版本使用；出问题可随时切回旧版</div>';
+            html += '<div class="ver' + (('builtin' === cur) ? ' cur' : '') + '" data-v="builtin">' +
+                    '<div><div class="n">内置版本 ' + BUILTIN + '</div><div class="d">安装包自带，离线也能用</div></div>' +
+                    '<span class="tag builtin">内置</span></div>';
+            arr.forEach(function (v) {
+              var isCur = (v.version === cur);
+              html += '<div class="ver' + (isCur ? ' cur' : '') + '" data-v="' + v.version + '">' +
+                      '<div><div class="n">' + v.version + '</div>' +
+                      '<div class="d">' + (v.date || '') + (v.notes ? ' · ' + v.notes : '') + '</div></div>' +
+                      (isCur ? '<span class="tag">使用中</span>' : '') + '</div>';
+            });
+            html += '<div class="row"><button class="ghost" id="fe-close">关闭</button></div>';
+            openSheet(html);
+            $('fe-close').onclick = closeSheet;
+            Array.prototype.forEach.call(document.querySelectorAll('#fe-sheet .ver'), function (el) {
+              el.onclick = function () { switchTo(el.getAttribute('data-v')); };
+            });
+          }).catch(function () {
+            openSheet('<h3>前端版本</h3><div class="sub">取不到版本列表（离线或发布中）</div>');
           });
         }
 
+        function switchTo(ver) {
+          if (ver === 'builtin') localStorage.removeItem(PIN);
+          else localStorage.setItem(PIN, ver);
+          localStorage.removeItem(SKIP);
+          closeSheet();
+          setTimeout(function () { location.reload(); }, 120);
+        }
+
+        /* ---------- 启动 ---------- */
         function start() {
-          if (started) return;
-          started = true;
-          var host = document.getElementById('app');
-          if (host && host.firstChild) return;   // 已经挂载，避免重复渲染
+          var host = $('app');
+          if (host && host.firstChild) return;
 
-          boot(REMOTE, '线上前端').catch(function (e) {
-            try {
-              window.__loader = { remoteFailed: String(e && e.message) };
-              console.warn('[loader] 线上前端不可用，回落到内置版本：', e && e.message);
-            } catch (_) {}
-            return boot(LOCAL, '内置前端');
+          fetchIndex().then(function (arr) {
+            var v = pickVersion(arr);
+            if (!v) throw new Error('无可用版本');
+            state.current = v.version;
+            try { window.__loader = { source: 'remote', version: v.version, base_ver: BUILTIN }; } catch (e) {}
+            return bootRemote(v);
           }).catch(function (e) {
-            // 两边都失败：给出可见提示，而不是白屏
             try {
-              document.body.innerHTML =
-                '<div style="padding:24px;font:15px/1.7 system-ui;color:#323233">' +
-                '<h3 style="margin:0 0 8px">页面加载失败</h3>' +
-                '<p style="color:#969799;margin:0 0 12px">' + String((e && e.message) || e) + '</p>' +
-                '<p style="color:#969799;margin:0">请检查网络后重新打开 App。</p>' +
-                '</div>';
+              window.__loader = { source: 'builtin', version: BUILTIN, remoteFailed: String(e && e.message) };
+              console.warn('[loader] 用内置前端：', e && e.message);
             } catch (_) {}
+            return bootBuiltin();
+          }).catch(function (e) {
+            try {
+              document.body.innerHTML = '<div style="padding:24px;font:15px/1.7 system-ui;color:#323233">' +
+                '<h3 style="margin:0 0 8px">页面加载失败</h3><p style="color:#969799;margin:0">' +
+                String((e && e.message) || e) + '</p></div>';
+            } catch (_) {}
+          }).then(function () {
+            // 启动后静默比对版本，有新版且用户没跳过 → 询问
+            fetchIndex().then(function (arr) {
+              var latest = arr[0];
+              if (!latest) return;
+              if (latest.version === state.current) return;
+              if (localStorage.getItem(PIN) === latest.version) return;
+              if (localStorage.getItem(SKIP) === latest.version) return;
+              setTimeout(function () { askUpdate(latest); }, 1200);
+            }).catch(function () {});
           });
         }
 
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', start);
-        } else {
-          start();
-        }
+        /* ---------- 对外接口（供设置页调用） ---------- */
+        window.__fe = {
+          openPicker: openPicker,
+          check: function () { fetchIndex().then(function (arr) {
+            var latest = arr[0];
+            if (!latest) return;
+            if (latest.version === state.current) { alert('前端已是最新版本 ' + latest.version); return; }
+            askUpdate(latest);
+          }).catch(function () { alert('取不到版本列表，请检查网络'); }); },
+          info: function () { return window.__loader || null; }
+        };
+
+        // 设置页「检查更新」按钮会调到这里（见 update 模块）
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+        else start();
       })();
     </script>
   </head>
