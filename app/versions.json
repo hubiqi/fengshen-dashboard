@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "56.1.101",
+   "entry": "v/56.1.101/assets/index-DpvE-AlK.js",
+   "css": "v/56.1.101/assets/index-SgcNJQPd.css",
+   "date": "2026-11-09",
+   "notes": "看板姓名强制可见+诊断条（临时）"
+  },
+  {
    "version": "56.1.100",
    "entry": "v/56.1.100/assets/index-DpvE-AlK.js",
    "css": "v/56.1.100/assets/index-SgcNJQPd.css",
