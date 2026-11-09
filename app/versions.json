@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "56.1.100",
+   "entry": "v/56.1.100/assets/index-DpvE-AlK.js",
+   "css": "v/56.1.100/assets/index-SgcNJQPd.css",
+   "date": "2026-11-09",
+   "notes": "异常骑手姓名多字段兜底+日志；姓名列 min-width 修正"
+  },
+  {
    "version": "56.1.99",
    "entry": "v/56.1.99/assets/index-DpvE-AlK.js",
    "css": "v/56.1.99/assets/index-SgcNJQPd.css",
