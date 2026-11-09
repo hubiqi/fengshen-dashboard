@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "56.1.102",
+   "entry": "v/56.1.102/assets/index-DpvE-AlK.js",
+   "css": "v/56.1.102/assets/index-SgcNJQPd.css",
+   "date": "2026-11-09",
+   "notes": "姓名渲染改为 Nm() 兜底（?ID），诊断条实时刷新"
+  },
+  {
    "version": "56.1.101",
    "entry": "v/56.1.101/assets/index-DpvE-AlK.js",
    "css": "v/56.1.101/assets/index-SgcNJQPd.css",
