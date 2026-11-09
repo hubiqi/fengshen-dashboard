@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "56.2.12",
+   "entry": "v/56.2.12/assets/index-DpvE-AlK.js",
+   "css": "v/56.2.12/assets/index-SgcNJQPd.css",
+   "date": "2026-11-10",
+   "notes": "撤销看板常驻服务自愈（反复 start 会重排原生定时器，导致后台预警推送被推迟）"
+  },
+  {
    "version": "56.2.11",
    "entry": "v/56.2.11/assets/index-DpvE-AlK.js",
    "css": "v/56.2.11/assets/index-SgcNJQPd.css",
