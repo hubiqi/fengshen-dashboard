@@ -8,69 +8,6 @@
    "notes": "异常骑手：姓名恢复纯文本渲染+行 key 带姓名强制重建；电话改整行点击拨号"
   },
   {
-   "version": "56.1.105",
-   "entry": "v/56.1.105/assets/index-DpvE-AlK.js",
-   "css": "v/56.1.105/assets/index-SgcNJQPd.css",
-   "date": "2026-11-09",
-   "notes": "修复异常骑手姓名不刷新（补回 Vue patchFlag）+ 移除调试代码"
-  },
-  {
-   "version": "56.1.104",
-   "entry": "v/56.1.104/assets/index-DpvE-AlK.js",
-   "css": "v/56.1.104/assets/index-SgcNJQPd.css",
-   "date": "2026-11-09",
-   "notes": "修复入口改名白屏：入口恢复原名，仅 Dashboard 换名破缓存"
-  },
-  {
-   "version": "56.1.103",
-   "entry": "v/56.1.103/assets/index-DpvE-AlK-103.js",
-   "css": "v/56.1.103/assets/index-SgcNJQPd.css",
-   "date": "2026-11-09",
-   "notes": "换新文件名绕开 WebView 缓存，确保姓名 Nm() 兜底生效"
-  },
-  {
-   "version": "56.1.102",
-   "entry": "v/56.1.102/assets/index-DpvE-AlK.js",
-   "css": "v/56.1.102/assets/index-SgcNJQPd.css",
-   "date": "2026-11-09",
-   "notes": "姓名渲染改为 Nm() 兜底（?ID），诊断条实时刷新"
-  },
-  {
-   "version": "56.1.101",
-   "entry": "v/56.1.101/assets/index-DpvE-AlK.js",
-   "css": "v/56.1.101/assets/index-SgcNJQPd.css",
-   "date": "2026-11-09",
-   "notes": "看板姓名强制可见+诊断条（临时）"
-  },
-  {
-   "version": "56.1.100",
-   "entry": "v/56.1.100/assets/index-DpvE-AlK.js",
-   "css": "v/56.1.100/assets/index-SgcNJQPd.css",
-   "date": "2026-11-09",
-   "notes": "异常骑手姓名多字段兜底+日志；姓名列 min-width 修正"
-  },
-  {
-   "version": "56.1.99",
-   "entry": "v/56.1.99/assets/index-DpvE-AlK.js",
-   "css": "v/56.1.99/assets/index-SgcNJQPd.css",
-   "date": "2026-11-09",
-   "notes": "看板姓名/电话字段兼容 name/riderName/id，修异常骑手姓名空白"
-  },
-  {
-   "version": "56.1.98",
-   "entry": "v/56.1.98/assets/index-DpvE-AlK.js",
-   "css": "v/56.1.98/assets/index-SgcNJQPd.css",
-   "date": "2026-11-09",
-   "notes": "看板异常骑手：补字段归一化（下划线/驼峰），修复姓名与电话为空"
-  },
-  {
-   "version": "56.1.97",
-   "entry": "v/56.1.97/assets/index-DpvE-AlK.js",
-   "css": "v/56.1.97/assets/index-SgcNJQPd.css",
-   "date": "2026-11-09",
-   "notes": "修复看板异常骑手姓名不显示（姓名列过窄被电话图标挤掉），改为点姓名直接拨号"
-  },
-  {
    "version": "56.1.96",
    "entry": "v/56.1.96/assets/index-DpvE-AlK.js",
    "css": "v/56.1.96/assets/index-SgcNJQPd.css",
