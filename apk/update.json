@@ -1,8 +1,8 @@
 {
-  "version": "56.2.10",
-  "name": "风神出勤助手 v56.2.10",
-  "apk": "https://hubiqi.github.io/fengshen-dashboard/apk/v56210.apk",
-  "sha256": "d0922d56a93b2bf9446bb306d46e68de3d65c38163ef5fa31484f7bf46d48b5d",
-  "size": 5466842,
-  "publishedAt": "2026-11-09T23:10:32+08:00"
+  "version": "56.2.30",
+  "name": "风神出勤助手 v56.2.30",
+  "apk": "https://hubiqi.github.io/fengshen-dashboard/apk/v56230.apk",
+  "sha256": "d74f361703bd942a36529eaf935b828c1c24179e57361e36b029969e509bf7b4",
+  "size": 5466848,
+  "publishedAt": "2026-11-09T23:34:40+08:00"
 }
