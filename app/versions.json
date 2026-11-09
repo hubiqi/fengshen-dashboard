@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "56.1.105",
+   "entry": "v/56.1.105/assets/index-DpvE-AlK.js",
+   "css": "v/56.1.105/assets/index-SgcNJQPd.css",
+   "date": "2026-11-09",
+   "notes": "修复异常骑手姓名不刷新（补回 Vue patchFlag）+ 移除调试代码"
+  },
+  {
    "version": "56.1.104",
    "entry": "v/56.1.104/assets/index-DpvE-AlK.js",
    "css": "v/56.1.104/assets/index-SgcNJQPd.css",
