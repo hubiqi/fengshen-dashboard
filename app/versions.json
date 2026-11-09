@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "56.2.11",
+   "entry": "v/56.2.11/assets/index-DpvE-AlK.js",
+   "css": "v/56.2.11/assets/index-SgcNJQPd.css",
+   "date": "2026-11-09",
+   "notes": "更新下载：原生 Update 插件未注册时自动改用系统浏览器下载"
+  },
+  {
    "version": "56.1.108",
    "entry": "v/56.1.108/assets/index-DpvE-AlK.js",
    "css": "v/56.1.108/assets/index-SgcNJQPd.css",
