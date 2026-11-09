@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "56.1.103",
+   "entry": "v/56.1.103/assets/index-DpvE-AlK-103.js",
+   "css": "v/56.1.103/assets/index-SgcNJQPd.css",
+   "date": "2026-11-09",
+   "notes": "换新文件名绕开 WebView 缓存，确保姓名 Nm() 兜底生效"
+  },
+  {
    "version": "56.1.102",
    "entry": "v/56.1.102/assets/index-DpvE-AlK.js",
    "css": "v/56.1.102/assets/index-SgcNJQPd.css",
