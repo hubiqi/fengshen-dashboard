@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "56.1.106",
+   "entry": "v/56.1.106/assets/index-DpvE-AlK.js",
+   "css": "v/56.1.106/assets/index-SgcNJQPd.css",
+   "date": "2026-11-09",
+   "notes": "异常骑手：姓名恢复纯文本渲染+行 key 带姓名强制重建；电话改整行点击拨号"
+  },
+  {
    "version": "56.1.105",
    "entry": "v/56.1.105/assets/index-DpvE-AlK.js",
    "css": "v/56.1.105/assets/index-SgcNJQPd.css",
