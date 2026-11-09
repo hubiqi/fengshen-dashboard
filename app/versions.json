@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "56.1.108",
+   "entry": "v/56.1.108/assets/index-DpvE-AlK.js",
+   "css": "v/56.1.108/assets/index-SgcNJQPd.css",
+   "date": "2026-11-09",
+   "notes": "进看板/回前台自动拉起常驻服务并重发预警配置（修复通知栏倒计时暂停）"
+  },
+  {
    "version": "56.1.107",
    "entry": "v/56.1.107/assets/index-DpvE-AlK.js",
    "css": "v/56.1.107/assets/index-SgcNJQPd.css",
