@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "56.1.107",
+   "entry": "v/56.1.107/assets/index-DpvE-AlK.js",
+   "css": "v/56.1.107/assets/index-SgcNJQPd.css",
+   "date": "2026-11-09",
+   "notes": "钉钉推送：异常骑手带电话（tel 链接 + 号码）；推送前强制加载号码表"
+  },
+  {
    "version": "56.1.106",
    "entry": "v/56.1.106/assets/index-DpvE-AlK.js",
    "css": "v/56.1.106/assets/index-SgcNJQPd.css",
