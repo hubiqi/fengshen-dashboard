@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "56.1.104",
+   "entry": "v/56.1.104/assets/index-DpvE-AlK.js",
+   "css": "v/56.1.104/assets/index-SgcNJQPd.css",
+   "date": "2026-11-09",
+   "notes": "修复入口改名白屏：入口恢复原名，仅 Dashboard 换名破缓存"
+  },
+  {
    "version": "56.1.103",
    "entry": "v/56.1.103/assets/index-DpvE-AlK-103.js",
    "css": "v/56.1.103/assets/index-SgcNJQPd.css",
