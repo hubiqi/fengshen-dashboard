@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "56.2.13",
+   "entry": "v/56.2.13/assets/index-DpvE-AlK.js",
+   "css": "v/56.2.13/assets/index-SgcNJQPd.css",
+   "date": "2026-11-10",
+   "notes": "同步骑手姓名→号码表到原生（供后台推送显示电话）"
+  },
+  {
    "version": "56.2.12",
    "entry": "v/56.2.12/assets/index-DpvE-AlK.js",
    "css": "v/56.2.12/assets/index-SgcNJQPd.css",
