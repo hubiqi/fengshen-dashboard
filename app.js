@@ -75,7 +75,11 @@ function api(path, opt) {
     if (ctl) { o = Object.assign({}, opt, { signal: ctl.signal }); }
     // ★ 2026-11-05：默认 7 秒，但排班矩阵要遍历每个站点（20~35 秒），
     //   用默认超时必然 abort（"signal is aborted without reason"）。
-    var _to = opt.timeout || 7000;
+    // ★ 2026-11-17：7 秒 → 15 秒。服务器在 Oracle 云，国内手机走 5G 时
+    //   后端响应本身就波动到 3~6 秒（实测登录接口 0.9s ~ 5.7s），
+    //   7 秒上限会让登录、首屏批量请求经常 abort，用户看到的就是
+    //   「接口暂时连不上（已自动重试 2 次）：signal is aborted without reason」。
+    var _to = opt.timeout || 15000;
     var tid = ctl ? setTimeout(function () { ctl.abort(); }, _to) : 0;
     function done() { if (tid) clearTimeout(tid); }
     return fetch(url, o).then(function (r) { done(); return r; }, function (e) { done(); throw e; })
@@ -132,6 +136,17 @@ function resetForAccount() {
     clearTimeout(TODO.pendTimer);
     var tb = $('todoChart'); if (tb) tb.innerHTML = '';
     var ts = $('todoStat'); if (ts) ts.textContent = '加载中…';
+  } catch (e) {}
+  // ★ 2026-11-13（用户「切换代理商，骑手管理模块不会自动切换」）：
+  //   HR.data 是上一个公司的名册，切账号后不清就会一直渲染旧数据。
+  try {
+    HR.data = null;
+    HR.leadsAll = null;
+    HR.busy = false;
+    HR.tab = 'staff';
+    HR.filt = { status: '1', dept: '', kw: '' };
+    HR.lfilt = { entry: '', onjob: false, kw: '' };
+    var hs = $('hrState'); if (hs) hs.textContent = '';
   } catch (e) {}
   // 关掉所有可能还开着的浮层
   ['cfgModal', 'abnModal', 'capModal', 'trendBox'].forEach(function (id) {
@@ -321,10 +336,18 @@ function prefetchScore(from, to) {
 var KPI = {};
 function loadKpi(from, to) {
   var lv = S.level;
-  if (lv !== 'agency' && lv !== 'district') { KPI = {}; return; }
+  // ★ 2026-11-14：站点层级也要走 —— 平台 KPI 只考核到商圈片，
+  //   后端会返回该站点【所属商圈片】的值（带 viaDistrict 标注）。
+  //   以前这里 `lv !== 'agency' && lv !== 'district'` 直接清空 KPI，
+  //   切到站点后 KPI 三行凭空消失，看起来就是「不刷新」。
+  if (lv !== 'agency' && lv !== 'district' && lv !== 'site') { KPI = {}; return; }
+  // ★ 2026-11-14：记下发起时的 level+key，慢回来的旧响应直接丢弃 ——
+  //   否则快速点两个站点时，前一个的 KPI 会盖掉后一个（看着像"数字不对"）。
+  var _lv = lv, _sk = S.key || '';
   var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
   api('/api/kpi_reward?' + aq + 'level=' + q(lv) + '&key=' + q(S.key || ''))
     .then(function (j) {
+      if (S.level !== _lv || (S.key || '') !== _sk) return;
       KPI = {};
       (j.items || []).forEach(function (x) {
         KPI[x.level + '|' + x.key] = x;
@@ -478,9 +501,13 @@ function renderCards(t) {
     // ★ KPI 是【当月结算口径】的数据，本身就是月的累计值，
     //   所以"所选日期"和"全月"是同一个数（不存在日/月的区别）。
     //   原来 month/prev 都传 null → 三栏永远显示「全月 —」，看起来像没数据。
+    // ★ 站点层级显示的是【所属商圈片】的考核值 —— 必须写出来，
+    //   否则会以为平台真有站点级 KPI 结算。
+    var kpiScope = S.level === 'agency' ? '整商'
+      : (kk.viaDistrict ? ('所属商圈片：' + kk.viaDistrict) : '商圈片');
     kpiCells =
       cell('KPI奖励(元)', kk.reward, kk.reward, null, 'money',
-           '考核方案结算 · ' + (S.level === 'agency' ? '整商' : '商圈片')) +
+           '考核方案结算 · ' + kpiScope) +
       cell('订单(大网接单)', kk.orders, kk.orders, null, 'int', '单均奖励的分母') +
       cell('单均奖励(元/单)', kk.perOrder, kk.perOrder, null, 'money',
            'KPI奖励 ÷ 订单');
@@ -1615,6 +1642,9 @@ function mark(el, expand) {
       //   列表是横向对比用的，收窄成一行就没法看了 —— 用户也明确要求取消
       //   「点进去只剩一个 + 再点返回」这种绕路交互。
       loadCards(undefined, undefined, false);
+      // ★ 2026-11-14：KPI 三行也要跟着选中对象走 —— 只刷 loadCards 的话，
+      //   切到站点后 KPI 还停在整商/上一个商圈片的数，看着就是「不刷新」。
+      loadKpi();
       // ★ 得分跟着选中对象走：prefetchScore 会重新拉该对象的当日+月得分。
       //   不调它的话，上一对象的得分会一直留在卡片上（或者干脆是「—」）。
       prefetchScore();
@@ -2140,6 +2170,12 @@ function loadAll() {
   loadScore();
   loadRt();
   loadTodo();          // ★ 2026-11-05：切账号/换日期都要重拉待办
+  // ★ 2026-11-13：骑手管理页开着的时候换账号，必须立刻按新账号重拉，
+  //   否则界面还停在上一个代理商的骑手名册。
+  try {
+    var hv = $('hrView');
+    if (hv && !hv.hidden) { hrLoad(); }
+  } catch (e) {}
   // ★ 预取得分：/api/trend 顺带返回「当日 + 月度」得分（约 60ms），
   //   比等 /api/scoreboard 快一个数量级，卡片上的大网得分不用再空着。
   prefetchScore(r[0], r[1]);
@@ -2876,25 +2912,6 @@ $('finSync').onclick = function () { finSync(); };
 $('finRule').onclick = function () { finRuleOpen(); };
 $('finRuleClose').onclick = function () { finRuleClose(); };
 $('btnSched').onclick = function () { schedOpen(); };
-// ★ 2026-11-06：直接用 APK 的原生界面（取数逻辑也是 APK 的），
-//   iframe 里跑 /apk/index.html，由 boot.js 把请求代理到 /api/xtop（后端带 cookie 代发）
-$('btnApk').onclick = function () {
-  var k = localStorage.getItem(LS_KEY) || '';
-  var page = (typeof APK_PAGE !== 'undefined' && APK_PAGE) ? APK_PAGE : 'schedule';
-  // APK 前端只在后端服务器上（含 /api/xtop 代理），CF/GH 上没有 → 用绝对地址
-  var APK_BASE = 'https://158.178.244.142.sslip.io:8081/apk/index.html';
-  var url = APK_BASE + '?acct=' + encodeURIComponent(ACCT) + '&k=' + encodeURIComponent(k) + '&page=' + page;
-  var f = $('apkFrame');
-  if (f.getAttribute('data-src') !== url) { f.src = url; f.setAttribute('data-src', url); }
-  $('apkAcct').textContent = ACCT || '';
-  $('apkView').style.display = 'flex';
-  document.body.classList.add('noScroll');
-};
-$('apkBack').onclick = function () {
-  $('apkView').style.display = 'none';
-  document.body.classList.remove('noScroll');
-};
-var APK_PAGE = '';
 $('schedClose').onclick = function () { schedClose(); };
 $('schedDate').onchange = function (e) {
   SCHED.date = e.target.value; SCHED.data = null; schedLoad();
@@ -3090,9 +3107,29 @@ $('capCancel').onclick = function () {
     if (TOKEN && APIKEY) return enterApp();
     showLogin(false);
   }).catch(function (e) {
+    // ★ 2026-11-17：这一步失败会让用户以为「密码不对」，其实只是首屏探测超时
+    //   （服务器在境外，国内 5G 下 3~6 秒很常见，以前 7 秒上限经常踩线）。
+    //   现在：文案说清楚 + 3 秒后自动重探一次，用户也可以直接点登录。
     showLogin(false);
-    $('lgMsg').textContent = '接口暂时连不上（已自动重试 2 次）：' +
-      (e.message || e) + ' —— 请再点一次登录，或换个网络';
+    var msg = String((e && e.message) || e);
+    var isTimeout = /abort|timeout|Failed to fetch|NetworkError/i.test(msg);
+    $('lgMsg').textContent = isTimeout
+      ? '首次探测超时（服务器在境外，网络慢时需要多等几秒）—— 正在自动重试…'
+      : ('接口暂时连不上：' + msg + ' —— 请再点一次登录，或换个网络');
+    if (isTimeout && !window.__stateRetried) {
+      window.__stateRetried = 1;
+      setTimeout(function () {
+        api('/api/auth/state').then(function (j) {
+          if (j.needSetup) return showLogin(true);
+          if (!j.user) return showLogin(false);
+          if (TOKEN && APIKEY) return enterApp();
+          showLogin(false);
+        }).catch(function (e2) {
+          $('lgMsg').textContent = '接口连不上：' + String((e2 && e2.message) || e2) +
+            ' —— 请检查网络后刷新页面';
+        });
+      }, 3000);
+    }
   });
 })();
 
@@ -3272,9 +3309,13 @@ function hrAgo(sec) {
   return Math.round(sec / 86400) + ' 天前';
 }
 
+var _hrSeq = 0;   // ★ 2026-11-13：切换账号时丢弃过期响应，避免旧公司的名册覆盖新公司
 function hrLoad() {
+  // ★ busy 只挡重复点击；换账号时 resetForAccount 会把 busy 清成 false，
+  //   而这里用序号保证「后发的请求赢」，迟到的旧响应直接丢弃。
   if (HR.busy) return;
   HR.busy = true;
+  var seq = ++_hrSeq;
   HR.leadsAll = null;
   $('hrState').textContent = '加载中…';
   // ★ 首次就带上名册的默认筛选（默认「在职」），否则拿回来的 626 行和下拉显示的
@@ -3285,6 +3326,7 @@ function hrLoad() {
       '&kw=' + encodeURIComponent(HR.filt.kw) +
       '&acct=' + encodeURIComponent(ACCT || ''))
     .then(function (j) {
+      if (seq !== _hrSeq) return;                // 过期响应，丢掉
       HR.busy = false;
       if (!j || j.ok === false) { $('hrState').textContent = '加载失败'; return; }
       HR.data = j;
@@ -3293,6 +3335,7 @@ function hrLoad() {
       hrRender();
     })
     .catch(function (e) {
+      if (seq !== _hrSeq) return;
       HR.busy = false;
       $('hrState').textContent = '加载失败：' + e;
     });
