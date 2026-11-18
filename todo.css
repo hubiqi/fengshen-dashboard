@@ -131,6 +131,18 @@
    修法：只在【确实有备注】的行给 track 加下方内边距预留空间。
    判定靠 JS 输出的 .has-tip 类 —— 不用 :has()，WebView 支持不稳。
    （padding 不影响 .g-bar 定位 —— 它用的是 left/width 百分比。） */
+/* ★ 2026-11-18（用户「电脑版的任务条显示会与文字重叠」）：
+   .g-tip 只在手机版 @media 里有定义，桌面版完全没写 —— 于是它是个普通流内
+   块，而 .g-bar 是 absolute(top:6px)，条形正好压在备注文字上，看起来像
+   「任务条和文字重叠」。这里补上桌面版定位：贴到条形【下方】。
+   （配套的 .g-track.has-tip { padding-bottom } 原本就有，正是为这个高度预留的。） */
+.g-tip {
+  position: absolute;
+  top: 21px;                 /* 条形 top:6px + height:13px = 19px，再留 2px */
+  left: 0; right: 0;
+  font-size: 10.5px; color: #8a929e; line-height: 1.35;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .g-track.has-tip { padding-bottom: 15px; }
 
 #todoTip { padding: 8px 2px 2px; font-size: 11px; }
