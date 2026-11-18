@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "56.2.15",
+   "entry": "v/56.2.15/assets/index-DpvE-AlK.js",
+   "css": "v/56.2.15/assets/index-SgcNJQPd.css",
+   "date": "2026-11-18",
+   "notes": "任务页推送：执行者首列 + 按执行者姓名匹配站点负责人@"
+  },
+  {
    "version": "56.2.14",
    "entry": "v/56.2.14/assets/index-DpvE-AlK.js",
    "css": "v/56.2.14/assets/index-SgcNJQPd.css",
