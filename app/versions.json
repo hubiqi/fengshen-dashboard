@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "56.2.16",
+   "entry": "v/56.2.16/assets/index-DpvE-AlK.js",
+   "css": "v/56.2.16/assets/index-SgcNJQPd.css",
+   "date": "2026-11-20",
+   "notes": "提醒开工：载荷同步提醒开关与间隔到原生"
+  },
+  {
    "version": "56.2.15",
    "entry": "v/56.2.15/assets/index-DpvE-AlK.js",
    "css": "v/56.2.15/assets/index-SgcNJQPd.css",
