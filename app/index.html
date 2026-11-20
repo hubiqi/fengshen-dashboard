@@ -317,15 +317,13 @@
           return null;
         }
         function applyToNative(enabled, interval, cb) {
-          var api = nativeApi();
-          if (!api || typeof api.setStartRemind !== 'function') {
-            toast('已保存，但需新版 APK 才会后台提醒');
-            if (cb) cb();
-            return;
-          }
-          api.setStartRemind({ enabled: enabled ? 1 : 0, interval: interval })
-            .then(function () { if (cb) cb(); })
-            .catch(function (e) { toast('保存失败：' + (e && e.message || e)); if (cb) cb(); });
+          // 走 App 既有的配置同步通道（已被验证可用），不依赖 Capacitor 的插件方法代理
+          var tries = 0;
+          (function fire() {
+            try { window.dispatchEvent(new Event('fengshen-remind-changed')); } catch (e) {}
+            if (++tries < 10) setTimeout(fire, 2000);
+          })();
+          if (cb) cb();
         }
         function open() {
           sw.className = 'sw' + (isOn() ? ' on' : '');
