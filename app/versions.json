@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "56.2.22",
+   "entry": "v/56.2.22/assets/index-DpvE-AlK.js",
+   "css": "v/56.2.22/assets/index-SgcNJQPd.css",
+   "date": "2026-11-22",
+   "notes": "回退骑手页到稳定版（保留接口返回判定）"
+  },
+  {
    "version": "56.2.21",
    "entry": "v/56.2.21/assets/index-DpvE-AlK.js",
    "css": "v/56.2.21/assets/index-SgcNJQPd.css",
