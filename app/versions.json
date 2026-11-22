@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "56.2.20",
+   "entry": "v/56.2.20/assets/index-DpvE-AlK.js",
+   "css": "v/56.2.20/assets/index-SgcNJQPd.css",
+   "date": "2026-11-22",
+   "notes": "提醒开工：按接口返回 code/msg 判定成功失败并显示原因"
+  },
+  {
    "version": "56.2.19",
    "entry": "v/56.2.19/assets/index-DpvE-AlK.js",
    "css": "v/56.2.19/assets/index-SgcNJQPd.css",
