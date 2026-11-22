@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "56.2.19",
+   "entry": "v/56.2.19/assets/index-DpvE-AlK.js",
+   "css": "v/56.2.19/assets/index-SgcNJQPd.css",
+   "date": "2026-11-22",
+   "notes": "时长颜色：有背单或有效时长增长为正常；订单判定不变"
+  },
+  {
    "version": "56.2.18",
    "entry": "v/56.2.18/assets/index-DpvE-AlK.js",
    "css": "v/56.2.18/assets/index-SgcNJQPd.css",
