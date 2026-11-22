@@ -5,7 +5,7 @@
    "entry": "v/56.2.18/assets/index-DpvE-AlK.js",
    "css": "v/56.2.18/assets/index-SgcNJQPd.css",
    "date": "2026-11-22",
-   "notes": "恢复骑手状态判定"
+   "notes": "恢复骑手状态判定为原始逻辑"
   },
   {
    "version": "56.2.17",
