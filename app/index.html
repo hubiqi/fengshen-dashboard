@@ -316,13 +316,25 @@
           } catch (e) {}
           return null;
         }
-        function applyToNative(enabled, interval, cb) {
-          // 走 App 既有的配置同步通道（已被验证可用），不依赖 Capacitor 的插件方法代理
+        function fireEventPath() {
           var tries = 0;
           (function fire() {
             try { window.dispatchEvent(new Event('fengshen-remind-changed')); } catch (e) {}
             if (++tries < 10) setTimeout(fire, 2000);
           })();
+        }
+        function applyToNative(enabled, interval, cb) {
+          var api = nativeApi();
+          var done = false;
+          if (api && typeof api.setStartRemind === 'function') {
+            try {
+              api.setStartRemind({ enabled: enabled ? 1 : 0, interval: interval })
+                .then(function () { done = true; fireEventPath(); })
+                .catch(function () { fireEventPath(); });
+            } catch (e) { fireEventPath(); }
+          } else {
+            fireEventPath();
+          }
           if (cb) cb();
         }
         function open() {
