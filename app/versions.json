@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "58.3.50",
+   "entry": "v/58.3.50/assets/index-DpvE-AlK.js",
+   "css": "v/58.3.50/assets/index-SgcNJQPd.css",
+   "date": "2026-11-24",
+   "notes": "修复localStorage写入失败：不再保存1小时快照数组，只存每人最新值；启动清理旧键；日志截到150条"
+  },
+  {
    "version": "58.3.40",
    "entry": "v/58.3.40/assets/index-DpvE-AlK.js",
    "css": "v/58.3.40/assets/index-SgcNJQPd.css",
