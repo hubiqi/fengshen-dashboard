@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "58.3.40",
+   "entry": "v/58.3.40/assets/index-DpvE-AlK.js",
+   "css": "v/58.3.40/assets/index-SgcNJQPd.css",
+   "date": "2026-11-24",
+   "notes": "时长增长判定改为内存基线(5分钟内前后对比)；前端固定走内置；通知栏名单修复；提醒开工日志记姓名；登录检查3分钟缓存"
+  },
+  {
    "version": "56.2.22",
    "entry": "v/56.2.22/assets/index-DpvE-AlK.js",
    "css": "v/56.2.22/assets/index-SgcNJQPd.css",

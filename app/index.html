@@ -79,6 +79,8 @@
         }
 
         function pickVersion(arr) {
+          try { localStorage.setItem(PIN, 'builtin'); } catch (_e) {}
+          return null;
           var pin = localStorage.getItem(PIN) || '';
           if (pin === 'builtin') return null;
           if (pin) {
