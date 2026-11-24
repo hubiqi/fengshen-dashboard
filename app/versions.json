@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "58.3.73",
+   "entry": "v/58.3.73/assets/index-DpvE-AlK.js",
+   "css": "v/58.3.73/assets/index-SgcNJQPd.css",
+   "date": "2026-11-24",
+   "notes": "修正提醒面板计数：已提醒=命中-在线，名单同源，不再出现命中5却提醒277"
+  },
+  {
    "version": "58.3.72",
    "entry": "v/58.3.72/assets/index-DpvE-AlK.js",
    "css": "v/58.3.72/assets/index-SgcNJQPd.css",
