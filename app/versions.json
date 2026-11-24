@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "58.3.68",
+   "entry": "v/58.3.68/assets/index-DpvE-AlK.js",
+   "css": "v/58.3.68/assets/index-SgcNJQPd.css",
+   "date": "2026-11-24",
+   "notes": "修正骑手字段名(knightId/timeValidOnlineTime)导致所有骑手共用同一基线的bug；在线判定改数值比较"
+  },
+  {
    "version": "58.3.67",
    "entry": "v/58.3.67/assets/index-DpvE-AlK.js",
    "css": "v/58.3.67/assets/index-SgcNJQPd.css",
