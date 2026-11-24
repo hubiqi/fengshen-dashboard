@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "58.3.62",
+   "entry": "v/58.3.62/assets/index-DpvE-AlK.js",
+   "css": "v/58.3.62/assets/index-SgcNJQPd.css",
+   "date": "2026-11-24",
+   "notes": "前端提醒开工：RiderList 挂出骑手数据，页面统计不走/在线人数并按姓名展示（修正原生命中为0的问题第一步）"
+  },
+  {
    "version": "58.3.61",
    "entry": "v/58.3.61/assets/index-DpvE-AlK.js",
    "css": "v/58.3.61/assets/index-SgcNJQPd.css",
