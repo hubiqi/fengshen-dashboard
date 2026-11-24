@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "58.3.72",
+   "entry": "v/58.3.72/assets/index-DpvE-AlK.js",
+   "css": "v/58.3.72/assets/index-SgcNJQPd.css",
+   "date": "2026-11-24",
+   "notes": "回退：移除维度面板，恢复 58.3.70 前端"
+  },
+  {
    "version": "58.3.71",
    "entry": "v/58.3.71/assets/index-DpvE-AlK.js",
    "css": "v/58.3.71/assets/index-SgcNJQPd.css",
