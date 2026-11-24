@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "58.3.60",
+   "entry": "v/58.3.60/assets/index-DpvE-AlK.js",
+   "css": "v/58.3.60/assets/index-SgcNJQPd.css",
+   "date": "2026-11-24",
+   "notes": "恢复前端热更新：App 启动从 GitHub Pages 拉取最新前端，失败回退内置；清理强制内置的 pin 残留"
+  },
+  {
    "version": "58.3.50",
    "entry": "v/58.3.50/assets/index-DpvE-AlK.js",
    "css": "v/58.3.50/assets/index-SgcNJQPd.css",

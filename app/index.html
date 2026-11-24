@@ -79,8 +79,12 @@
         }
 
         function pickVersion(arr) {
-          try { localStorage.setItem(PIN, 'builtin'); } catch (_e) {}
-          return null;
+          try {
+            if (!localStorage.getItem('fs_pin_mig')) {
+              localStorage.setItem('fs_pin_mig', '1');
+              if (localStorage.getItem(PIN) === 'builtin') localStorage.removeItem(PIN);
+            }
+          } catch (_e) {}
           var pin = localStorage.getItem(PIN) || '';
           if (pin === 'builtin') return null;
           if (pin) {
