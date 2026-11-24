@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "58.3.63",
+   "entry": "v/58.3.63/assets/index-DpvE-AlK.js",
+   "css": "v/58.3.63/assets/index-SgcNJQPd.css",
+   "date": "2026-11-24",
+   "notes": "统计并入RiderList包，修复远程前端不加载index.html导致统计不生效"
+  },
+  {
    "version": "58.3.62",
    "entry": "v/58.3.62/assets/index-DpvE-AlK.js",
    "css": "v/58.3.62/assets/index-SgcNJQPd.css",
