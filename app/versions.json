@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "58.3.67",
+   "entry": "v/58.3.67/assets/index-DpvE-AlK.js",
+   "css": "v/58.3.67/assets/index-SgcNJQPd.css",
+   "date": "2026-11-24",
+   "notes": "移除右下角浮动黑条（名单过长撑成大块挡住页面），改由提醒开工面板内显示"
+  },
+  {
    "version": "58.3.66",
    "entry": "v/58.3.66/assets/index-DpvE-AlK.js",
    "css": "v/58.3.66/assets/index-SgcNJQPd.css",

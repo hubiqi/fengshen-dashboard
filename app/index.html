@@ -266,6 +266,10 @@
         background:rgba(0,0,0,.78);color:#fff;padding:9px 16px;border-radius:18px;font-size:13px;max-width:80%;
         text-align:center;opacity:0;transition:opacity .2s;pointer-events:none}
       #fx-remind-toast.show{opacity:1}
+      #fx-remind-stat{margin:6px 0 2px;padding:10px 12px;background:#f7f8fa;border-radius:10px;font-size:12px;line-height:1.6;color:#333;max-height:220px;overflow:auto}
+      #fx-remind-stat .k{color:#8a929e}
+      #fx-remind-stat .nm{color:#0b74de;word-break:break-all}
+      #fx-remind-stat .hd{font-weight:600;margin-bottom:2px}
     </style>
 
     <button id="fx-remind-btn">提醒<br>开工</button>
@@ -274,6 +278,7 @@
       <div id="fx-remind-card">
         <h3>提醒开工</h3>
         <div class="desc">当前时段有排班、且有效时长不走时自动提醒。<br>提醒同时推送钉钉（含名单与站点负责人 @）并发手机通知。</div>
+        <div id="fx-remind-stat"></div>
         <div class="row">
           <span>启用自动提醒</span>
           <div class="sw" id="fx-remind-sw"><i></i></div>
@@ -343,10 +348,31 @@
           }
           if (cb) cb();
         }
+        function fxRenderStat() {
+          var box = document.getElementById('fx-remind-stat');
+          if (!box) return;
+          var st = window.__fsRemindStat;
+          var L = window.__fsRiders || [];
+          if (!st) {
+            box.innerHTML = '<div class="k">暂无统计，等待骑手数据刷新…</div>';
+            return;
+          }
+          var at = new Date(st.at || Date.now());
+          var hh = ('0'+at.getHours()).slice(-2) + ':' + ('0'+at.getMinutes()).slice(-2);
+          var h = '<div class="hd">命中 ' + st.hit + ' 人 · 已提醒 ' + st.remind + ' 人 · 在线 ' + st.online + ' 人</div>';
+          h += '<div class="k">更新于 ' + hh + ' · 名单总数 ' + L.length + '</div>';
+          h += '<div class="k">已提醒：</div><div class="nm">' + (st.names || '无') + '</div>';
+          if (st.onlineNames) h += '<div class="k">已在线（无法提醒）：</div><div class="nm">' + st.onlineNames + '</div>';
+          box.innerHTML = h;
+        }
+        window.__fxRenderStat = fxRenderStat;
+        setInterval(fxRenderStat, 5000);
+
         function open() {
           sw.className = 'sw' + (isOn() ? ' on' : '');
           input.value = intervalMin();
           mask.style.display = 'flex';
+          if (window.__fxRenderStat) window.__fxRenderStat();
         }
         function close() { mask.style.display = 'none'; }
 
