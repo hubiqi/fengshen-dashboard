@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "58.3.66",
+   "entry": "v/58.3.66/assets/index-DpvE-AlK.js",
+   "css": "v/58.3.66/assets/index-SgcNJQPd.css",
+   "date": "2026-11-24",
+   "notes": "诊断：把总人数写入fail字段，用于判断前端名单是否为空"
+  },
+  {
    "version": "58.3.65",
    "entry": "v/58.3.65/assets/index-DpvE-AlK.js",
    "css": "v/58.3.65/assets/index-SgcNJQPd.css",
