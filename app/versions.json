@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "58.3.65",
+   "entry": "v/58.3.65/assets/index-DpvE-AlK.js",
+   "css": "v/58.3.65/assets/index-SgcNJQPd.css",
+   "date": "2026-11-24",
+   "notes": "修正骑手姓名字段(knight_name)，移除超大名单弹窗"
+  },
+  {
    "version": "58.3.64",
    "entry": "v/58.3.64/assets/index-DpvE-AlK.js",
    "css": "v/58.3.64/assets/index-SgcNJQPd.css",
