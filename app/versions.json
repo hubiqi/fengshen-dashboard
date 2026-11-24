@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "58.3.71",
+   "entry": "v/58.3.71/assets/index-DpvE-AlK.js",
+   "css": "v/58.3.71/assets/index-SgcNJQPd.css",
+   "date": "2026-11-24",
+   "notes": "新增维度面板：单量/人效/得分/准时率/妥投率/不满意/复合，左侧当前值(完单固定)+右侧每日趋势图"
+  },
+  {
    "version": "58.3.70",
    "entry": "v/58.3.70/assets/index-DpvE-AlK.js",
    "css": "v/58.3.70/assets/index-SgcNJQPd.css",
