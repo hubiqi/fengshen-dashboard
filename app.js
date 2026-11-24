@@ -124,6 +124,8 @@ function resetForAccount() {
   try { S.level = 'agency'; S.key = ''; S.keyName = ''; S.quick = 'today'; } catch (e) {}
   try { SB.districts = []; SB.sel = null; } catch (e) {}
   try { TREND = { key: null, points: null, metric: null, loading: false }; } catch (e) {}
+  // ★ 2026-11-24：维度趋势也要清 —— 否则切换代理商后迷你图还是上一个公司的曲线
+  try { DIM.series = {}; DIM.sig = ''; } catch (e) {}
   // ★ 2026-11-04：罗盘缓存也要清，否则切换完商还显示上一个公司的实时值
   try { RT_PLAT = {}; RT_ERR = ''; MOM = {}; } catch (e) {}
   try { FIN.data = null; FIN.tab = 'agency'; FIN.kw = ''; } catch (e) {}
@@ -963,11 +965,25 @@ function itemHtml(r) {
   var nm = '<b>' + esc(r.name || r.id) + '</b>' +
     (r.siteName ? '<span class="site">' + esc(r.siteName) +
       (r.siteCount > 1 ? '<i class="multi">多</i>' : '') + '</span>' : '');
+  // ★ 2026-11-24：维度行 —— 左边「完单 + 当前维度值」，右边逐日迷你趋势图。
+  //   单量维度时只显示一个「单量」，不再「完单」「单量」各来一遍。
+  var dd = dimOf(DIM.key);
+  var dv = null;
+  if (dd.k === 'orders') dv = r.orders;
+  else if (dd.k === 'score') dv = (r.score && r.score.cur != null) ? r.score.cur : null;
+  else if (dd.k === 'duration') dv = r.duration;
+  else dv = r[dd.k];
+  var dimVals = (dd.k === 'orders')
+    ? '<span class="dv act">单量<b>' + dimFmt(r.orders, 'int') + '</b></span>'
+    : '<span class="dv">完单<b>' + num(r.orders) + '</b></span>' +
+      '<span class="dv act">' + dd.n + '<b>' + dimFmt(dv, dd.fmt) + '</b></span>';
+  var dimRow = '<div class="dimrow">' +
+    '<div class="dimvals">' + dimVals + '</div>' + miniSvg(r.id) + '</div>';
   return '<div class="item" data-id="' + esc(r.id) + '" data-nm="' + esc(r.name || '') + '">' +
     '<div class="row1">' +
       '<div class="nm">' + nm + '</div>' +
-      '<div class="sc">' + num(r.orders) + '</div>' +
     '</div>' +
+    dimRow +
     '<div class="row2 g6">' +
       '<span>完单 <b>' + num(r.orders) + '</b></span>' +
       '<span class="sc-cell" title="' + esc(scoreHint()) + '">' + scoreLabel() +
@@ -1557,6 +1573,10 @@ function renderList(rows, isMaster) {
   $('listTitle').firstChild.nodeValue = ({
     district: '商圈片明细', site: '站点明细', rider: '骑手明细'
   })[S.level] || '明细';
+  // ★ 维度按钮组要【独立渲染】：没数据时也要能看到/能点，
+  //   否则"该区间暂无数据"底下连按钮都没有（用户会以为功能没做）。
+  renderDimBar();
+  loadDimSeries();
   if (!rows.length) { $('list').innerHTML = '<div class="empty">该区间暂无数据</div>'; return; }
 
   // ★★ 只有 /api/metrics 送来的【新数据】才能改写"权威全量行集"。
@@ -1672,6 +1692,159 @@ function mark(el, expand) {
  * 四个层级通用（整商/商圈片/站点/骑手），数据来自 /api/trend。
  */
 var TREND = { key: null, points: null, metric: null, loading: false };
+
+/* ══ 显示维度（2026-11-24 用户要求）═══════════════════════════════
+ * 点哪个维度，明细每行最左边就显示该维度的值（完单固定显示），
+ * 右侧画该对象在这个维度上的逐日趋势迷你图。
+ *   f  = /api/trend_multi 返回的字段名
+ *   fmt= 数值格式化方式
+ */
+var DIMS = [
+  { k: 'orders',     n: '单量',   f: 'orders',     fmt: 'int' },
+  { k: 'efficiency', n: '人效',   f: 'efficiency', fmt: 'num2' },
+  { k: 'score',      n: '得分',   f: 'dayNet',     fmt: 'num2' },
+  { k: 't8',         n: '准时率', f: 'ontime',     fmt: 'pct2' },
+  { k: 'likt',       n: '妥投率', f: 'likt',       fmt: 'pct2' },
+  { k: 'dissat',     n: '不满意', f: 'dissat',     fmt: 'pct3' },
+  { k: 'duration',   n: '复合',   f: 'dur',        fmt: 'sec' }
+];
+var DIM = { key: 'orders', series: {}, sig: '', loading: false };
+
+function dimOf(k) {
+  for (var i = 0; i < DIMS.length; i++) if (DIMS[i].k === k) return DIMS[i];
+  return DIMS[0];
+}
+function dimFmt(v, fmt) {
+  if (v == null || v === '' || isNaN(Number(v))) return '—';
+  v = Number(v);
+  if (fmt === 'int') return num(Math.round(v));
+  if (fmt === 'num2') return v.toFixed(2);
+  if (fmt === 'pct2') return (v * 100).toFixed(2) + '%';
+  if (fmt === 'pct3') return (v * 100).toFixed(3) + '%';
+  if (fmt === 'sec') return v.toFixed(1) + 's';
+  return String(v);
+}
+
+function renderDimBar() {
+  var bar = $('dimBar');
+  if (!bar) return;
+  var h = '<span class="dim-lab">显示维度</span>';
+  DIMS.forEach(function (d) {
+    h += '<button data-dim="' + d.k + '"' + (DIM.key === d.k ? ' class="on"' : '') + '>' + d.n + '</button>';
+  });
+  bar.innerHTML = h;
+  Array.prototype.forEach.call(bar.querySelectorAll('button'), function (b) {
+    b.onclick = function () {
+      var k = b.getAttribute('data-dim');
+      if (DIM.key === k) return;
+      DIM.key = k;
+      // ★ 必须清空上一维度的曲线：否则新数据还没回来时，
+      //   会用【新维度的格式】去渲染【旧维度的数值】——
+      //   实测把单量 9727 显示成「972700.00%」（用户会以为数据错了）。
+      DIM.series = {};
+      DIM.sig = '';
+      renderDimBar();
+      // 只重绘列表行（不重新请求 /api/metrics）
+      if (LAST_ROWS && LAST_ROWS.length) renderList(LAST_ROWS, false);
+    };
+  });
+}
+
+/* 拉该层级所有对象的逐日序列（一次请求，供所有行画迷你图）
+ * ★ 按【维度】分别缓存：后端只传当前维度那一列（约 25KB），
+ *   一次传 7 列在跨境抖动链路上实测 3.7~45 秒，单列稳定 1~2 秒。
+ *   切维度时如果这一列已经拿过就直接画，不重复请求。 */
+function loadDimSeries(force) {
+  var sig = [S.level, S.from, S.to, ACCT, DIM.key].join('|');
+  if (!force && DIM.sig === sig && Object.keys(DIM.series).length) return;
+  DIM.sig = sig;
+  DIM.loading = true;
+  var fld = dimOf(DIM.key).f;
+  var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
+  api('/api/trend_multi?' + aq + 'level=' + q(S.level) +
+      '&from=' + q(S.from) + '&to=' + q(S.to) + '&metric=' + q(fld),
+      { timeout: 60000 })
+    .then(function (j) {
+      DIM.loading = false;
+      if (DIM.sig !== sig) return;        // 期间又切了维度/日期，丢弃
+      var s = (j && j.series) || {};
+      // 后端单列模式返回 [{d,v}]，统一成前端用的 [{date, <field>}]
+      var out = {};
+      for (var k in s) {
+        out[k] = s[k].map(function (x) { return { date: x.d, val: x.v }; });
+      }
+      DIM.series = out;
+      // 数据回来后重绘，让迷你图出现
+      if (LAST_ROWS && LAST_ROWS.length) renderList(LAST_ROWS, false);
+    })
+    .catch(function () { DIM.loading = false; });
+}
+
+/* 迷你趋势图：每天一个点，可看出逐日走势 */
+function miniSvg(id) {
+  var dd = dimOf(DIM.key);
+  var pts = DIM.series[String(id)] || [];
+  if (!pts.length) return '<div class="mini"><span class="mini-empty">' +
+    (DIM.loading ? '加载趋势…' : '无逐日数据') + '</span></div>';
+  var vals = [], dates = [];
+  pts.forEach(function (p) {
+    var v = p.val;                       // 后端单列模式：{date, val}
+    if (v == null || isNaN(Number(v))) v = null;
+    else v = Number(v);
+    vals.push(v); dates.push(p.date);
+  });
+  var has = vals.filter(function (v) { return v != null; });
+  if (!has.length) return '<div class="mini"><span class="mini-empty">该维度无数据</span></div>';
+
+  var W = 130, H = 30, pad = 3;
+  var lo = Math.min.apply(null, has), hi = Math.max.apply(null, has);
+  if (hi - lo < 1e-9) { lo = lo - Math.abs(lo || 1) * 0.05; hi = hi + Math.abs(hi || 1) * 0.05; }
+  var n = vals.length;
+  var X = function (i) { return n === 1 ? W / 2 : pad + (W - pad * 2) * i / (n - 1); };
+  var Y = function (v) { return H - pad - (H - pad * 2) * (v - lo) / (hi - lo); };
+
+  // 折线（跳过空值，空值处断开）
+  var segs = [], cur = [];
+  vals.forEach(function (v, i) {
+    if (v == null) { if (cur.length) { segs.push(cur); cur = []; } }
+    else cur.push([X(i), Y(v)]);
+  });
+  if (cur.length) segs.push(cur);
+
+  var out = ['<svg class="mini" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">'];
+  // 最高点画一条淡淡的参考线，让"哪天最高"一眼可见
+  out.push('<line x1="0" y1="' + Y(hi) + '" x2="' + W + '" y2="' + Y(hi) +
+    '" stroke="#eef1f6" stroke-width="1"/>');
+  segs.forEach(function (seg) {
+    if (seg.length === 1) {
+      out.push('<circle cx="' + seg[0][0] + '" cy="' + seg[0][1] +
+        '" r="1.8" fill="#1f6feb"/>');
+      return;
+    }
+    out.push('<polyline fill="none" stroke="#1f6feb" stroke-width="1.4" ' +
+      'stroke-linejoin="round" stroke-linecap="round" points="' +
+      seg.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ') + '"/>');
+  });
+  // 每个数据点都画小圆点 + <title>，手机长按/电脑悬浮就能看到当天数值
+  vals.forEach(function (v, i) {
+    if (v == null) return;
+    var cx = X(i), cy = Y(v);
+    out.push('<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) +
+      '" r="1.5" fill="#fff" stroke="#1f6feb" stroke-width="1">' +
+      '<title>' + esc(dates[i]) + '  ' + dimFmt(v, dd.fmt) + '</title></circle>');
+  });
+  // 末点高亮
+  for (var i = vals.length - 1; i >= 0; i--) {
+    if (vals[i] != null) {
+      out.push('<circle cx="' + X(i).toFixed(1) + '" cy="' + Y(vals[i]).toFixed(1) +
+        '" r="2.2" fill="#1f6feb"/>');
+      break;
+    }
+  }
+  out.push('</svg>');
+  return out.join('');
+}
+
 
 // 每个卡片指标 → 趋势字段。kind 决定 Y 轴量纲与格式化
 var T_METRICS = {
