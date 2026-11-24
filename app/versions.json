@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "58.3.70",
+   "entry": "v/58.3.70/assets/index-DpvE-AlK.js",
+   "css": "v/58.3.70/assets/index-SgcNJQPd.css",
+   "date": "2026-11-24",
+   "notes": "时长不走统计改为直接读页面上的『时长↓』标记，与列表显示完全一致"
+  },
+  {
    "version": "58.3.69",
    "entry": "v/58.3.69/assets/index-DpvE-AlK.js",
    "css": "v/58.3.69/assets/index-SgcNJQPd.css",
