@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "58.3.69",
+   "entry": "v/58.3.69/assets/index-DpvE-AlK.js",
+   "css": "v/58.3.69/assets/index-SgcNJQPd.css",
+   "date": "2026-11-24",
+   "notes": "提醒命中只统计当班骑手(排班内)，与页面产班列表一致"
+  },
+  {
    "version": "58.3.68",
    "entry": "v/58.3.68/assets/index-DpvE-AlK.js",
    "css": "v/58.3.68/assets/index-SgcNJQPd.css",
