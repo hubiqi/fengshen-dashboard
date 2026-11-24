@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "58.3.64",
+   "entry": "v/58.3.64/assets/index-DpvE-AlK.js",
+   "css": "v/58.3.64/assets/index-SgcNJQPd.css",
+   "date": "2026-11-24",
+   "notes": "提醒开工：前端把命中/在线人数与姓名推给原生 setRemindResult，通知栏显示名单"
+  },
+  {
    "version": "58.3.63",
    "entry": "v/58.3.63/assets/index-DpvE-AlK.js",
    "css": "v/58.3.63/assets/index-SgcNJQPd.css",
