@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "58.3.61",
+   "entry": "v/58.3.61/assets/index-DpvE-AlK.js",
+   "css": "v/58.3.61/assets/index-SgcNJQPd.css",
+   "date": "2026-11-24",
+   "notes": "修复骑手列表加载失败 w is not defined（移除已废弃的 ht(w,...) 调用）"
+  },
+  {
    "version": "58.3.60",
    "entry": "v/58.3.60/assets/index-DpvE-AlK.js",
    "css": "v/58.3.60/assets/index-SgcNJQPd.css",
