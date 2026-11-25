@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "58.3.74",
+   "entry": "v/58.3.74/assets/index-DpvE-AlK.js",
+   "css": "v/58.3.74/assets/index-SgcNJQPd.css",
+   "date": "2026-11-25",
+   "notes": "移除提醒开工：删除前端统计与推送，仅保留时长增长判定"
+  },
+  {
    "version": "58.3.73",
    "entry": "v/58.3.73/assets/index-DpvE-AlK.js",
    "css": "v/58.3.73/assets/index-SgcNJQPd.css",
