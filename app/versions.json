@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "58.3.76",
+   "entry": "v/58.3.76/assets/index-DpvE-AlK.js",
+   "css": "v/58.3.76/assets/index-SgcNJQPd.css",
+   "date": "2026-11-25",
+   "notes": "移除列表页『提醒开工』按钮，仅保留预警入口"
+  },
+  {
    "version": "58.3.75",
    "entry": "v/58.3.75/assets/index-DpvE-AlK.js",
    "css": "v/58.3.75/assets/index-SgcNJQPd.css",
