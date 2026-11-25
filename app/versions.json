@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "58.3.75",
+   "entry": "v/58.3.75/assets/index-DpvE-AlK.js",
+   "css": "v/58.3.75/assets/index-SgcNJQPd.css",
+   "date": "2026-11-25",
+   "notes": "预警判定改用与『时长↓』徽标同一个增长信号(有基线时覆盖cur_growth)，解决页面显示不走但预警0人"
+  },
+  {
    "version": "58.3.74",
    "entry": "v/58.3.74/assets/index-DpvE-AlK.js",
    "css": "v/58.3.74/assets/index-SgcNJQPd.css",
