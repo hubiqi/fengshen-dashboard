@@ -1820,131 +1820,44 @@ function loadDimSeries(force) {
     .catch(function () { DIM.loading = false; });
 }
 
-/* ══ 展开行里的大趋势图（2026-11-26 用户要求：把下面的趋势图塞进红框）
- * 与行内迷你图【同一份数据、同一个区间、同一个维度】，
- * 只是画得更大：带 Y 轴刻度、X 轴日期、每点数值、均值虚线。
- * 全部走 DIM.series，不另发请求。
+/* ══ 展开行里的大趋势图（2026-11-26）
+ * 用户要求：「把下面的趋势图塞进红框」「和下面一样的表格一样的」——
+ * 所以这里【直接调 buildTrendSvg】，与大弹窗同一套代码，输出必然一致。
+ * 数据取 DIM.series（与行内迷你图同源，不额外请求），字段按当前显示维度。
  */
+var DIM_METRIC = {
+  orders:     { f: 'orders',     rate: false,             label: '单量',   unit: '' },
+  efficiency: { f: 'efficiency', rate: false,             label: '人效',   unit: '' },
+  score:      { f: 'dayNet',     rate: false,             label: '得分',   unit: '' },
+  t8:         { f: 'ontime',     rate: true,  dp: 2,      label: '准时率', unit: '%' },
+  likt:       { f: 'likt',       rate: true,  dp: 2,      label: '妥投率', unit: '%' },
+  dissat:     { f: 'dissat',     rate: true,  dp: 3,      label: '不满意', unit: '%' },
+  duration:   { f: 'dur',        rate: false,             label: '复合',   unit: 's' }
+};
+
 function bigTrendSvg(id) {
   var dd = dimOf(DIM.key);
-  var pts = DIM.series[String(id)] || [];
-  if (!pts.length) {
+  var m = DIM_METRIC[dd.k] || { f: dd.f, rate: dd.fmt.indexOf('pct') === 0, label: dd.n, unit: '' };
+  var raw = DIM.series[String(id)] || [];
+  if (!raw.length) {
     return '<div class="bigtrend"><div class="bt-empty">' +
       (DIM.loading ? '加载趋势…' : '该维度暂无逐日数据') + '</div></div>';
   }
-  var vals = [], dates = [];
-  pts.forEach(function (p) {
-    var v = (p.val == null) ? null : Number(p.val);
-    if (v != null && isNaN(v)) v = null;
-    vals.push(v);
-    dates.push(String(p.date || '').slice(5));   // MM-DD
+  // DIM.series 是单列格式 [{date, val}]，转成 buildTrendSvg 要的 [{date, <field>}]
+  var pts = raw.map(function (x) {
+    var o = { date: x.date };
+    o[m.f] = (x.val == null ? null : Number(x.val));
+    return o;
   });
-  var has = [];
-  vals.forEach(function (v, i) { if (v != null) has.push({ v: v, i: i }); });
-  if (!has.length) return '<div class="bigtrend"><div class="bt-empty">该维度暂无数据</div></div>';
-
-  var W = 660, H = 180;
-  // ★ 顶部要留够：数值标签画在点上方 9px，字高约 10px ⇒ pad.t 至少 22
-  // ★ 左边要留够：Y 轴刻度文字右对齐到 pad.l-6，首个点的数值标签从 pad.l 起
-  //   向右写（见下方 anchor 处理），46 才不会和刻度打架（实测 40 会压字）。
-  var pad = { l: 46, r: 16, t: 26, b: 22 };
-  var iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
-
-  var lo = Math.min.apply(null, has.map(function (o) { return o.v; }));
-  var hi = Math.max.apply(null, has.map(function (o) { return o.v; }));
-  var span = hi - lo;
-  if (span < 1e-9) {                      // 全平：按量级给个舒适范围
-    var base = Math.abs(hi) || 1;
-    lo = hi - base * 0.05; hi = hi + base * 0.05;
-  } else {
-    lo = lo - span * 0.12; hi = hi + span * 0.14;
-  }
-  if (dd.fmt === 'pct2' || dd.fmt === 'pct3') {   // 比率不越界
-    lo = Math.max(0, lo); hi = Math.min(1, hi);
-  }
-
-  var n = vals.length;
-  var X = function (i) { return n === 1 ? pad.l + iw / 2 : pad.l + iw * i / (n - 1); };
-  var Y = function (v) { return pad.t + ih - ih * (v - lo) / (hi - lo); };
-
-  var out = ['<svg class="bigtrend-svg" viewBox="0 0 ' + W + ' ' + H + '" ' +
-    'preserveAspectRatio="none">'];
-
-  // Y 轴：4 条网格线 + 刻度
-  for (var g = 0; g <= 4; g++) {
-    var gv = lo + (hi - lo) * g / 4;
-    var gy = Y(gv);
-    var big = (W > 0);
-    var ty = gy < pad.t + 6 ? gy + 11 : gy - 4;
-    out.push('<line x1="' + pad.l + '" y1="' + gy.toFixed(1) + '" x2="' + (W - pad.r) +
-      '" y2="' + gy.toFixed(1) + '" stroke="#eef1f6" stroke-width="1"/>');
-    out.push('<text class="bt-ytick" x="' + (pad.l - 6) + '" y="' + ty.toFixed(1) +
-      '" text-anchor="end">' + dimFmt(gv, dd.fmt) + '</text>');
-  }
-
-  // 均值虚线
-  var avg = has.reduce(function (s, o) { return s + o.v; }, 0) / has.length;
-  var ay = Y(avg);
-  out.push('<line x1="' + pad.l + '" y1="' + ay.toFixed(1) + '" x2="' + (W - pad.r) +
-    '" y2="' + ay.toFixed(1) + '" stroke="#e8a33d" stroke-width="1" ' +
-    'stroke-dasharray="5 4"/>');
-  out.push('<text class="bt-avg" x="' + (W - pad.r - 2) + '" y="' + (ay - 4).toFixed(1) +
-    '" text-anchor="end">均 ' + dimFmt(avg, dd.fmt) + '</text>');
-
-  // 折线（空值处断开）
-  var segs = [], cur = [];
-  vals.forEach(function (v, i) {
-    if (v == null) { if (cur.length) { segs.push(cur); cur = []; } }
-    else cur.push([X(i), Y(v)]);
-  });
-  if (cur.length) segs.push(cur);
-  segs.forEach(function (seg) {
-    if (seg.length === 1) {
-      out.push('<circle cx="' + seg[0][0].toFixed(1) + '" cy="' + seg[0][1].toFixed(1) +
-        '" r="2.4" fill="#1f6feb"/>');
-      return;
-    }
-    out.push('<polyline fill="none" stroke="#1f6feb" stroke-width="1.8" ' +
-      'stroke-linejoin="round" stroke-linecap="round" points="' +
-      seg.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); })
-         .join(' ') + '"/>');
-  });
-
-  // 点 + 数值标签。点多时隔点标（避免糊成一片）
-  var step = n > 20 ? 2 : 1;
-  vals.forEach(function (v, i) {
-    if (v == null) return;
-    var cx = X(i), cy = Y(v);
-    out.push('<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) +
-      '" r="2" fill="#fff" stroke="#1f6feb" stroke-width="1.2">' +
-      '<title>' + esc(dates[i]) + '  ' + dimFmt(v, dd.fmt) + '</title></circle>');
-    if (i % step === 0 || i === n - 1) {
-      // ★ 首尾点的数值标签要贴边对齐，否则会分别压到 Y 轴刻度和右边界，
-      //   看起来像「31.84%」和点重在一起（实测）。中间点居中。
-      var anc = (i === 0) ? 'start' : (i === n - 1 ? 'end' : 'middle');
-      var lx = cx + (i === 0 ? 2 : (i === n - 1 ? -2 : 0));
-      out.push('<text class="bt-val" x="' + lx.toFixed(1) + '" y="' +
-        (cy - 7).toFixed(1) + '" text-anchor="' + anc + '">' +
-        dimFmt(v, dd.fmt) + '</text>');
-    }
-  });
-
-  // X 轴日期：点多时抽稀
-  var ds = n > 20 ? Math.ceil(n / 13) : (n > 10 ? 2 : 1);
-  dates.forEach(function (d, i) {
-    if (i % ds !== 0 && i !== n - 1) return;
-    if (i !== n - 1 && (n - 1 - i) < ds * 0.6) return;   // 避免和末点重叠
-    out.push('<text class="bt-xtick" x="' + X(i).toFixed(1) + '" y="' +
-      (H - 6) + '" text-anchor="middle">' + esc(d) + '</text>');
-  });
-
-  out.push('</svg>');
-
+  var host = document.getElementById('list') || document.body;
+  var w = Math.max(320, (host.clientWidth || 360) - 34);   // 减去行内边距
+  var built = buildTrendSvg(pts, m, { width: w, height: 180 });
+  if (!built) return '<div class="bigtrend"><div class="bt-empty">该维度暂无数据</div></div>';
   var tr = trendRange();
   return '<div class="bigtrend">' +
-    '<div class="bt-head"><b>' + dd.n + '</b>' +
-      '<span>' + n + ' 天 · ' + esc(tr[0]) + ' ~ ' + esc(tr[1]) + '</span></div>' +
-    out.join('') + '</div>';
+    '<div class="bt-head"><b>' + esc(m.label) + '</b>' +
+      '<span>' + pts.length + ' 天 · ' + esc(tr[0]) + ' ~ ' + esc(tr[1]) + '</span></div>' +
+    '<div class="bt-scroll">' + built.svg + '</div></div>';
 }
 
 /* 迷你趋势图：每天一个点，可看出逐日走势 */
@@ -2215,20 +2128,26 @@ function closeTrend() {
   b.hidden = true;
 }
 
-function drawTrend(label) {
-  var m = T_METRICS[label];
-  var pts = TREND.points || [];
-  var box = trendBox();
-  if (!pts.length) { box.innerHTML = '<div class="empty">该区间暂无数据</div>'; return; }
+/* ══ 趋势图 SVG 的唯一实现（2026-11-26 重构）════════════════════
+ * 大弹窗（drawTrend）和明细展开行（bigTrendSvg）都调这里，
+ * 保证两处【一模一样】：同样的整数刻度、同样的标签避让、同样的均值线。
+ * 以前是两套画法，展开行那张的刻度是 100%/76.67%/53.33% 这种怪值，
+ * 数值标签还互相压字 —— 用户一眼就看出不一样。
+ *
+ * pts / m 同 drawTrend；opt = { width, height }
+ * 返回 { svg, W, H, pad }
+ */
+function buildTrendSvg(pts, m, opt) {
+  opt = opt || {};
   var vals = pts.map(function (p) { return p[m.f]; }).filter(function (v) { return v != null; });
-  if (!vals.length) { box.innerHTML = '<div class="empty">该指标暂无数据</div>'; return; }
+  if (!vals.length) return null;
 
   // ★ 宽度取【容器宽】与【点数所需宽】的较大者（用户 2026-10-07：电脑端图表好丑）。
   //   原来固定 max(320, 点数*40+96)，在宽屏上图表只占左侧一小块、右侧大片空白；
   //   窄屏上点数多时才需要横向滑动。
-  var availW = Math.max(320, (box.clientWidth || 360) - 2);
+  var availW = Math.max(320, (opt.width || 360) - 2);
   var needW = pts.length * 40 + 96;
-  var W = Math.max(availW, needW), H = 200;
+  var W = Math.max(availW, needW), H = (opt.height || 200);
   // ★ 顶部留白要够：数值标签画在数据点【上方 8px】，最高点恰好落在 pad.t 时
   //   标签会被 SVG 上边界裁掉（用户 2026-10-07："顶部的留白要够"）。
   //   标签字高约 11px + 8px 偏移 ⇒ pad.t 至少 24 才留得住。
@@ -2437,6 +2356,22 @@ function drawTrend(label) {
       ' paint-order="stroke">' + txt + '</text>');
   });
   out.push('</svg>');
+  return { svg: out.join(''), W: W, H: H, pad: pad };
+}
+
+function drawTrend(label) {
+  var m = T_METRICS[label];
+  var pts = TREND.points || [];
+  var box = trendBox();
+  if (!pts.length) { box.innerHTML = '<div class="empty">该区间暂无数据</div>'; return; }
+  var built = buildTrendSvg(pts, m, {
+    width: (box.clientWidth || (box.parentElement && box.parentElement.clientWidth) || 360),
+    height: 200
+  });
+  if (!built) { box.innerHTML = '<div class="empty">该指标暂无数据</div>'; return; }
+  var W = built.W, H = built.H, pad = built.pad;
+  var out = [built.svg];
+
 
   // ★★★ 滑动【仅在数据太挤时启用】（用户 2026-10-07 明确要求）
   //   判定：按点数算出的"不挤"宽度 > 容器宽度 ⇒ 点太多、横向放不下 ⇒ 才开滚动。

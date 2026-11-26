@@ -189,19 +189,20 @@ td.sc{font-size:11px;color:var(--sub)}
 /* 展开区：默认收起 */
 .item .row3{display:none;margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
 /* ══ 展开行里的大趋势图（2026-11-26）════════════════════════════
- * 缩窄一点、压在深色底上，和上面那排格子在视觉上分开。
- * SVG 用 viewBox + width:100% 自适应，手机上不会横向溢出。 */
-.item .deepTrend{margin-top:8px;background:#f7f9fc;border:1px solid #eef1f6;
-  border-radius:8px;padding:6px 6px 2px;overflow:hidden}
+ * 内容由 buildTrendSvg 生成（与大弹窗同一套代码），这里只负责容器：
+ * 横向可滑动（点多时和弹窗一样能拖），SVG 保持原始宽高不被压缩 ——
+ * 千万别用 width:100% 拉伸，那会把字和点挤变形，就和弹窗不一样了。 */
+.item .deepTrend{margin-top:8px;background:#fff;border:1px solid #eef1f6;
+  border-radius:8px;padding:6px 4px 2px;overflow:hidden}
 .item .deepTrend .bt-head{display:flex;align-items:baseline;gap:6px;
   font-size:10.5px;color:var(--sub);margin:0 2px 2px}
 .item .deepTrend .bt-head b{font-size:11px;color:var(--fg)}
 .item .deepTrend .bt-empty{font-size:10.5px;color:var(--sub);padding:14px 4px;text-align:center}
-.bigtrend-svg{display:block;width:100%;height:180px}
-.bigtrend-svg .bt-ytick{font-size:9px;fill:#9aa4b2}
-.bigtrend-svg .bt-xtick{font-size:9px;fill:#9aa4b2}
-.bigtrend-svg .bt-val{font-size:8.5px;fill:#1f6feb;font-weight:600}
-.bigtrend-svg .bt-avg{font-size:9px;fill:#e8a33d;font-weight:600}
+.bigtrend .bt-scroll{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
+.bigtrend .bt-scroll svg{display:block}
+/* ★ 与弹窗 .tr-scroll.on 一致：宽图不压缩，改为横向滑动，
+   否则手机上 26 天会被 max-width:100% 压扁、字号小到看不清。 */
+.bigtrend .bt-scroll .trendsvg{max-width:none;width:auto}
 .item .more{display:none}
 .item.open{background:#fff;border-color:var(--blue);box-shadow:0 1px 4px rgba(31,111,235,.12)}
 .item.open .row3{display:block}
