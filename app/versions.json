@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "58.3.78",
+   "entry": "v/58.3.78/assets/index-DpvE-AlK.js",
+   "css": "v/58.3.78/assets/index-SgcNJQPd.css",
+   "date": "2026-11-26",
+   "notes": "新增预警状态条：显示上一次预警/提醒/成功/失败人数，一键提醒上线（复用前端 remind_work）"
+  },
+  {
    "version": "58.3.77",
    "entry": "v/58.3.77/assets/index-DpvE-AlK.js",
    "css": "v/58.3.77/assets/index-SgcNJQPd.css",
