@@ -1,8 +1,9 @@
 {
   "version": "58.6.21",
   "name": "风神出勤助手 v58.6.21",
-  "apk": "https://hubiqi.github.io/fengshen-dashboard/apk/v5863.apk",
+  "apk": "https://hubiqi.github.io/fengshen-dashboard/apk/fengshen_58.6.21.apk",
   "sha256": "f38cc7337b7734cdaf85e7f940126a456ae4504ee68570c392fa78aac433a5da",
   "size": 5548960,
-  "publishedAt": "2026-11-26T17:37:28+08:00"
+  "publishedAt": "2026-11-26T17:37:28+08:00",
+  "notes": "新增预警状态条：显示上一次预警/提醒成功失败人数，可一键提醒上线"
 }
