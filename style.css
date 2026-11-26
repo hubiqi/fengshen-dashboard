@@ -125,6 +125,9 @@ td.sc{font-size:11px;color:var(--sub)}
 .dimbar button:hover{border-color:var(--blue)}
 .dimbar button.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
 .dimbar .dim-lab{font-size:11px;color:var(--sub);align-self:center;margin-right:2px}
+/* ★ 2026-11-26：迷你图覆盖的区间（单日也画整月趋势） */
+.dimbar .dim-range{font-size:10.5px;color:var(--sub);align-self:center;
+  margin-left:auto;white-space:nowrap;opacity:.85}
 .item .dimrow{display:flex;align-items:center;gap:10px;margin-top:3px}
 .item .dimvals{display:flex;align-items:baseline;gap:10px;flex:0 0 auto}
 .item .dimvals .dv{font-size:10.5px;color:var(--sub);white-space:nowrap}

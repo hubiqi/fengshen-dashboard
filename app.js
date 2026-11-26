@@ -262,6 +262,20 @@ function computeRange() {
   return [S.from, S.to];
 }
 
+/* 趋势取数区间 —— 行内迷你图与趋势弹窗【共用这一份】。
+ * · 区间模式：跟随用户选的区间
+ * · 单日模式（今天/昨天/前天/选日期）：所在月月初 ~ 当天
+ * ★ 2026-11-26 用户要求：「骑手趋势图不管是否选择单日，都要映射下面的趋势图表」。
+ *   原来迷你图直接用 S.from~S.to，单日时就只有一个点，等于没有图。
+ *   大趋势图一直是「整月」口径，这里跟它对齐，两处不再各算各的。 */
+function trendRange() {
+  var r = computeRange();
+  var to = r[1];
+  var from = (S.quick === 'range') ? r[0] : (r[0].slice(0, 7) + '-01');
+  if (from > to) from = to;          // 防御：起始晚于结束
+  return [from, to];
+}
+
 /* ── 指标卡 ───────────────────────────────────────────────────────── */
 function card(k, v, u, d, mom, upIsGood) {
   // ★ mom = 环比昨日（罗盘 compareDayRate）。原来卡片只有静态数字，
@@ -315,7 +329,8 @@ function prefetchScore(from, to) {
   // ★ 与 openTrend 用【同一个取数区间】，否则两处写进 TREND.points 的
   //   数据范围不同、key 又是同一个，谁后跑谁覆盖 —— 打开图表时
   //   拿到的可能是另一个范围的数据（7点 vs 30点），滑动也就触发不了。
-  var m0 = (S.quick === 'range') ? from : (ym + '-01');
+  // ★ 2026-11-26：改用 trendRange()，与弹窗、行内迷你图三处完全一致。
+  var m0 = trendRange()[0];
   var tkey = lv + '|' + key + '|' + m0 + '~' + to;
   var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
   api('/api/trend?' + aq + 'level=' + q(lv) + '&key=' + q(key) + '&from=' + q(m0) + '&to=' + q(to))
@@ -1732,6 +1747,15 @@ function renderDimBar() {
   DIMS.forEach(function (d) {
     h += '<button data-dim="' + d.k + '"' + (DIM.key === d.k ? ' class="on"' : '') + '>' + d.n + '</button>';
   });
+  // ★ 2026-11-26：标出迷你图覆盖的区间。
+  //   单日模式也画整月趋势（跟下面的趋势弹窗一致），不写清楚会让人
+  //   以为右边那条线是「今天一天」的。
+  var tr = trendRange();
+  var nd = Math.round((new Date(tr[1].replace(/-/g, '/')) - new Date(tr[0].replace(/-/g, '/'))) / 86400000) + 1;
+  if (nd > 1) {
+    h += '<span class="dim-range">右侧为 ' + esc(tr[0].slice(5)) + '~' + esc(tr[1].slice(5)) +
+         ' 趋势 · ' + nd + ' 天</span>';
+  }
   bar.innerHTML = h;
   Array.prototype.forEach.call(bar.querySelectorAll('button'), function (b) {
     b.onclick = function () {
@@ -1755,14 +1779,16 @@ function renderDimBar() {
  *   一次传 7 列在跨境抖动链路上实测 3.7~45 秒，单列稳定 1~2 秒。
  *   切维度时如果这一列已经拿过就直接画，不重复请求。 */
 function loadDimSeries(force) {
-  var sig = [S.level, S.from, S.to, ACCT, DIM.key].join('|');
+  var tr = trendRange();
+  var dfrom = tr[0], dto = tr[1];
+  var sig = [S.level, dfrom, dto, ACCT, DIM.key].join('|');
   if (!force && DIM.sig === sig && Object.keys(DIM.series).length) return;
   DIM.sig = sig;
   DIM.loading = true;
   var fld = dimOf(DIM.key).f;
   var aq = ACCT ? 'acct=' + q(ACCT) + '&' : '';
   api('/api/trend_multi?' + aq + 'level=' + q(S.level) +
-      '&from=' + q(S.from) + '&to=' + q(S.to) + '&metric=' + q(fld),
+      '&from=' + q(dfrom) + '&to=' + q(dto) + '&metric=' + q(fld),
       { timeout: 60000 })
     .then(function (j) {
       DIM.loading = false;
@@ -1826,11 +1852,14 @@ function miniSvg(id) {
       seg.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ') + '"/>');
   });
   // 每个数据点都画小圆点 + <title>，手机长按/电脑悬浮就能看到当天数值
+  // ★ 2026-11-26：点数多时自动缩小圆点 —— 单日模式现在也画整月（26 个点），
+  //   固定 r=1.5 会挤成一条实心线，看不出"每天一个点"。
+  var rr = n > 20 ? 1.0 : (n > 12 ? 1.2 : 1.5);
   vals.forEach(function (v, i) {
     if (v == null) return;
     var cx = X(i), cy = Y(v);
     out.push('<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) +
-      '" r="1.5" fill="#fff" stroke="#1f6feb" stroke-width="1">' +
+      '" r="' + rr + '" fill="#fff" stroke="#1f6feb" stroke-width="1">' +
       '<title>' + esc(dates[i]) + '  ' + dimFmt(v, dd.fmt) + '</title></circle>');
   });
   // 末点高亮
@@ -1895,7 +1924,8 @@ function openTrend(label) {
   //     ym 取的是起始月(9月)、只画到今天，图里只有 7 个点，
   //     既看不到整段数据、也不会触发左右滑动（7 天不滑）。
   //   · 其他模式（今天/昨天/前天/选日期）：仍是【所在月月初 ~ 今天】，"整月趋势"。
-  var trendFrom = (S.quick === 'range') ? r[0] : (ym + '-01');
+  // ★ 2026-11-26：抽到 trendRange()，行内迷你图用同一份，避免两处口径分家。
+  var trendFrom = trendRange()[0];
   // ★ 缓存标识要带上取数范围：否则先看「今天」(7点)、再切「区间」(30点)，
   //   lv|key 没变会直接用旧缓存，图里还是那 7 个点、也不会触发滑动。
   var tkey = lv + '|' + key + '|' + trendFrom + '~' + to;
