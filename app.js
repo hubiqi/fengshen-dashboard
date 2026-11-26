@@ -1632,6 +1632,9 @@ function renderList(rows, isMaster) {
   // ★ 「显示明细」时放开 200 行上限：否则会出现"点了展开却只有 200 行"，
   //   让人误以为这个区间就这么多骑手。收起时仍限 200 行，避免手机卡顿。
   var cap = LIST_F.showAll ? 100000 : 200;
+  // ★ 2026-11-26：重绘会整体替换 innerHTML，高度一变滚动位置就会跳。
+  //   趋势数据晚几秒回来时正好在用户滚动途中 → 记下 scrollY 再还原。
+  var _sy = window.scrollY || 0;
   // ★ 2026-11-26：记住哪些行是展开的。切「显示维度」会重绘整个列表，
   //   不记住的话用户刚展开想看趋势的那一行会被收起，得再点一次。
   var OPENED = {};
@@ -1656,6 +1659,10 @@ function renderList(rows, isMaster) {
   for (var oid in OPENED) {
     var oe = $('list').querySelector('.item[data-id="' + oid + '"]');
     if (oe) oe.classList.add('open');
+  }
+  // 还原滚动位置（重绘后高度可能变了，不还原就会"跳一下"）
+  if (_sy > 0 && Math.abs((window.scrollY || 0) - _sy) > 4) {
+    try { window.scrollTo(0, _sy); } catch (e) {}
   }
   // 选中态：只高亮，【不自动展开】。
 // ★ 之前恢复选中/自动选中首行时都顺手 add('open')，用户没点就被迫看一屏数据，
@@ -2711,6 +2718,22 @@ var _syncPoll = null, _wasRunning = false;
 // 首屏置空，保证第一次进来就会 loadAll 一次。
 var _lastSig = '';
 
+/* ★ 2026-11-26：有新数据时的提示（不自动重绘页面）
+ * 用户明确要求「我在浏览的时候不要继续刷新」—— 后台每 10 分钟同步一次，
+ * 原来每次都 loadAll()，正在看列表或趋势时会把页面重绘、滚动位置打断。
+ * 现在只亮提示条，用户点了才更新。 */
+var NEWDATA = false;
+function markNewData() {
+  NEWDATA = true;
+  var el = $('newDataChip');
+  if (el) el.hidden = false;
+}
+function clearNewData() {
+  NEWDATA = false;
+  var el = $('newDataChip');
+  if (el) el.hidden = true;
+}
+
 function fmtDur(s) {
   s = Math.max(0, Math.round(s || 0));
   if (s < 60) return s + ' 秒';
@@ -2804,8 +2827,11 @@ function syncTick() {
       if (_wasRunning || (sig !== _lastSig)) {
         _wasRunning = false;
         _lastSig = sig;
-        loadAll();
-        loadState();
+        // ★★ 2026-11-26（用户「我在浏览的时候不要继续刷新」）：
+        //   以前这里直接 loadAll()，每 10 分钟一次，正在翻列表/看趋势时
+        //   整个页面重绘、滚动位置跳走、展开的行被收起，非常打断。
+        //   现在只亮一个「有新数据」提示，用户点了才更新。
+        markNewData();
       }
       _syncPoll = setTimeout(syncTick, 20000);
     }
@@ -3330,6 +3356,15 @@ $('btnLogout').onclick = function () {
     });
 };
 $('btnPull2').onclick = function () { startPull($('pFrom').value || today(), $('pTo').value || today()); };
+
+/* ★ 2026-11-26：有新数据提示条的按钮 —— 用户主动点了才更新 */
+if ($('newDataBtn')) {
+  $('newDataBtn').onclick = function () {
+    clearNewData();
+    loadAll();
+    loadState();
+  };
+}
 /* ★ 顶部「立即刷新」= 刷新【今日运单增量】，不是补历史日期。
  *   原来 btnPull 调的是 startPull() → /api/pull，那是"拉取页面"用的全量接口，
  *   点它不会触发今日增量同步（用户反馈"点击立即刷新目前不会更新"）。

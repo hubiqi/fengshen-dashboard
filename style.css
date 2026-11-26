@@ -118,6 +118,16 @@ td.sc{font-size:11px;color:var(--sub)}
  * 左边：完单（固定）+ 当前选中维度的值
  * 右边：该对象在此维度上的逐日趋势迷你图
  * 展开（.open）时隐藏，让位给完整六格指标。 */
+/* ★ 2026-11-26：后台有新数据时的提示条（用户要求「浏览的时候不要继续刷新」） */
+.newdata{position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(76px + env(safe-area-inset-bottom));
+  z-index:80;display:flex;align-items:center;gap:8px;background:#111827;color:#fff;
+  font-size:12px;padding:8px 10px 8px 14px;border-radius:999px;
+  box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.newdata button{background:#1f6feb;color:#fff;border:0;border-radius:999px;
+  font-size:12px;padding:5px 12px;font-weight:600}
+.newdata button:active{opacity:.85}
+
 /* ★ 2026-11-26（用户要求「下拉显示维度要冻结方便操作」）：
    维度栏吸顶。sticky 需要祖先没有 overflow:hidden，所以用 top 偏移 +
    z-index 压住列表行；背景必须是不透明色，否则滚上去的字会透出来。
