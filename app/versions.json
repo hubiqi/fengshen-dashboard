@@ -1,6 +1,13 @@
 {
  "versions": [
   {
+   "version": "58.3.77",
+   "entry": "v/58.3.77/assets/index-DpvE-AlK.js",
+   "css": "v/58.3.77/assets/index-SgcNJQPd.css",
+   "date": "2026-11-26",
+   "notes": "恢复列表页提醒开工按钮及其反馈（提醒进度 提醒中 x/y、完成提示），保留预警判定同源修复"
+  },
+  {
    "version": "58.3.76",
    "entry": "v/58.3.76/assets/index-DpvE-AlK.js",
    "css": "v/58.3.76/assets/index-SgcNJQPd.css",
