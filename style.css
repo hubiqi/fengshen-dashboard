@@ -118,7 +118,13 @@ td.sc{font-size:11px;color:var(--sub)}
  * 左边：完单（固定）+ 当前选中维度的值
  * 右边：该对象在此维度上的逐日趋势迷你图
  * 展开（.open）时隐藏，让位给完整六格指标。 */
-.dimbar{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 8px}
+/* ★ 2026-11-26（用户要求「下拉显示维度要冻结方便操作」）：
+   维度栏吸顶。sticky 需要祖先没有 overflow:hidden，所以用 top 偏移 +
+   z-index 压住列表行；背景必须是不透明色，否则滚上去的字会透出来。
+   top 的高度 = 顶部吸顶条 + 日期行，实测 ~96px（手机）/ ~104px（桌面）。 */
+.dimbar{position:sticky;top:0;z-index:30;display:flex;flex-wrap:wrap;gap:5px;
+  margin:0 0 8px;padding:6px 0 6px;background:var(--panel,#fff);
+  box-shadow:0 1px 0 #eef1f6, 0 6px 10px -8px rgba(0,0,0,.12)}
 .dimbar button{padding:4px 10px;font-size:11.5px;border-radius:14px;
   border:1px solid var(--line);background:#fff;color:var(--sub);cursor:pointer;
   white-space:nowrap;transition:background .12s,color .12s,border-color .12s}
@@ -182,6 +188,20 @@ td.sc{font-size:11px;color:var(--sub)}
 
 /* 展开区：默认收起 */
 .item .row3{display:none;margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
+/* ══ 展开行里的大趋势图（2026-11-26）════════════════════════════
+ * 缩窄一点、压在深色底上，和上面那排格子在视觉上分开。
+ * SVG 用 viewBox + width:100% 自适应，手机上不会横向溢出。 */
+.item .deepTrend{margin-top:8px;background:#f7f9fc;border:1px solid #eef1f6;
+  border-radius:8px;padding:6px 6px 2px;overflow:hidden}
+.item .deepTrend .bt-head{display:flex;align-items:baseline;gap:6px;
+  font-size:10.5px;color:var(--sub);margin:0 2px 2px}
+.item .deepTrend .bt-head b{font-size:11px;color:var(--fg)}
+.item .deepTrend .bt-empty{font-size:10.5px;color:var(--sub);padding:14px 4px;text-align:center}
+.bigtrend-svg{display:block;width:100%;height:180px}
+.bigtrend-svg .bt-ytick{font-size:9px;fill:#9aa4b2}
+.bigtrend-svg .bt-xtick{font-size:9px;fill:#9aa4b2}
+.bigtrend-svg .bt-val{font-size:8.5px;fill:#1f6feb;font-weight:600}
+.bigtrend-svg .bt-avg{font-size:9px;fill:#e8a33d;font-weight:600}
 .item .more{display:none}
 .item.open{background:#fff;border-color:var(--blue);box-shadow:0 1px 4px rgba(31,111,235,.12)}
 .item.open .row3{display:block}

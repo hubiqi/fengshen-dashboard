@@ -908,9 +908,11 @@ function openAbn(flag) {
  * 全部数据由【本地运单】自算：站点级能算出商圈片（按订单比例加权），
  * 环比一律用所选日期 vs 前一天，不用平台罗盘的现成字段，维度更灵活。
  */
-/* 明细展开区：只放【得分】和【分子分母】。
+/* 明细展开区：得分 + 分子分母 + 【该骑手的整月趋势图】。
  * 所选日期 / 全月 / 环比 的三行对比已移到顶部「当前对象」卡片，
- * 这里不再重复 —— 同一个数字在两个地方出现，看着就乱。 */
+ * 这里不再重复 —— 同一个数字在两个地方出现，看着就乱。
+ * ★ 2026-11-26（用户要求）：把下面那个大趋势图塞进展开行，
+ *   并且跟着「显示维度」切换，不再只画一个看不出走势的迷你图。 */
 function detailGrid(r) {
   var p = r.parts || {}, sc = r.score || {};
   function kv(k, v) { return '<div class="kv"><span>' + k + '</span><b>' + v + '</b></div>'; }
@@ -923,7 +925,8 @@ function detailGrid(r) {
   g.push(kv('准时 分子/分母', num(p.ont_n) + ' / ' + num(p.ont_d)));
   g.push(kv('不满意 分子/分母', num(p.dis_n) + ' / ' + num(p.dis_d)));
   g.push(kv('复合 合计/完单', num(p.dur_n) + ' / ' + num(p.dur_d)));
-  return '<div class="deepGrid">' + g.join('') + '</div>';
+  return '<div class="deepGrid">' + g.join('') + '</div>' +
+         '<div class="deepTrend" data-id="' + esc(r.id) + '">' + bigTrendSvg(r.id) + '</div>';
 }
 
 /* 秒值格式化（fv('sec') 不处理 null，这里补一个安全版） */
@@ -1629,6 +1632,12 @@ function renderList(rows, isMaster) {
   // ★ 「显示明细」时放开 200 行上限：否则会出现"点了展开却只有 200 行"，
   //   让人误以为这个区间就这么多骑手。收起时仍限 200 行，避免手机卡顿。
   var cap = LIST_F.showAll ? 100000 : 200;
+  // ★ 2026-11-26：记住哪些行是展开的。切「显示维度」会重绘整个列表，
+  //   不记住的话用户刚展开想看趋势的那一行会被收起，得再点一次。
+  var OPENED = {};
+  Array.prototype.forEach.call($('list').querySelectorAll('.item.open'), function (x) {
+    OPENED[x.getAttribute('data-id')] = 1;
+  });
   $('list').innerHTML = rows.slice(0, cap).map(function (r) {
     LIST_ROWS[r.id] = r;
     // ★ 紧凑行：默认只一行摘要；点开的那个才展开完整指标（master-detail）。
@@ -1642,6 +1651,11 @@ function renderList(rows, isMaster) {
   //   所以这里必须单独兜一遍，否则点了"显示明细"一行都没展开。
   if (LIST_F.showAll) {
     Array.prototype.forEach.call(items, function (x) { x.classList.add('open'); });
+  }
+  // 恢复刚才展开着的行（切维度/重绘时不该把它收起来）
+  for (var oid in OPENED) {
+    var oe = $('list').querySelector('.item[data-id="' + oid + '"]');
+    if (oe) oe.classList.add('open');
   }
   // 选中态：只高亮，【不自动展开】。
 // ★ 之前恢复选中/自动选中首行时都顺手 add('open')，用户没点就被迫看一屏数据，
@@ -1804,6 +1818,133 @@ function loadDimSeries(force) {
       if (LAST_ROWS && LAST_ROWS.length) renderList(LAST_ROWS, false);
     })
     .catch(function () { DIM.loading = false; });
+}
+
+/* ══ 展开行里的大趋势图（2026-11-26 用户要求：把下面的趋势图塞进红框）
+ * 与行内迷你图【同一份数据、同一个区间、同一个维度】，
+ * 只是画得更大：带 Y 轴刻度、X 轴日期、每点数值、均值虚线。
+ * 全部走 DIM.series，不另发请求。
+ */
+function bigTrendSvg(id) {
+  var dd = dimOf(DIM.key);
+  var pts = DIM.series[String(id)] || [];
+  if (!pts.length) {
+    return '<div class="bigtrend"><div class="bt-empty">' +
+      (DIM.loading ? '加载趋势…' : '该维度暂无逐日数据') + '</div></div>';
+  }
+  var vals = [], dates = [];
+  pts.forEach(function (p) {
+    var v = (p.val == null) ? null : Number(p.val);
+    if (v != null && isNaN(v)) v = null;
+    vals.push(v);
+    dates.push(String(p.date || '').slice(5));   // MM-DD
+  });
+  var has = [];
+  vals.forEach(function (v, i) { if (v != null) has.push({ v: v, i: i }); });
+  if (!has.length) return '<div class="bigtrend"><div class="bt-empty">该维度暂无数据</div></div>';
+
+  var W = 660, H = 180;
+  // ★ 顶部要留够：数值标签画在点上方 9px，字高约 10px ⇒ pad.t 至少 22
+  // ★ 左边要留够：Y 轴刻度文字右对齐到 pad.l-6，首个点的数值标签从 pad.l 起
+  //   向右写（见下方 anchor 处理），46 才不会和刻度打架（实测 40 会压字）。
+  var pad = { l: 46, r: 16, t: 26, b: 22 };
+  var iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+
+  var lo = Math.min.apply(null, has.map(function (o) { return o.v; }));
+  var hi = Math.max.apply(null, has.map(function (o) { return o.v; }));
+  var span = hi - lo;
+  if (span < 1e-9) {                      // 全平：按量级给个舒适范围
+    var base = Math.abs(hi) || 1;
+    lo = hi - base * 0.05; hi = hi + base * 0.05;
+  } else {
+    lo = lo - span * 0.12; hi = hi + span * 0.14;
+  }
+  if (dd.fmt === 'pct2' || dd.fmt === 'pct3') {   // 比率不越界
+    lo = Math.max(0, lo); hi = Math.min(1, hi);
+  }
+
+  var n = vals.length;
+  var X = function (i) { return n === 1 ? pad.l + iw / 2 : pad.l + iw * i / (n - 1); };
+  var Y = function (v) { return pad.t + ih - ih * (v - lo) / (hi - lo); };
+
+  var out = ['<svg class="bigtrend-svg" viewBox="0 0 ' + W + ' ' + H + '" ' +
+    'preserveAspectRatio="none">'];
+
+  // Y 轴：4 条网格线 + 刻度
+  for (var g = 0; g <= 4; g++) {
+    var gv = lo + (hi - lo) * g / 4;
+    var gy = Y(gv);
+    var big = (W > 0);
+    var ty = gy < pad.t + 6 ? gy + 11 : gy - 4;
+    out.push('<line x1="' + pad.l + '" y1="' + gy.toFixed(1) + '" x2="' + (W - pad.r) +
+      '" y2="' + gy.toFixed(1) + '" stroke="#eef1f6" stroke-width="1"/>');
+    out.push('<text class="bt-ytick" x="' + (pad.l - 6) + '" y="' + ty.toFixed(1) +
+      '" text-anchor="end">' + dimFmt(gv, dd.fmt) + '</text>');
+  }
+
+  // 均值虚线
+  var avg = has.reduce(function (s, o) { return s + o.v; }, 0) / has.length;
+  var ay = Y(avg);
+  out.push('<line x1="' + pad.l + '" y1="' + ay.toFixed(1) + '" x2="' + (W - pad.r) +
+    '" y2="' + ay.toFixed(1) + '" stroke="#e8a33d" stroke-width="1" ' +
+    'stroke-dasharray="5 4"/>');
+  out.push('<text class="bt-avg" x="' + (W - pad.r - 2) + '" y="' + (ay - 4).toFixed(1) +
+    '" text-anchor="end">均 ' + dimFmt(avg, dd.fmt) + '</text>');
+
+  // 折线（空值处断开）
+  var segs = [], cur = [];
+  vals.forEach(function (v, i) {
+    if (v == null) { if (cur.length) { segs.push(cur); cur = []; } }
+    else cur.push([X(i), Y(v)]);
+  });
+  if (cur.length) segs.push(cur);
+  segs.forEach(function (seg) {
+    if (seg.length === 1) {
+      out.push('<circle cx="' + seg[0][0].toFixed(1) + '" cy="' + seg[0][1].toFixed(1) +
+        '" r="2.4" fill="#1f6feb"/>');
+      return;
+    }
+    out.push('<polyline fill="none" stroke="#1f6feb" stroke-width="1.8" ' +
+      'stroke-linejoin="round" stroke-linecap="round" points="' +
+      seg.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); })
+         .join(' ') + '"/>');
+  });
+
+  // 点 + 数值标签。点多时隔点标（避免糊成一片）
+  var step = n > 20 ? 2 : 1;
+  vals.forEach(function (v, i) {
+    if (v == null) return;
+    var cx = X(i), cy = Y(v);
+    out.push('<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) +
+      '" r="2" fill="#fff" stroke="#1f6feb" stroke-width="1.2">' +
+      '<title>' + esc(dates[i]) + '  ' + dimFmt(v, dd.fmt) + '</title></circle>');
+    if (i % step === 0 || i === n - 1) {
+      // ★ 首尾点的数值标签要贴边对齐，否则会分别压到 Y 轴刻度和右边界，
+      //   看起来像「31.84%」和点重在一起（实测）。中间点居中。
+      var anc = (i === 0) ? 'start' : (i === n - 1 ? 'end' : 'middle');
+      var lx = cx + (i === 0 ? 2 : (i === n - 1 ? -2 : 0));
+      out.push('<text class="bt-val" x="' + lx.toFixed(1) + '" y="' +
+        (cy - 7).toFixed(1) + '" text-anchor="' + anc + '">' +
+        dimFmt(v, dd.fmt) + '</text>');
+    }
+  });
+
+  // X 轴日期：点多时抽稀
+  var ds = n > 20 ? Math.ceil(n / 13) : (n > 10 ? 2 : 1);
+  dates.forEach(function (d, i) {
+    if (i % ds !== 0 && i !== n - 1) return;
+    if (i !== n - 1 && (n - 1 - i) < ds * 0.6) return;   // 避免和末点重叠
+    out.push('<text class="bt-xtick" x="' + X(i).toFixed(1) + '" y="' +
+      (H - 6) + '" text-anchor="middle">' + esc(d) + '</text>');
+  });
+
+  out.push('</svg>');
+
+  var tr = trendRange();
+  return '<div class="bigtrend">' +
+    '<div class="bt-head"><b>' + dd.n + '</b>' +
+      '<span>' + n + ' 天 · ' + esc(tr[0]) + ' ~ ' + esc(tr[1]) + '</span></div>' +
+    out.join('') + '</div>';
 }
 
 /* 迷你趋势图：每天一个点，可看出逐日走势 */
