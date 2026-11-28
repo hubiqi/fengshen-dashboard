@@ -118,6 +118,20 @@ td.sc{font-size:11px;color:var(--sub)}
  * 左边：完单（固定）+ 当前选中维度的值
  * 右边：该对象在此维度上的逐日趋势迷你图
  * 展开（.open）时隐藏，让位给完整六格指标。 */
+/* ★ 2026-11-28：拉取进度的六环节条
+   已完成=灰底对勾／当前=蓝色高亮／未到=浅灰。小屏自动换行。 */
+.sb-steps{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px}
+.sb-step{display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;
+  font-size:11px;line-height:1.4;background:#f2f5f9;color:#98a2b3;
+  border:1px solid transparent;white-space:nowrap;transition:.18s}
+.sb-step .n{font-size:10px;opacity:.75}
+.sb-step.done{background:#eef6ee;color:#2f7d32}
+.sb-step.cur{background:#e8f0fe;color:#1f6feb;border-color:#c3d9ff;font-weight:600;
+  box-shadow:0 0 0 3px rgba(31,111,235,.08)}
+.sb-step.err{background:#fdecec;color:#c0392b;border-color:#f5c6c2}
+.syncbar.err .sb-fill{background:#e05252}
+.syncbar .sb-fill{transition:width .4s ease}
+
 /* ★ 2026-11-26：后台有新数据时的提示条（用户要求「浏览的时候不要继续刷新」） */
 .newdata{position:fixed;left:50%;transform:translateX(-50%);
   bottom:calc(76px + env(safe-area-inset-bottom));

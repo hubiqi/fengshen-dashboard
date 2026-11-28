@@ -2764,6 +2764,50 @@ function renderSync(p) {
       { hour: '2-digit', minute: '2-digit' }) : '';
   }
   var stage = p.stage || (running ? '同步中…' : (p.error ? '同步失败' : '已完成'));
+  // ★ 2026-11-28（用户要求）：按环节显示，不再是一句笼统的 stage。
+  //   做表格导出时 step 才有值；运单增量通道没有 step，退回原逻辑。
+  var STEPS = [['req', '请求数据'], ['gen', '生成数据'], ['wait', '等待下载链接'],
+               ['dl', '下载文件'], ['parse', '解析入库'], ['done', '完成']];
+  if (p.step) {
+    var curIdx = 0;
+    for (var si = 0; si < STEPS.length; si++) {
+      if (STEPS[si][0] === p.step) { curIdx = si; break; }
+    }
+    // ★ 2026-11-28：current 里往往已经含环节名（"等待生成下载链接…"），
+    //   和 label（"等待下载链接"）高度重叠，直接拼会重复。按字符重合率判断：
+    //   重合度高就只显示 current（它更具体），否则「label · current」。
+    var lab = STEPS[curIdx][1];
+    var curTxt = String(p.current || '').trim();
+    if (p.error && !running) {
+      stage = '失败 · ' + (curTxt || lab);
+    } else if (!curTxt) {
+      stage = lab;
+    } else {
+      var same = 0;
+      for (var ci = 0; ci < lab.length; ci++) {
+        if (curTxt.indexOf(lab.charAt(ci)) >= 0) same++;
+      }
+      stage = (same / lab.length >= 0.6) ? curTxt : (lab + ' · ' + curTxt);
+    }
+  }
+  // 步骤条
+  var sbS = $('sbSteps');
+  if (sbS) {
+    if (!p.step) {
+      sbS.innerHTML = '';           // 运单增量通道不显示六步
+    } else {
+      var sh = '';
+      for (var sj = 0; sj < STEPS.length; sj++) {
+        var cls = 'sb-step';
+        if (p.error && !running && sj === curIdx) cls += ' err';
+        else if (sj < curIdx) cls += ' done';
+        else if (sj === curIdx) cls += (running ? ' cur' : (p.error ? '' : ' done'));
+        sh += '<span class="' + cls + '"><span class="n">' + (sj + 1) + '</span>' +
+              STEPS[sj][1] + '</span>';
+      }
+      sbS.innerHTML = sh;
+    }
+  }
   if (!running && !p.error && p.finished) {
     stage = '已是最新 · ' + new Date(p.finished * 1000).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
   }
